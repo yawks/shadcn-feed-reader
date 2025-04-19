@@ -102,7 +102,7 @@ export default class FeedBackend implements Backend {
         batchSize: NB_ITEMS_TO_LOAD,
         offset: offset,
         id: filter.folderId,
-        type: filter.type == FeedType.STARRED ? 2 : 3, //type == null && folderId != 0 ? 1 : type,
+        type: filter.type == FeedType.STARRED ? 2 : 3,
         getRead: filter.withUnreadItems,
       },
     }

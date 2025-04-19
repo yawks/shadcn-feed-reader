@@ -35,7 +35,8 @@ import { Route as AuthenticatedSettingsNotificationsImport } from './routes/_aut
 import { Route as AuthenticatedSettingsDisplayImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountImport } from './routes/_authenticated/settings/account'
-import { Route as AuthenticatedFeedsFeedsIdImport } from './routes/_authenticated/feeds/$feedsId'
+import { Route as AuthenticatedFolderFolderIdImport } from './routes/_authenticated/folder/$folderId'
+import { Route as AuthenticatedFeedFeedIdImport } from './routes/_authenticated/feed/$feedId'
 
 // Create/Update Routes
 
@@ -191,9 +192,16 @@ const AuthenticatedSettingsAccountRoute =
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 
-const AuthenticatedFeedsFeedsIdRoute = AuthenticatedFeedsFeedsIdImport.update({
-  id: '/feeds/$feedsId',
-  path: '/feeds/$feedsId',
+const AuthenticatedFolderFolderIdRoute =
+  AuthenticatedFolderFolderIdImport.update({
+    id: '/folder/$folderId',
+    path: '/folder/$folderId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedFeedFeedIdRoute = AuthenticatedFeedFeedIdImport.update({
+  id: '/feed/$feedId',
+  path: '/feed/$feedId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
@@ -299,11 +307,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexImport
       parentRoute: typeof AuthenticatedRouteImport
     }
-    '/_authenticated/feeds/$feedsId': {
-      id: '/_authenticated/feeds/$feedsId'
-      path: '/feeds/$feedsId'
-      fullPath: '/feeds/$feedsId'
-      preLoaderRoute: typeof AuthenticatedFeedsFeedsIdImport
+    '/_authenticated/feed/$feedId': {
+      id: '/_authenticated/feed/$feedId'
+      path: '/feed/$feedId'
+      fullPath: '/feed/$feedId'
+      preLoaderRoute: typeof AuthenticatedFeedFeedIdImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/folder/$folderId': {
+      id: '/_authenticated/folder/$folderId'
+      path: '/folder/$folderId'
+      fullPath: '/folder/$folderId'
+      preLoaderRoute: typeof AuthenticatedFolderFolderIdImport
       parentRoute: typeof AuthenticatedRouteImport
     }
     '/_authenticated/settings/account': {
@@ -408,7 +423,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedFeedsFilterRoute: typeof AuthenticatedFeedsFilterRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedFeedsFeedsIdRoute: typeof AuthenticatedFeedsFeedsIdRoute
+  AuthenticatedFeedFeedIdRoute: typeof AuthenticatedFeedFeedIdRoute
+  AuthenticatedFolderFolderIdRoute: typeof AuthenticatedFolderFolderIdRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
@@ -420,7 +436,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedFeedsFilterRoute: AuthenticatedFeedsFilterRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedFeedsFeedsIdRoute: AuthenticatedFeedsFeedsIdRoute,
+  AuthenticatedFeedFeedIdRoute: AuthenticatedFeedFeedIdRoute,
+  AuthenticatedFolderFolderIdRoute: AuthenticatedFolderFolderIdRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
@@ -446,7 +463,8 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
-  '/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
+  '/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
+  '/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -472,7 +490,8 @@ export interface FileRoutesByTo {
   '/503': typeof errors503Route
   '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
-  '/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
+  '/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
+  '/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -501,7 +520,8 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
-  '/_authenticated/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
+  '/_authenticated/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
+  '/_authenticated/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -531,7 +551,8 @@ export interface FileRouteTypes {
     | '/503'
     | '/$feedsFilter'
     | '/'
-    | '/feeds/$feedsId'
+    | '/feed/$feedId'
+    | '/folder/$folderId'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -556,7 +577,8 @@ export interface FileRouteTypes {
     | '/503'
     | '/$feedsFilter'
     | '/'
-    | '/feeds/$feedsId'
+    | '/feed/$feedId'
+    | '/folder/$folderId'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -583,7 +605,8 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/$feedsFilter'
     | '/_authenticated/'
-    | '/_authenticated/feeds/$feedsId'
+    | '/_authenticated/feed/$feedId'
+    | '/_authenticated/folder/$folderId'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
@@ -654,7 +677,8 @@ export const routeTree = rootRoute
         "/_authenticated/settings",
         "/_authenticated/$feedsFilter",
         "/_authenticated/",
-        "/_authenticated/feeds/$feedsId",
+        "/_authenticated/feed/$feedId",
+        "/_authenticated/folder/$folderId",
         "/_authenticated/apps/",
         "/_authenticated/chats/",
         "/_authenticated/help-center/",
@@ -711,8 +735,12 @@ export const routeTree = rootRoute
       "filePath": "_authenticated/index.tsx",
       "parent": "/_authenticated"
     },
-    "/_authenticated/feeds/$feedsId": {
-      "filePath": "_authenticated/feeds/$feedsId.tsx",
+    "/_authenticated/feed/$feedId": {
+      "filePath": "_authenticated/feed/$feedId.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/folder/$folderId": {
+      "filePath": "_authenticated/folder/$folderId.tsx",
       "parent": "/_authenticated"
     },
     "/_authenticated/settings/account": {

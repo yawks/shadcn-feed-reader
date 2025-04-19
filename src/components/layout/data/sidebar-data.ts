@@ -26,7 +26,7 @@ const FOLDER_ITEMS: NavItem[] = []
 
 export const sidebarData: SidebarData = {
   setFeedFilter: (filter: string) => {
-   //TODO
+   //TODO handle filters
   },
   user: {
     name: 'satnaing',
@@ -204,7 +204,9 @@ export const sidebarData: SidebarData = {
 }
 
 new FeedBackend(
-  
+  'https://nextcloud.yawks.net',
+  'mat',
+  'MZM6d-ZqeZa-xkQ6Y-cQRzd-KWcok'
 )
   .getFolders()
   .then((folders : FeedFolder[]) => {
