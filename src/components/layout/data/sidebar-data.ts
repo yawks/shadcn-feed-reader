@@ -2,27 +2,30 @@ import {
   IconBarrierBlock,
   IconBrowserCheck,
   IconBug,
-  IconChecklist,
   IconError404,
   IconHelp,
-  IconLayoutDashboard,
   IconLock,
   IconLockAccess,
-  IconMessages,
   IconNotification,
-  IconPackages,
   IconPalette,
   IconServerOff,
   IconSettings,
   IconTool,
   IconUserCog,
   IconUserOff,
-  IconUsers,
+  IconNews,
+  IconListDetails,
 } from '@tabler/icons-react'
 import { AudioWaveform, Command, GalleryVerticalEnd } from 'lucide-react'
-import { type SidebarData } from '../types'
+import FeedBackend from '../../../backends/nextcloud'
+import { type SidebarData, type NavItem } from '../types'
+
+const FOLDER_ITEMS: NavItem[] = []
 
 export const sidebarData: SidebarData = {
+  setFeedFilter: (filter: string) => {
+   //TODO
+  },
   user: {
     name: 'satnaing',
     email: 'satnaingdev@gmail.com',
@@ -50,6 +53,17 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
+          title: 'All items',
+          url: '/all',
+          icon: IconNews,
+        },
+        {
+          title: 'Unread items',
+          url: '/unread',
+          icon: IconListDetails,
+        },
+        /*
+        {
           title: 'Dashboard',
           url: '/',
           icon: IconLayoutDashboard,
@@ -74,8 +88,12 @@ export const sidebarData: SidebarData = {
           title: 'Users',
           url: '/users',
           icon: IconUsers,
-        },
+        },*/
       ],
+    },
+    {
+      title: 'Folders',
+      items: FOLDER_ITEMS,
     },
     {
       title: 'Pages',
@@ -182,3 +200,13 @@ export const sidebarData: SidebarData = {
     },
   ],
 }
+
+new FeedBackend(
+  
+)
+  .getFolders()
+  .then((folders) => {
+    Object.keys(folders).forEach((folderId) => {
+      FOLDER_ITEMS.push(folders[folderId])
+    })
+  })

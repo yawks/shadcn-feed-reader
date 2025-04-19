@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -7,16 +6,19 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { TopNav } from '@/components/layout/top-nav'
+import { Overview } from './components/overview'
 import { ProfileDropdown } from '@/components/profile-dropdown'
+import { RecentSales } from './components/recent-sales'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Overview } from './components/overview'
-import { RecentSales } from './components/recent-sales'
+import { TopNav } from '@/components/layout/top-nav'
 
 export default function Dashboard() {
+
   return (
     <>
       {/* ===== Top Heading ===== */}

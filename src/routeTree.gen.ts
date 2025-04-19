@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedFeedsFilterImport } from './routes/_authenticated/$feedsFilter'
 import { Route as errors503Import } from './routes/(errors)/503'
 import { Route as errors500Import } from './routes/(errors)/500'
 import { Route as errors404Import } from './routes/(errors)/404'
@@ -34,6 +35,7 @@ import { Route as AuthenticatedSettingsNotificationsImport } from './routes/_aut
 import { Route as AuthenticatedSettingsDisplayImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountImport } from './routes/_authenticated/settings/account'
+import { Route as AuthenticatedFeedsFeedsIdImport } from './routes/_authenticated/feeds/$feedsId'
 
 // Create/Update Routes
 
@@ -45,6 +47,12 @@ const AuthenticatedRouteRoute = AuthenticatedRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
+const AuthenticatedFeedsFilterRoute = AuthenticatedFeedsFilterImport.update({
+  id: '/$feedsFilter',
+  path: '/$feedsFilter',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
@@ -183,6 +191,12 @@ const AuthenticatedSettingsAccountRoute =
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 
+const AuthenticatedFeedsFeedsIdRoute = AuthenticatedFeedsFeedsIdImport.update({
+  id: '/feeds/$feedsId',
+  path: '/feeds/$feedsId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -271,11 +285,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof errors503Import
       parentRoute: typeof rootRoute
     }
+    '/_authenticated/$feedsFilter': {
+      id: '/_authenticated/$feedsFilter'
+      path: '/$feedsFilter'
+      fullPath: '/$feedsFilter'
+      preLoaderRoute: typeof AuthenticatedFeedsFilterImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
     '/_authenticated/': {
       id: '/_authenticated/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/feeds/$feedsId': {
+      id: '/_authenticated/feeds/$feedsId'
+      path: '/feeds/$feedsId'
+      fullPath: '/feeds/$feedsId'
+      preLoaderRoute: typeof AuthenticatedFeedsFeedsIdImport
       parentRoute: typeof AuthenticatedRouteImport
     }
     '/_authenticated/settings/account': {
@@ -378,7 +406,9 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedFeedsFilterRoute: typeof AuthenticatedFeedsFilterRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedFeedsFeedsIdRoute: typeof AuthenticatedFeedsFeedsIdRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
@@ -388,7 +418,9 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedFeedsFilterRoute: AuthenticatedFeedsFilterRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedFeedsFeedsIdRoute: AuthenticatedFeedsFeedsIdRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
@@ -412,7 +444,9 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
+  '/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -436,7 +470,9 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
+  '/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -463,7 +499,9 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/feeds/$feedsId': typeof AuthenticatedFeedsFeedsIdRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -491,7 +529,9 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/$feedsFilter'
     | '/'
+    | '/feeds/$feedsId'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -514,7 +554,9 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/$feedsFilter'
     | '/'
+    | '/feeds/$feedsId'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -539,7 +581,9 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/$feedsFilter'
     | '/_authenticated/'
+    | '/_authenticated/feeds/$feedsId'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
@@ -608,7 +652,9 @@ export const routeTree = rootRoute
       "filePath": "_authenticated/route.tsx",
       "children": [
         "/_authenticated/settings",
+        "/_authenticated/$feedsFilter",
         "/_authenticated/",
+        "/_authenticated/feeds/$feedsId",
         "/_authenticated/apps/",
         "/_authenticated/chats/",
         "/_authenticated/help-center/",
@@ -657,8 +703,16 @@ export const routeTree = rootRoute
     "/(errors)/503": {
       "filePath": "(errors)/503.tsx"
     },
+    "/_authenticated/$feedsFilter": {
+      "filePath": "_authenticated/$feedsFilter.tsx",
+      "parent": "/_authenticated"
+    },
     "/_authenticated/": {
       "filePath": "_authenticated/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/feeds/$feedsId": {
+      "filePath": "_authenticated/feeds/$feedsId.tsx",
       "parent": "/_authenticated"
     },
     "/_authenticated/settings/account": {

@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { NavCollapsible, NavItem, NavLink, type NavGroup } from './types'
+import { IconNews, IconSettings } from '@tabler/icons-react'
 
 export function NavGroup({ title, items }: NavGroup) {
   const { state } = useSidebar()
@@ -67,8 +68,12 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
         tooltip={item.title}
       >
         <Link to={item.url} onClick={() => setOpenMobile(false)}>
-          {item.icon && <item.icon />}
-          <span>{item.title}</span>
+          {item.icon && typeof item.icon === "string" ? (
+            <img src={item.icon} className="w-4 h-4" />
+          ) : (
+            item.icon && <item.icon />
+          )}
+          <span className='text-xs'>{item.title}</span>
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
         </Link>
       </SidebarMenuButton>
@@ -93,9 +98,13 @@ const SidebarMenuCollapsible = ({
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={item.title}>
-            {item.icon && <item.icon />}
-            <span>{item.title}</span>
-            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            <Link to={item.url} onClick={() => setOpenMobile(false)} className="items-center flex">
+              {item.icon && typeof (item.icon) == 'string' ? <img src={item.icon} className="w-4 h-4"></img> : (
+                item.icon && <item.icon />
+              )}
+              <span className="text-xs flex-auto px-2">{item.title}</span>
+              {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            </Link>
             <ChevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
           </SidebarMenuButton>
         </CollapsibleTrigger>
@@ -107,9 +116,9 @@ const SidebarMenuCollapsible = ({
                   asChild
                   isActive={checkIsActive(href, subItem)}
                 >
-                  <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
-                    {subItem.icon && <subItem.icon />}
-                    <span>{subItem.title}</span>
+                  <Link to={subItem.url} onClick={() => setOpenMobile(false)} className="w-full flex">
+                    {subItem.icon && typeof (subItem.icon) == "string" ? <><img src={subItem.icon} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'block'; }} className='w-4 h-4'></img><IconNews className="hidden" /></> : <subItem.icon />}
+                    <span className="flex-auto truncate text-xs">{subItem.title}</span>
                     {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
                   </Link>
                 </SidebarMenuSubButton>
@@ -137,8 +146,10 @@ const SidebarMenuCollapsedDropdown = ({
             tooltip={item.title}
             isActive={checkIsActive(href, item)}
           >
-            {item.icon && <item.icon />}
-            <span>{item.title}</span>
+            {item.icon && typeof (item.icon) == "string" ? <img src={item.icon} className='w-4 h-4'></img> : (
+              item.icon && <item.icon />
+            )}
+            <span className='text-xs'>{item.title}</span>
             {item.badge && <NavBadge>{item.badge}</NavBadge>}
             <ChevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
           </SidebarMenuButton>
@@ -154,8 +165,10 @@ const SidebarMenuCollapsedDropdown = ({
                 to={sub.url}
                 className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
               >
-                {sub.icon && <sub.icon />}
-                <span className='max-w-52 text-wrap'>{sub.title}</span>
+                {item.icon && typeof (item.icon) == "string" ? <><img src={item.icon} className='w-4 h-4'></img><IconNews className="hidden" /></> : (
+                  item.icon && <item.icon />
+                )}
+                <span className='max-w-52 text-wra text-xs'>{sub.title}</span>
                 {sub.badge && (
                   <span className='ml-auto text-xs'>{sub.badge}</span>
                 )}

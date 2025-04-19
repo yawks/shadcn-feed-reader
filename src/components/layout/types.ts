@@ -19,7 +19,7 @@ interface BaseNavItem {
 }
 
 type NavLink = BaseNavItem & {
-  url: LinkProps['to']
+  url: LinkProps['to'] | string
   items?: never
 }
 
@@ -39,6 +39,7 @@ interface SidebarData {
   user: User
   teams: Team[]
   navGroups: NavGroup[]
+  setFeedFilter: (filter: string) => void
 }
 
 export type { SidebarData, NavGroup, NavItem, NavCollapsible, NavLink }
