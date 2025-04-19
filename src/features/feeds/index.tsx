@@ -25,8 +25,6 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { type ChatUser, type Convo } from './data/chat-types'
-// Fake Data
-import { conversations } from '../chats/data/convo.json'
 
 export default function Feeds() {
   const [search, setSearch] = useState('')

@@ -1,11 +1,3 @@
-import { HTMLAttributes, useState } from 'react'
-import { z } from 'zod'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from '@tanstack/react-router'
-import { IconBrandFacebook, IconBrandGithub } from '@tabler/icons-react'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -14,8 +6,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { HTMLAttributes, useState } from 'react'
+import { IconBrandFacebook, IconBrandGithub } from '@tabler/icons-react'
+
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Link } from '@tanstack/react-router'
 import { PasswordInput } from '@/components/password-input'
+import { cn } from '@/lib/utils'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 
 type UserAuthFormProps = HTMLAttributes<HTMLFormElement>
 
@@ -47,6 +48,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
 
   function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
+    localStorage.setItem('isAuthenticated', 'true');
     // eslint-disable-next-line no-console
     console.log(data)
 

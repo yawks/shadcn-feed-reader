@@ -3,14 +3,14 @@ export interface Backend {
   getFeedItems(filter: FeedFilter, offset: number): Promise<FeedItem[]>
 }
 
-export interface FeedFolder {
+export type FeedFolder = {
   id: string
   name: string
   unreadCount: number
   feeds: Feed[]
 }
 
-export interface Feed {
+export type Feed = {
   id: string
   title: string
   unreadCount: number
@@ -18,7 +18,7 @@ export interface Feed {
   folderId: string
 }
 
-export interface FeedItem {
+export type FeedItem = {
   id: string
   feedId: string
   folderId: string
@@ -36,7 +36,7 @@ export enum FeedType {
   STARRED = 'starred',
 }
 
-export interface FeedFilter {
+export type FeedFilter = {
   folderId: string
   type: FeedType
   withUnreadItems: boolean

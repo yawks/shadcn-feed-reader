@@ -1,4 +1,4 @@
-export interface NNFeed {
+export type NNFeed = {
   id: number
   url: string
   title: string
@@ -15,14 +15,14 @@ export interface NNFeed {
   nextUpdateTime: number
 }
 
-export interface NNFolder {
+export type NNFolder = {
   id: number
   name: string
   opened: boolean
   feeds: Array<NNFeed>
 }
 
-export interface NNItem {
+export type NNItem = {
   id: number
   guid: string
   guidHash: string
