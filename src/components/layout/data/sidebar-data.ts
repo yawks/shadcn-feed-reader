@@ -15,10 +15,12 @@ import {
   IconUserOff,
   IconNews,
   IconListDetails,
+  IconFolder,
 } from '@tabler/icons-react'
 import { AudioWaveform, Command, GalleryVerticalEnd } from 'lucide-react'
-import FeedBackend from '../../../backends/nextcloud'
+import FeedBackend from '../../../backends/nextcloud-news/nextcloud-news'
 import { type SidebarData, type NavItem } from '../types'
+import { FeedFolder } from '@/backends/types'
 
 const FOLDER_ITEMS: NavItem[] = []
 
@@ -205,8 +207,24 @@ new FeedBackend(
   
 )
   .getFolders()
-  .then((folders) => {
-    Object.keys(folders).forEach((folderId) => {
-      FOLDER_ITEMS.push(folders[folderId])
+  .then((folders : FeedFolder[]) => {
+    folders.forEach((folder) => {
+      //FOLDER_ITEMS.push(folders[folderId])
+      const items: NavItem[] = [];
+      folder.feeds.forEach((feed) => {
+        items.push({
+          title: feed.title,
+          url: '/feed/' + feed.id,
+          icon: feed.faviconUrl,
+          badge: feed.unreadCount > 0 ? String(feed.unreadCount) : undefined,
+        })
+      })
+      FOLDER_ITEMS.push({
+        title: folder.name,
+        url: '/folder/' + folder.id,
+        icon: IconFolder,
+        items: items,
+        badge: folder.unreadCount > 0 ? String(folder.unreadCount) : undefined,
+      })
     })
   })

@@ -15,7 +15,7 @@ interface Team {
 interface BaseNavItem {
   title: string
   badge?: string
-  icon?: React.ElementType
+  icon?: React.ElementType | string
 }
 
 type NavLink = BaseNavItem & {

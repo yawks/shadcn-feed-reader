@@ -62,7 +62,7 @@
     "@faker-js/faker": "^9.7.0",
     "@tanstack/eslint-plugin-query": "^5.73.3",
     "@tanstack/react-query-devtools": "^5.74.3",
-    "@tanstack/router-devtools": "^1.116.0",
+    "@tanstack/react-router-devtools": "^1.1.10",
     "@tanstack/router-plugin": "^1.116.1",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/js-cookie": "^3.0.6",
