@@ -21,8 +21,8 @@ export default class FeedBackend { //} implements Backend {
     let feedFolders: FeedFolder[] = [];
     try {
       const foldersById: { [id: string]: FeedFolder } = {};
-      //c onst foldersQuery = await api.get<NNFolders>(this.url + '/index.php/apps/news/api/v1-2/folders', this._getOptions());
-      const foldersQuery = await api.get<NNFolders>('https://yawks.net/html/test.php');
+      const foldersQuery = await api.get<NNFolders>(this.url + '/index.php/apps/news/api/v1-2/folders', this._getOptions());
+      //const foldersQuery = await api.get<NNFolders>('https://yawks.net/html/test.php');
       foldersQuery.folders.forEach((folder: NNFolder) => {
         foldersById[folder['id']] = {
           id: String(folder.id),

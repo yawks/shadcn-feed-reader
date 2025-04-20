@@ -36,8 +36,13 @@ export function NavGroup({ title, items }: NavGroup) {
     <SidebarGroup>
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => {
-          const key = `${item.title}-${item.url}`
+        {items.map((item, index) => {
+          let key;
+          if (item.title) {
+            key = `${item.title}-${item.url}`
+          } else {
+            key = index
+          }
 
           if (!item.items)
             return <SidebarMenuLink key={key} item={item} href={href} />
@@ -96,9 +101,8 @@ const SidebarMenuCollapsible = ({
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={item.title}>
             <Link to={item.url} onClick={() => setOpenMobile(false)} className="items-center flex">
-              {item.icon && typeof (item.icon) == 'string' ? <img src={item.icon} className="w-4 h-4"></img> : (
-                item.icon && <item.icon />
-              )}
+              {item.icon ? item.icon && <item.icon /> : null}
+              {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
               <span className={`text-xs  flex-auto px-2 ${item.classes ?? ''}`}>{item.title}</span>
               {item.badge && <NavBadge>{item.badge}</NavBadge>}
             </Link>
@@ -114,7 +118,10 @@ const SidebarMenuCollapsible = ({
                   isActive={checkIsActive(href, subItem)}
                 >
                   <Link to={subItem.url} onClick={() => setOpenMobile(false)} className="w-full flex">
-                    {subItem.icon && typeof (subItem.icon) == "string" ? <><img src={subItem.icon} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'block'; }} className='w-4 h-4'></img><IconNews className="hidden" /></> : <subItem.icon />}
+                    {subItem.icon ? <subItem.icon /> : null}
+                    {subItem.iconUrl ? <><img src={subItem.iconUrl} alt={subItem.title} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.style.display = 'block'; }} className='w-4 h-4'></img><IconNews className="hidden" /></> : null}
+                    {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
+
                     <span className="flex-auto truncate text-xs">{subItem.title}</span>
                     {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
                   </Link>
