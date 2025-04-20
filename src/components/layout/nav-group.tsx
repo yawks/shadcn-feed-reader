@@ -68,11 +68,8 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
         tooltip={item.title}
       >
         <Link to={item.url} onClick={() => setOpenMobile(false)}>
-          {item.icon && typeof item.icon === "string" ? (
-            <img src={item.icon} className="w-4 h-4" />
-          ) : (
-            item.icon && <item.icon />
-          )}
+          {item.icon ? item.icon && <item.icon /> : null}
+          {item.iconUrl ? <img alt={item.title} src={item.iconUrl} className="w-4 h-4" /> : null}
           <span className='text-xs'>{item.title}</span>
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
         </Link>
@@ -102,7 +99,7 @@ const SidebarMenuCollapsible = ({
               {item.icon && typeof (item.icon) == 'string' ? <img src={item.icon} className="w-4 h-4"></img> : (
                 item.icon && <item.icon />
               )}
-              <span className="text-xs flex-auto px-2">{item.title}</span>
+              <span className={`text-xs  flex-auto px-2 ${item.classes ?? ''}`}>{item.title}</span>
               {item.badge && <NavBadge>{item.badge}</NavBadge>}
             </Link>
             <ChevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />

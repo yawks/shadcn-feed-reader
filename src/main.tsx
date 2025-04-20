@@ -88,11 +88,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-function App() {
-  const authentication = useAuth();
-  return <RouterProvider router={router} context={{ authentication, queryClient }} />
-}
-
 // Render the app
 const rootElement = document.getElementById('root')!
 if (!rootElement.innerHTML) {
@@ -102,7 +97,10 @@ if (!rootElement.innerHTML) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
           <FontProvider>
-            <App />
+            {(() => {
+              const authentication = useAuth();
+              return <RouterProvider router={router} context={{ authentication }} />;
+            })()}
           </FontProvider>
         </ThemeProvider>
       </QueryClientProvider>

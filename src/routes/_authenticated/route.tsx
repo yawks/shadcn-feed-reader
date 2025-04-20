@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ context }) => {
     const { isLogged } = context.authentication
-    console.log('isLogged', isLogged())
     if (!isLogged()) {
       throw redirect({ to: '/sign-in' })
     }

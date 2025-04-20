@@ -11,7 +11,7 @@ export type NNFeed = {
   pinned: boolean
   updateErrorCount: number
   lastUpdateError: number
-  items: Array<NNItem>
+  items: NNItem[]
   nextUpdateTime: number
 }
 
@@ -19,7 +19,7 @@ export type NNFolder = {
   id: number
   name: string
   opened: boolean
-  feeds: Array<NNFeed>
+  feeds: NNFeed[]
 }
 
 export type NNItem = {
@@ -43,4 +43,12 @@ export type NNItem = {
   rtl: boolean
   fingerprint: string
   contentHash: string
+}
+
+export type NNFolders = {
+  folders : NNFolder[]
+}
+
+export type NNFeeds = {
+  feeds : NNFeed[]
 }

@@ -34,7 +34,7 @@ export default function Feeds() {
   )
   const [createConversationDialogOpened, setCreateConversationDialog] =
     useState(false)
-
+  const conversations = []
   // Filtered data based on the search query
   const filteredChatList = conversations.filter(({ fullName }) =>
     fullName.toLowerCase().includes(search.trim().toLowerCase())
