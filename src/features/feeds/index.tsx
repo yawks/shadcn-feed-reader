@@ -44,7 +44,7 @@ export default function Feeds() {
     
     const backend = new FeedBackend();
     const filter: FeedFilter = {
-      id : String(params.feedId) || String(params.folderId),
+      id : String(params.feedId ?? params.folderId),
       type: params.feedId ? FeedType.FEED : FeedType.FOLDER,
       withUnreadItems: true,
     }
@@ -54,7 +54,7 @@ export default function Feeds() {
 
   const FilterItemList = () => {
     const { data } = useSuspenseQuery({
-      queryKey: ['feeds'],
+      queryKey: ['feeds', params.feedId ? 'feed' : 'folder', params.feedId ?? params.folderId],
       queryFn: getFeedItems,
     });
 
@@ -93,6 +93,7 @@ export default function Feeds() {
 
       <Main fixed>
         <section className='flex h-full gap-6'>
+          <h1 className='sr-only'>Feeds</h1>
           {/* Left Side */}
           <Suspense fallback={<ItemsListLoader />}>
             <FilterItemList />

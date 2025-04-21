@@ -28,27 +28,31 @@ export type NNItem = {
   guidHash: string
   url: string
   title: string
-  author: string
+  author: string | null
   pubDate: number
-  updatedDate: number
-  body: string
-  enclosureMime: string
-  enclosureLink: string
-  mediaThumbnail: string
-  mediaDescription: string
+  updatedDate: number | null
+  body: string | null
+  enclosureMime: string | null
+  enclosureLink: string | null
+  mediaThumbnail: string | null
+  mediaDescription: string | null
   feedId: number
   unread: boolean
   starred: boolean
-  lastModified: number
+  lastModified: number | null
   rtl: boolean
   fingerprint: string
   contentHash: string
 }
 
 export type NNFolders = {
-  folders : NNFolder[]
+  folders: NNFolder[]
 }
 
 export type NNFeeds = {
-  feeds : NNFeed[]
+  feeds: NNFeed[]
+}
+
+export type NNItems = {
+  items: NNItem[]
 }

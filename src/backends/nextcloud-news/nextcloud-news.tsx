@@ -1,5 +1,5 @@
 import { Backend, Feed, FeedFilter, FeedFolder, FeedItem, FeedType } from '../types';
-import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem } from './nextcloud-news-types';
+import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems } from './nextcloud-news-types';
 
 import { api } from '@/utils/request';
 
@@ -60,7 +60,7 @@ export default class FeedBackend implements Backend {
       feedsQuery.feeds.forEach((feed: NNFeed) => {
         if (!(feed.folderId in feedsInFolders)) {
           feedsInFolders[feed.folderId] = {
-            id: String(feed.id),
+            id: String(feed.folderId),
             name: foldersById[feed.folderId].name,
             unreadCount: 0,
             feeds: [],
@@ -85,49 +85,62 @@ export default class FeedBackend implements Backend {
 
   }
 
-  getFeedItems(filter: FeedFilter, offset: number = 0): Promise<FeedItem[]> {
-    const headers = new Headers()
-    headers.append(
-      'Authorization',
-      'Basic ' + btoa(this.login + ':' + this.password)
-    )
+  async getFeedItems(filter: FeedFilter, offset: number = 0): Promise<FeedItem[]> {
+    let items: FeedItem[] = [];
 
-    const requestOptions = {
-      method: 'GET',
-      headers: headers,
-      data: {
-        batchSize: NB_ITEMS_TO_LOAD,
-        offset: offset,
-        id: filter.folderId,
-        type: filter.type == FeedType.STARRED ? 2 : 3,
-        getRead: filter.withUnreadItems,
-      },
+    try {
+      const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-2/items?' + new URLSearchParams({
+        batchSize: String(NB_ITEMS_TO_LOAD),
+        offset: String(offset),
+        id: filter.id,
+        type: getFeedType(filter.type),
+        getRead: String(filter.withUnreadItems)
+      }).toString(), this._getOptions());
+      items = itemsQuery.items.map((item: NNItem) => {
+        return {
+          id: String(item.id),
+          feed: null, //String(item.feedId), TODO get the feed object
+          title: item.title,
+          url: item.url,
+          pubDate: new Date(item.pubDate * 1000),
+          read: !item.unread,
+          starred: item.starred,
+          body: item.body,
+          thumbnailUrl: getItemImageURL(item),
+        } as FeedItem
+      });
+    } catch (error) {
+      throw new Error('Network response was not ok' + error)
     }
-    return new Promise((resolve) => {
-      fetch(this.url + '/index.php/apps/news/api/v1-2/items', requestOptions)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok')
-          }
-          return response.json()
-        })
-        .then((data) => {
-          resolve(data['items'].map((item: NNItem) => {
-            return {
-              id: String(item.id),
-              feedId: String(item.feedId),
-              folderId: filter.folderId,
-              title: item.title,
-              url: item.url,
-              pubDate: new Date(item.pubDate),
-              read: !item.unread,
-              starred: item.starred,
-              body: item.body,
-              thumbnailUrl: item.enclosureLink,
-            } as FeedItem
-          }
-          ))
-        })
-    })
+
+    return items;
+  }
+
+}
+
+function getItemImageURL(item: NNItem): string {
+  const REX = /<img[^>]+src="([^">]+)"/g;
+  let image = item.enclosureLink ?? "";
+  if (image == "" || image == null) {
+    image = item.mediaThumbnail ?? "";
+    if ((image == "" || image == null) && item.body != null) {
+      const m = REX.exec(item.body);
+      if (m) {
+        image = m[1];
+      }
+    }
+  }
+
+  return image;
+}
+
+function getFeedType(type: FeedType): string {
+  switch (type) {
+    case FeedType.STARRED:
+      return '2';
+    case FeedType.FOLDER:
+      return '1';
+    default:
+      return '0';
   }
 }
