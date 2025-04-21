@@ -20,11 +20,11 @@ export type Feed = {
 
 export type FeedItem = {
   id: string
-  feedId: string
-  folderId: string
+  feed: Feed | null
+  folder: FeedFolder | null
   title: string
   url: string
-  pubDate: Date
+  pubDate: Date | null
   read: boolean
   starred: boolean
   body: string
@@ -34,10 +34,12 @@ export type FeedItem = {
 export enum FeedType {
   ALL = 'all',
   STARRED = 'starred',
+  FOLDER = 'folder',
+  FEED = 'feed'
 }
 
 export type FeedFilter = {
-  folderId: string
+  id: string
   type: FeedType
   withUnreadItems: boolean
 }

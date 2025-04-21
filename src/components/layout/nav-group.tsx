@@ -27,9 +27,9 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { NavCollapsible, NavItem, NavLink, type NavGroup } from './types'
-import { IconNews, IconSettings } from '@tabler/icons-react'
+import { IconNews } from '@tabler/icons-react'
 
-export function NavGroup({ title, items }: NavGroup) {
+export function NavGroup({ title, items }: Readonly<NavGroup>) {
   const { state } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
   return (
@@ -100,7 +100,7 @@ const SidebarMenuCollapsible = ({
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={item.title}>
-            <Link to={item.url} onClick={() => setOpenMobile(false)} className="items-center flex">
+            <Link to={item.url ?? "."} onClick={() => setOpenMobile(false)} className="items-center flex">
               {item.icon ? item.icon && <item.icon /> : null}
               {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
               <span className={`text-xs  flex-auto px-2 ${item.classes ?? ''}`}>{item.title}</span>

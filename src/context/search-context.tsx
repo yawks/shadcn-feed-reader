@@ -1,5 +1,5 @@
-import React from 'react'
 import { CommandMenu } from '@/components/command-menu'
+import React from 'react'
 
 interface SearchContextType {
   open: boolean
@@ -29,7 +29,7 @@ export function SearchProvider({ children }: Props) {
   return (
     <SearchContext.Provider value={{ open, setOpen }}>
       {children}
-      <CommandMenu />
+      
     </SearchContext.Provider>
   )
 }

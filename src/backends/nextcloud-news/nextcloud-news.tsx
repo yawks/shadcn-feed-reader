@@ -1,4 +1,4 @@
-import { Feed, FeedFilter, FeedFolder, FeedItem, FeedType } from '../types';
+import { Backend, Feed, FeedFilter, FeedFolder, FeedItem, FeedType } from '../types';
 import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem } from './nextcloud-news-types';
 
 import { api } from '@/utils/request';
@@ -6,15 +6,15 @@ import { api } from '@/utils/request';
 const NB_ITEMS_TO_LOAD = 20;
 
 
-export default class FeedBackend { //} implements Backend {
+export default class FeedBackend implements Backend {
   url: string
   login: string
   password: string
 
-  constructor(url: string, login: string, password: string) {
-    this.url = url
-    this.login = login
-    this.password = password
+  constructor() {
+    this.url = localStorage.getItem('backend-url') ?? '';
+    this.login = localStorage.getItem('backend-login') ?? '';
+    this.password = localStorage.getItem('backend-password') ?? '';
   }
 
   async getFolders(): Promise<FeedFolder[]> {
@@ -22,7 +22,6 @@ export default class FeedBackend { //} implements Backend {
     try {
       const foldersById: { [id: string]: FeedFolder } = {};
       const foldersQuery = await api.get<NNFolders>(this.url + '/index.php/apps/news/api/v1-2/folders', this._getOptions());
-      //const foldersQuery = await api.get<NNFolders>('https://yawks.net/html/test.php');
       foldersQuery.folders.forEach((folder: NNFolder) => {
         foldersById[folder['id']] = {
           id: String(folder.id),

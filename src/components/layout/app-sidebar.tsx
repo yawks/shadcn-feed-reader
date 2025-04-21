@@ -34,9 +34,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }];
 
   const getFolders = async () => {
-    const backend = new FeedBackend('https://nextcloud.yawks.net',
-      'mat',
-      'MZM6d-ZqeZa-xkQ6Y-cQRzd-KWcok');
+    const backend = new FeedBackend();
     const folders: FeedFolder[] = await backend.getFolders();
     const navItems: NavItem[] = folders.map((folder) => {
       return {
