@@ -85,7 +85,7 @@ export default function Chats() {
                 </div>
 
                 <Button
-                  size='icon'
+                  size='default'
                   variant='ghost'
                   onClick={() => setCreateConversationDialog(true)}
                   className='rounded-lg'

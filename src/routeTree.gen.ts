@@ -13,7 +13,6 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedFeedsFilterImport } from './routes/_authenticated/$feedsFilter'
 import { Route as errors503Import } from './routes/(errors)/503'
 import { Route as errors500Import } from './routes/(errors)/500'
 import { Route as errors404Import } from './routes/(errors)/404'
@@ -30,12 +29,21 @@ import { Route as AuthenticatedTasksIndexImport } from './routes/_authenticated/
 import { Route as AuthenticatedSettingsIndexImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedHelpCenterIndexImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedChatsIndexImport } from './routes/_authenticated/chats/index'
+import { Route as AuthenticatedUrlUrlImport } from './routes/_authenticated/url/$url'
 import { Route as AuthenticatedSettingsNotificationsImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedSettingsDisplayImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedFolderFolderIdImport } from './routes/_authenticated/folder/$folderId'
 import { Route as AuthenticatedFeedFeedIdImport } from './routes/_authenticated/feed/$feedId'
+import { Route as AuthenticatedUnreadStarredIndexImport } from './routes/_authenticated/unread/starred/index'
+import { Route as AuthenticatedUnreadAllIndexImport } from './routes/_authenticated/unread/all/index'
+import { Route as AuthenticatedAllStarredIndexImport } from './routes/_authenticated/all/starred/index'
+import { Route as AuthenticatedAllAllIndexImport } from './routes/_authenticated/all/all/index'
+import { Route as AuthenticatedUnreadStarredFolderFolderIdImport } from './routes/_authenticated/unread/starred/folder/$folderId'
+import { Route as AuthenticatedUnreadAllFolderFolderIdImport } from './routes/_authenticated/unread/all/folder/$folderId'
+import { Route as AuthenticatedAllStarredFolderFolderIdImport } from './routes/_authenticated/all/starred/folder/$folderId'
+import { Route as AuthenticatedAllAllFolderFolderIdImport } from './routes/_authenticated/all/all/folder/$folderId'
 
 // Create/Update Routes
 
@@ -47,12 +55,6 @@ const AuthenticatedRouteRoute = AuthenticatedRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-
-const AuthenticatedFeedsFilterRoute = AuthenticatedFeedsFilterImport.update({
-  id: '/$feedsFilter',
-  path: '/$feedsFilter',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
@@ -157,6 +159,12 @@ const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexImport.update({
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
+const AuthenticatedUrlUrlRoute = AuthenticatedUrlUrlImport.update({
+  id: '/url/$url',
+  path: '/url/$url',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsImport.update({
     id: '/notifications',
@@ -197,6 +205,61 @@ const AuthenticatedFeedFeedIdRoute = AuthenticatedFeedFeedIdImport.update({
   path: '/feed/$feedId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+
+const AuthenticatedUnreadStarredIndexRoute =
+  AuthenticatedUnreadStarredIndexImport.update({
+    id: '/unread/starred/',
+    path: '/unread/starred/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedUnreadAllIndexRoute =
+  AuthenticatedUnreadAllIndexImport.update({
+    id: '/unread/all/',
+    path: '/unread/all/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedAllStarredIndexRoute =
+  AuthenticatedAllStarredIndexImport.update({
+    id: '/all/starred/',
+    path: '/all/starred/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedAllAllIndexRoute = AuthenticatedAllAllIndexImport.update({
+  id: '/all/all/',
+  path: '/all/all/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
+const AuthenticatedUnreadStarredFolderFolderIdRoute =
+  AuthenticatedUnreadStarredFolderFolderIdImport.update({
+    id: '/unread/starred/folder/$folderId',
+    path: '/unread/starred/folder/$folderId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedUnreadAllFolderFolderIdRoute =
+  AuthenticatedUnreadAllFolderFolderIdImport.update({
+    id: '/unread/all/folder/$folderId',
+    path: '/unread/all/folder/$folderId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedAllStarredFolderFolderIdRoute =
+  AuthenticatedAllStarredFolderFolderIdImport.update({
+    id: '/all/starred/folder/$folderId',
+    path: '/all/starred/folder/$folderId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+
+const AuthenticatedAllAllFolderFolderIdRoute =
+  AuthenticatedAllAllFolderFolderIdImport.update({
+    id: '/all/all/folder/$folderId',
+    path: '/all/all/folder/$folderId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 // Populate the FileRoutesByPath interface
 
@@ -286,13 +349,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof errors503Import
       parentRoute: typeof rootRoute
     }
-    '/_authenticated/$feedsFilter': {
-      id: '/_authenticated/$feedsFilter'
-      path: '/$feedsFilter'
-      fullPath: '/$feedsFilter'
-      preLoaderRoute: typeof AuthenticatedFeedsFilterImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
     '/_authenticated/': {
       id: '/_authenticated/'
       path: '/'
@@ -342,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsImport
       parentRoute: typeof AuthenticatedSettingsRouteImport
     }
+    '/_authenticated/url/$url': {
+      id: '/_authenticated/url/$url'
+      path: '/url/$url'
+      fullPath: '/url/$url'
+      preLoaderRoute: typeof AuthenticatedUrlUrlImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
     '/_authenticated/chats/': {
       id: '/_authenticated/chats/'
       path: '/chats'
@@ -377,6 +440,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsersIndexImport
       parentRoute: typeof AuthenticatedRouteImport
     }
+    '/_authenticated/all/all/': {
+      id: '/_authenticated/all/all/'
+      path: '/all/all'
+      fullPath: '/all/all'
+      preLoaderRoute: typeof AuthenticatedAllAllIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/all/starred/': {
+      id: '/_authenticated/all/starred/'
+      path: '/all/starred'
+      fullPath: '/all/starred'
+      preLoaderRoute: typeof AuthenticatedAllStarredIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/unread/all/': {
+      id: '/_authenticated/unread/all/'
+      path: '/unread/all'
+      fullPath: '/unread/all'
+      preLoaderRoute: typeof AuthenticatedUnreadAllIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/unread/starred/': {
+      id: '/_authenticated/unread/starred/'
+      path: '/unread/starred'
+      fullPath: '/unread/starred'
+      preLoaderRoute: typeof AuthenticatedUnreadStarredIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/all/all/folder/$folderId': {
+      id: '/_authenticated/all/all/folder/$folderId'
+      path: '/all/all/folder/$folderId'
+      fullPath: '/all/all/folder/$folderId'
+      preLoaderRoute: typeof AuthenticatedAllAllFolderFolderIdImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/all/starred/folder/$folderId': {
+      id: '/_authenticated/all/starred/folder/$folderId'
+      path: '/all/starred/folder/$folderId'
+      fullPath: '/all/starred/folder/$folderId'
+      preLoaderRoute: typeof AuthenticatedAllStarredFolderFolderIdImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/unread/all/folder/$folderId': {
+      id: '/_authenticated/unread/all/folder/$folderId'
+      path: '/unread/all/folder/$folderId'
+      fullPath: '/unread/all/folder/$folderId'
+      preLoaderRoute: typeof AuthenticatedUnreadAllFolderFolderIdImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
+    '/_authenticated/unread/starred/folder/$folderId': {
+      id: '/_authenticated/unread/starred/folder/$folderId'
+      path: '/unread/starred/folder/$folderId'
+      fullPath: '/unread/starred/folder/$folderId'
+      preLoaderRoute: typeof AuthenticatedUnreadStarredFolderFolderIdImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
   }
 }
 
@@ -407,26 +526,46 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
-  AuthenticatedFeedsFilterRoute: typeof AuthenticatedFeedsFilterRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedFeedFeedIdRoute: typeof AuthenticatedFeedFeedIdRoute
   AuthenticatedFolderFolderIdRoute: typeof AuthenticatedFolderFolderIdRoute
+  AuthenticatedUrlUrlRoute: typeof AuthenticatedUrlUrlRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedAllAllIndexRoute: typeof AuthenticatedAllAllIndexRoute
+  AuthenticatedAllStarredIndexRoute: typeof AuthenticatedAllStarredIndexRoute
+  AuthenticatedUnreadAllIndexRoute: typeof AuthenticatedUnreadAllIndexRoute
+  AuthenticatedUnreadStarredIndexRoute: typeof AuthenticatedUnreadStarredIndexRoute
+  AuthenticatedAllAllFolderFolderIdRoute: typeof AuthenticatedAllAllFolderFolderIdRoute
+  AuthenticatedAllStarredFolderFolderIdRoute: typeof AuthenticatedAllStarredFolderFolderIdRoute
+  AuthenticatedUnreadAllFolderFolderIdRoute: typeof AuthenticatedUnreadAllFolderFolderIdRoute
+  AuthenticatedUnreadStarredFolderFolderIdRoute: typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
-  AuthenticatedFeedsFilterRoute: AuthenticatedFeedsFilterRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedFeedFeedIdRoute: AuthenticatedFeedFeedIdRoute,
   AuthenticatedFolderFolderIdRoute: AuthenticatedFolderFolderIdRoute,
+  AuthenticatedUrlUrlRoute: AuthenticatedUrlUrlRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedAllAllIndexRoute: AuthenticatedAllAllIndexRoute,
+  AuthenticatedAllStarredIndexRoute: AuthenticatedAllStarredIndexRoute,
+  AuthenticatedUnreadAllIndexRoute: AuthenticatedUnreadAllIndexRoute,
+  AuthenticatedUnreadStarredIndexRoute: AuthenticatedUnreadStarredIndexRoute,
+  AuthenticatedAllAllFolderFolderIdRoute:
+    AuthenticatedAllAllFolderFolderIdRoute,
+  AuthenticatedAllStarredFolderFolderIdRoute:
+    AuthenticatedAllStarredFolderFolderIdRoute,
+  AuthenticatedUnreadAllFolderFolderIdRoute:
+    AuthenticatedUnreadAllFolderFolderIdRoute,
+  AuthenticatedUnreadStarredFolderFolderIdRoute:
+    AuthenticatedUnreadStarredFolderFolderIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -445,7 +584,6 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
-  '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
   '/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
   '/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
@@ -453,11 +591,20 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/url/$url': typeof AuthenticatedUrlUrlRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/all/all': typeof AuthenticatedAllAllIndexRoute
+  '/all/starred': typeof AuthenticatedAllStarredIndexRoute
+  '/unread/all': typeof AuthenticatedUnreadAllIndexRoute
+  '/unread/starred': typeof AuthenticatedUnreadStarredIndexRoute
+  '/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
+  '/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
+  '/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
+  '/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRoutesByTo {
@@ -471,7 +618,6 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
-  '/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/': typeof AuthenticatedIndexRoute
   '/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
   '/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
@@ -479,11 +625,20 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/url/$url': typeof AuthenticatedUrlUrlRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/all/all': typeof AuthenticatedAllAllIndexRoute
+  '/all/starred': typeof AuthenticatedAllStarredIndexRoute
+  '/unread/all': typeof AuthenticatedUnreadAllIndexRoute
+  '/unread/starred': typeof AuthenticatedUnreadStarredIndexRoute
+  '/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
+  '/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
+  '/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
+  '/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRoutesById {
@@ -500,7 +655,6 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
-  '/_authenticated/$feedsFilter': typeof AuthenticatedFeedsFilterRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/feed/$feedId': typeof AuthenticatedFeedFeedIdRoute
   '/_authenticated/folder/$folderId': typeof AuthenticatedFolderFolderIdRoute
@@ -508,11 +662,20 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/_authenticated/url/$url': typeof AuthenticatedUrlUrlRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/all/all/': typeof AuthenticatedAllAllIndexRoute
+  '/_authenticated/all/starred/': typeof AuthenticatedAllStarredIndexRoute
+  '/_authenticated/unread/all/': typeof AuthenticatedUnreadAllIndexRoute
+  '/_authenticated/unread/starred/': typeof AuthenticatedUnreadStarredIndexRoute
+  '/_authenticated/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
+  '/_authenticated/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
+  '/_authenticated/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
+  '/_authenticated/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRouteTypes {
@@ -530,7 +693,6 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
-    | '/$feedsFilter'
     | '/'
     | '/feed/$feedId'
     | '/folder/$folderId'
@@ -538,11 +700,20 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/url/$url'
     | '/chats'
     | '/help-center'
     | '/settings/'
     | '/tasks'
     | '/users'
+    | '/all/all'
+    | '/all/starred'
+    | '/unread/all'
+    | '/unread/starred'
+    | '/all/all/folder/$folderId'
+    | '/all/starred/folder/$folderId'
+    | '/unread/all/folder/$folderId'
+    | '/unread/starred/folder/$folderId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -555,7 +726,6 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
-    | '/$feedsFilter'
     | '/'
     | '/feed/$feedId'
     | '/folder/$folderId'
@@ -563,11 +733,20 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/url/$url'
     | '/chats'
     | '/help-center'
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/all/all'
+    | '/all/starred'
+    | '/unread/all'
+    | '/unread/starred'
+    | '/all/all/folder/$folderId'
+    | '/all/starred/folder/$folderId'
+    | '/unread/all/folder/$folderId'
+    | '/unread/starred/folder/$folderId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -582,7 +761,6 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
-    | '/_authenticated/$feedsFilter'
     | '/_authenticated/'
     | '/_authenticated/feed/$feedId'
     | '/_authenticated/folder/$folderId'
@@ -590,11 +768,20 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
+    | '/_authenticated/url/$url'
     | '/_authenticated/chats/'
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/all/all/'
+    | '/_authenticated/all/starred/'
+    | '/_authenticated/unread/all/'
+    | '/_authenticated/unread/starred/'
+    | '/_authenticated/all/all/folder/$folderId'
+    | '/_authenticated/all/starred/folder/$folderId'
+    | '/_authenticated/unread/all/folder/$folderId'
+    | '/_authenticated/unread/starred/folder/$folderId'
   fileRoutesById: FileRoutesById
 }
 
@@ -653,14 +840,22 @@ export const routeTree = rootRoute
       "filePath": "_authenticated/route.tsx",
       "children": [
         "/_authenticated/settings",
-        "/_authenticated/$feedsFilter",
         "/_authenticated/",
         "/_authenticated/feed/$feedId",
         "/_authenticated/folder/$folderId",
+        "/_authenticated/url/$url",
         "/_authenticated/chats/",
         "/_authenticated/help-center/",
         "/_authenticated/tasks/",
-        "/_authenticated/users/"
+        "/_authenticated/users/",
+        "/_authenticated/all/all/",
+        "/_authenticated/all/starred/",
+        "/_authenticated/unread/all/",
+        "/_authenticated/unread/starred/",
+        "/_authenticated/all/all/folder/$folderId",
+        "/_authenticated/all/starred/folder/$folderId",
+        "/_authenticated/unread/all/folder/$folderId",
+        "/_authenticated/unread/starred/folder/$folderId"
       ]
     },
     "/_authenticated/settings": {
@@ -704,10 +899,6 @@ export const routeTree = rootRoute
     "/(errors)/503": {
       "filePath": "(errors)/503.tsx"
     },
-    "/_authenticated/$feedsFilter": {
-      "filePath": "_authenticated/$feedsFilter.tsx",
-      "parent": "/_authenticated"
-    },
     "/_authenticated/": {
       "filePath": "_authenticated/index.tsx",
       "parent": "/_authenticated"
@@ -736,6 +927,10 @@ export const routeTree = rootRoute
       "filePath": "_authenticated/settings/notifications.tsx",
       "parent": "/_authenticated/settings"
     },
+    "/_authenticated/url/$url": {
+      "filePath": "_authenticated/url/$url.tsx",
+      "parent": "/_authenticated"
+    },
     "/_authenticated/chats/": {
       "filePath": "_authenticated/chats/index.tsx",
       "parent": "/_authenticated"
@@ -754,6 +949,38 @@ export const routeTree = rootRoute
     },
     "/_authenticated/users/": {
       "filePath": "_authenticated/users/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/all/all/": {
+      "filePath": "_authenticated/all/all/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/all/starred/": {
+      "filePath": "_authenticated/all/starred/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/unread/all/": {
+      "filePath": "_authenticated/unread/all/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/unread/starred/": {
+      "filePath": "_authenticated/unread/starred/index.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/all/all/folder/$folderId": {
+      "filePath": "_authenticated/all/all/folder/$folderId.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/all/starred/folder/$folderId": {
+      "filePath": "_authenticated/all/starred/folder/$folderId.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/unread/all/folder/$folderId": {
+      "filePath": "_authenticated/unread/all/folder/$folderId.tsx",
+      "parent": "/_authenticated"
+    },
+    "/_authenticated/unread/starred/folder/$folderId": {
+      "filePath": "_authenticated/unread/starred/folder/$folderId.tsx",
       "parent": "/_authenticated"
     }
   }

@@ -1,37 +1,29 @@
-import { IconFolder, IconListDetails, IconNews } from '@tabler/icons-react'
+import { IconFolder, IconListDetails, IconNews, IconStar } from '@tabler/icons-react'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { Suspense, useState } from 'react'
 
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import { FeedFolder } from '@/backends/types'
 import { FoldersLoader } from './loaders/folders-loader'
+import { Link } from '@tanstack/react-router'
 import { NavGroup } from '@/components/layout/nav-group'
 import { NavItem } from './types'
-import { Suspense } from 'react'
-//import { sidebarData } from './data/sidebar-data'
-//import { useParams } from '@tanstack/react-router';
 import { useSuspenseQuery } from '@tanstack/react-query'
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  //const params = useParams({ strict: false });
-  //sidebarData.setFeedFilter(params.filter);
-
-
-  const generalItems: NavItem[] = [{
-    title: 'All items',
-    url: '/all',
-    icon: IconNews
-  },
-  {
-    title: 'Unread items',
-    url: '/unread',
-    icon: IconListDetails,
-  }];
+  const [showOnlyUnread, setShowOnlyUnread] = useState(false)
+  const [showOnlyStarred, setShowOnlyStarred] = useState(false)
 
   const getFolders = async () => {
     const backend = new FeedBackend();
@@ -39,13 +31,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const navItems: NavItem[] = folders.map((folder) => {
       return {
         title: folder.name,
-        url: '/folder/' + folder.id,
+        url: `/${showOnlyUnread ? 'unread' : 'all'}/${showOnlyStarred ? 'starred' : 'all'}/folder/${folder.id}`,
         icon: IconFolder,
         badge: folder.unreadCount > 0 ? String(folder.unreadCount) : undefined,
         items: folder.feeds.map((feed) => {
           return {
             title: feed.title,
-            url: '/feed/' + feed.id,
+            url: `/${showOnlyUnread ? 'unread' : 'all'}/${showOnlyStarred ? 'starred' : 'all'}/feed/${feed.id}`,
             iconUrl: feed.faviconUrl,
             badge: feed.unreadCount > 0 ? String(feed.unreadCount) : undefined,
           }
@@ -70,7 +62,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup key='general' title='General' items={generalItems} />
+        <SidebarGroup>
+          <SidebarGroupLabel>General</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='All'>
+                <Link to={`/all/${showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyUnread(false)} >
+                  <IconNews className={!showOnlyUnread ? 'text-blue-500' : ''} />
+                  <span className={`text-xs ${!showOnlyUnread ? 'font-bold text-blue-500' : null}`}>All</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='Only unread'>
+                <Link to={`/unread/${showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyUnread(true)} >
+                  <IconListDetails className={showOnlyUnread ? 'text-blue-500' : ''} />
+                  <span className={`text-xs ${showOnlyUnread ? 'font-bold text-blue-500' : null}`}>Only unread</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='Starred'>
+                <Link to={`/${showOnlyUnread ? 'unread' : 'all'}/${!showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyStarred(!showOnlyStarred)}>
+                  <IconStar className={showOnlyStarred ? 'text-blue-500' : ''}/>
+                  <span className={`text-xs ${showOnlyStarred ? 'font-bold text-blue-500' : null}`}>Starred</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
         <Suspense fallback={<FoldersLoader />}>
           <FoldersNavGroup />
         </Suspense>

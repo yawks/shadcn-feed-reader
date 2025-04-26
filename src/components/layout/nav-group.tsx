@@ -28,12 +28,10 @@ import {
 } from '../ui/dropdown-menu'
 import { NavCollapsible, NavItem, NavLink, type NavGroup } from './types'
 import { IconNews } from '@tabler/icons-react'
-import { Feed, FeedFolder } from '@/backends/types'
 
 export function NavGroup({ title, items }: Readonly<NavGroup>) {
   const { state } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
-  const [, setSelectedFolderOrFeed] = useState<FeedFolder | Feed | null>(null)
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
@@ -67,7 +65,7 @@ const NavBadge = ({ children }: { children: ReactNode }) => (
 
 const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
   const { setOpenMobile } = useSidebar()
-  const [, setSelectedFolderOrFeed] = useState<FeedFolder | Feed | null>(null)
+  const [, setSelectedFolderOrFeed] = useState<NavLink | NavCollapsible | null>(null)
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -77,7 +75,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
       >
         <Link to={item.url} onClick={() => {
           setOpenMobile(false)
-          setSelectedFolderOrFeed({ id: '', name: item.title, unreadCount: isNaN(item.badge ?? null) ? 0 : parseInt(item.badge ?? '0'), feeds: [] } as FeedFolder)
+          setSelectedFolderOrFeed(item)
         }}>
           {item.icon ? item.icon && <item.icon /> : null}
           {item.iconUrl ? <img alt={item.title} src={item.iconUrl} className="w-4 h-4" /> : null}
@@ -91,7 +89,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
 
 function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: string }) {
   const { setOpenMobile } = useSidebar()
-  const [, setSelectedFolderOrFeed] = useState<FeedFolder | Feed | null>(null)
+  const [, setSelectedFolderOrFeed] = useState<NavLink | NavCollapsible | null>(null)
   return (
     <Collapsible
       asChild
@@ -103,7 +101,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
           <SidebarMenuButton tooltip={item.title}>
             <Link to={item.url ?? "."} onClick={() => {
               setOpenMobile(false)
-              setSelectedFolderOrFeed({ id: '', name: item.title, unreadCount: isNaN(item.badge ?? null) ? 0 : parseInt(item.badge ?? '0'), feeds: [] } as FeedFolder)
+              setSelectedFolderOrFeed(item)
             }} className="items-center flex">
               {item.icon ? item.icon && <item.icon /> : null}
               {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
@@ -123,7 +121,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
                 >
                   <Link to={subItem.url} onClick={() => {
                     setOpenMobile(false)
-                    setSelectedFolderOrFeed({ id: '', title: item.title, unreadCount: isNaN(subItem.badge ?? null) ? 0 : parseInt(item.badge ?? '0'), faviconUrl:subItem.iconUrl } as Feed)
+                    setSelectedFolderOrFeed(subItem)
                   }} className="w-full flex">
                     {subItem.icon ? <subItem.icon /> : null}
                     {subItem.iconUrl ? <><img src={subItem.iconUrl} alt={subItem.title} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.style.display = 'block'; }} className='w-4 h-4'></img><IconNews className="hidden" /></> : null}

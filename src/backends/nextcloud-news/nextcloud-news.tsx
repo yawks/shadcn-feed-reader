@@ -92,7 +92,7 @@ export default class FeedBackend implements Backend {
       const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-2/items?' + new URLSearchParams({
         batchSize: String(NB_ITEMS_TO_LOAD),
         offset: String(offset),
-        id: filter.id,
+        id: filter.id == '' ? '0' : filter.id,
         type: getFeedType(filter.type),
         getRead: String(filter.withUnreadItems)
       }).toString(), this._getOptions());
@@ -136,6 +136,8 @@ function getItemImageURL(item: NNItem): string {
 
 function getFeedType(type: FeedType): string {
   switch (type) {
+    case FeedType.ALL:
+      return '3';
     case FeedType.STARRED:
       return '2';
     case FeedType.FOLDER:
