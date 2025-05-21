@@ -1,4 +1,4 @@
-import { FeedFilter, FeedType } from "@/backends/types";
+import { FeedFilter, FeedItem, FeedType } from "@/backends/types";
 
 import FeedBackend from "@/backends/nextcloud-news/nextcloud-news";
 import { ItemsList } from "./items-list";
@@ -9,11 +9,12 @@ interface FilterItemsProps {
     readonly folderId: string | undefined;
     readonly queryType: FeedType;
     readonly showOnlyUnread: boolean;
-    readonly setFeedArticleURL: (url: string | null) => void; // Add this prop
+    readonly selectedFeedArticle: FeedItem | null;
+    readonly setSelectedFeedArticle: (item: FeedItem | null) => void; // Add this prop
 }
 
 
-export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, setFeedArticleURL }: FilterItemsProps) {
+export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, selectedFeedArticle, setSelectedFeedArticle }: FilterItemsProps) {
     const getFeedItems = async () => {
 
         const backend = new FeedBackend();
@@ -33,5 +34,5 @@ export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, se
         queryFn: getFeedItems,
     });
 
-    return <ItemsList items={data} setFeedArticleURL={setFeedArticleURL} />;
+    return <ItemsList items={data} selectedFeedArticle={selectedFeedArticle} setSelectedFeedArticle={setSelectedFeedArticle} />;
 };

@@ -1,6 +1,7 @@
+import { FeedItem } from "@/backends/types"
 import { cn } from "@/lib/utils"
 
-export function FeedArticle({ url }: { readonly url: string }) {
+export function FeedArticle({ item }: { readonly item: FeedItem }) {
     return (
         <div
             className={cn(
@@ -8,8 +9,8 @@ export function FeedArticle({ url }: { readonly url: string }) {
 
             )}
         >
-            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary p-4 shadow-lg h-full'>
-                <iframe className='w-full h-full' src={url} title="Feed article" />
+            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full'>
+                <iframe className='w-full h-full' src={item.url} title="Feed article" />
             </div>
         </div>
     )

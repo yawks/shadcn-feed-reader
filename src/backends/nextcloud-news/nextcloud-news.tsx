@@ -94,7 +94,7 @@ export default class FeedBackend implements Backend {
         offset: String(offset),
         id: filter.id == '' ? '0' : filter.id,
         type: getFeedType(filter.type),
-        getRead: String(filter.withUnreadItems)
+        getRead: String(!filter.withUnreadItems)
       }).toString(), this._getOptions());
       items = itemsQuery.items.map((item: NNItem) => {
         return {

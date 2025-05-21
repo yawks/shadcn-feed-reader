@@ -6,19 +6,24 @@ import { timeSince } from '@/lib/utils';
 
 interface ItemsListProps {
   readonly items: Readonly<FeedItem[]>;
-  readonly setFeedArticleURL: (url: string | null) => void; // Add this prop
+  readonly selectedFeedArticle: FeedItem | null;
+  readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
 }
 
-export function ItemsList({ items, setFeedArticleURL }: ItemsListProps) {
+export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
+  console.log('items', items);
   return (
     <div className="flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80">
-      <ScrollArea className="-mx-3 h-full p-3">
+      <ScrollArea className="h-full">
         {items.map((item: FeedItem) => {
-          const { id, title, feed, pubDate, thumbnailUrl, url } = item;
+          const { id, title, feed, pubDate, thumbnailUrl } = item;
           return (
             <Fragment key={id}>
-              <button className='text-left' onClick={() => setFeedArticleURL(url)}>
-                <div className="flex gap-2">
+                <button
+                className={`text-left w-full ${selectedFeedArticle != null && selectedFeedArticle.id == id? 'bg-slate-200 dark:bg-slate-700': ''} ${item.read ? 'text-muted-foreground' : ''}`}
+                onClick={() => setSelectedFeedArticle(item)}
+                >
+                <div className="flex gap-2 p-3">
                   {thumbnailUrl != '' ? (
                     <div className="flex-none items-center justify-center w-10 h-10 rounded-sm">
                       <img src={thumbnailUrl} alt={title} className="w-10 h-10 rounded-sm" />
@@ -32,7 +37,7 @@ export function ItemsList({ items, setFeedArticleURL }: ItemsListProps) {
                   </div>
                 </div>
               </button>
-              <Separator className="my-1" />
+              <Separator />
             </Fragment>
           );
         })}

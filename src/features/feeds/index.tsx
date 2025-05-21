@@ -1,7 +1,7 @@
+import { FeedItem, FeedType } from '@/backends/types'
 import { Suspense, useState } from 'react'
 
 import { FeedArticle } from './FeedArticle'
-import { FeedType } from '@/backends/types'
 import { FilterItemList } from './FilterItemList'
 import { Header } from '@/components/layout/header'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
@@ -24,7 +24,7 @@ export default function Feeds({ showOnlyUnread, showOnlyStarred }: { readonly sh
   }
 
 
-  const [feedArticleURL, setFeedArticleURL] = useState<string | null>(null);
+  const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
   return (
     <>
@@ -38,14 +38,14 @@ export default function Feeds({ showOnlyUnread, showOnlyStarred }: { readonly sh
       </Header>
 
       <Main fixed>
-        <section className='flex h-full gap-6'>
+        <section className='flex h-full'>
           <h1 className={`sr-only ${showOnlyStarred ? 'text-blue' : 'text-red'}`}>Feeds</h1>
           {/* Left Side */}
           <Suspense fallback={<ItemsListLoader />}>
-            <FilterItemList queryType={queryType} feedId={params.feedId} folderId={params.folderId} showOnlyUnread={showOnlyUnread} setFeedArticleURL={setFeedArticleURL} />
+            <FilterItemList queryType={queryType} feedId={params.feedId} folderId={params.folderId} showOnlyUnread={showOnlyUnread} selectedFeedArticle={selectedFeedArticle} setSelectedFeedArticle={setSelectedFeedArticle} />
           </Suspense>
           {/* Right Side */}
-          {feedArticleURL != null ? (<FeedArticle url={feedArticleURL} />) : null}
+          {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : null}
         </section>
       </Main>
     </>
