@@ -39,7 +39,7 @@ export default class FeedBackend implements Backend {
     return feedFolders;
   }
 
-  private _getOptions() {
+  private _getOptions(method: string = 'GET'): RequestInit {
     const headers = new Headers()
     headers.append(
       'Authorization',
@@ -47,7 +47,7 @@ export default class FeedBackend implements Backend {
     )
 
     const requestOptions = {
-      method: 'GET',
+      method: method,
       headers: headers,
     }
     return requestOptions
@@ -94,7 +94,7 @@ export default class FeedBackend implements Backend {
         offset: String(offset),
         id: filter.id == '' ? '0' : filter.id,
         type: getFeedType(filter.type),
-        getRead: String(!filter.withUnreadItems)
+        getRead: String(!filter.onlyUnreadItems)
       }).toString(), this._getOptions());
       items = itemsQuery.items.map((item: NNItem) => {
         return {
@@ -114,6 +114,14 @@ export default class FeedBackend implements Backend {
     }
 
     return items;
+  }
+
+  async setFeedArticleRead(id: string): Promise<void> {
+    try {
+      await fetch(this.url + '/index.php/apps/news/api/v1-2/items/' + id + '/read', this._getOptions('PUT'));
+    } catch (error) {
+      throw new Error('Network response was not ok' + error)
+    }
   }
 
 }

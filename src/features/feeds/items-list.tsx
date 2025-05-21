@@ -1,3 +1,4 @@
+import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
 import { FeedItem } from '@/backends/types';
 import { Fragment } from 'react/jsx-runtime';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,7 +12,7 @@ interface ItemsListProps {
 }
 
 export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
-  console.log('items', items);
+  const backend = new FeedBackend();
   return (
     <div className="flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80">
       <ScrollArea className="h-full">
@@ -19,10 +20,15 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
           const { id, title, feed, pubDate, thumbnailUrl } = item;
           return (
             <Fragment key={id}>
-                <button
-                className={`text-left w-full ${selectedFeedArticle != null && selectedFeedArticle.id == id? 'bg-slate-200 dark:bg-slate-700': ''} ${item.read ? 'text-muted-foreground' : ''}`}
-                onClick={() => setSelectedFeedArticle(item)}
-                >
+              <button
+                className={`text-left w-full ${selectedFeedArticle != null && selectedFeedArticle.id == id ? 'bg-slate-200 dark:bg-slate-700' : ''} ${item.read ? 'text-muted-foreground' : ''}`}
+                onClick={() => {
+                  setSelectedFeedArticle(item)
+                  backend.setFeedArticleRead(id)
+                  item.read = true
+                }
+                }
+              >
                 <div className="flex gap-2 p-3">
                   {thumbnailUrl != '' ? (
                     <div className="flex-none items-center justify-center w-10 h-10 rounded-sm">

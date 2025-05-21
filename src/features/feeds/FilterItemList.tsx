@@ -10,7 +10,7 @@ interface FilterItemsProps {
     readonly queryType: FeedType;
     readonly showOnlyUnread: boolean;
     readonly selectedFeedArticle: FeedItem | null;
-    readonly setSelectedFeedArticle: (item: FeedItem | null) => void; // Add this prop
+    readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
 }
 
 
@@ -22,7 +22,7 @@ export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, se
         const filter: FeedFilter = {
             id: String(feedId ?? folderId ?? ''),
             type: queryType,
-            withUnreadItems: showOnlyUnread ?? false,
+            onlyUnreadItems: showOnlyUnread ?? false,
         }
 
         return await backend.getFeedItems(filter);

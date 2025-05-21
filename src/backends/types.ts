@@ -41,5 +41,5 @@ export enum FeedType {
 export type FeedFilter = {
   id: string
   type: FeedType
-  withUnreadItems: boolean
+  onlyUnreadItems: boolean
 }
