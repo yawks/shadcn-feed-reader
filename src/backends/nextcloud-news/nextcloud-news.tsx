@@ -87,7 +87,6 @@ export default class FeedBackend implements Backend {
 
   async getFeedItems(filter: FeedFilter, offset: number = 0): Promise<FeedItem[]> {
     let items: FeedItem[] = [];
-
     try {
       const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-2/items?' + new URLSearchParams({
         batchSize: String(NB_ITEMS_TO_LOAD),

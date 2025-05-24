@@ -16,7 +16,6 @@ interface FilterItemsProps {
 
 export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, selectedFeedArticle, setSelectedFeedArticle }: FilterItemsProps) {
     const getFeedItems = async () => {
-
         const backend = new FeedBackend();
 
         const filter: FeedFilter = {
@@ -24,7 +23,7 @@ export function FilterItemList({ feedId, folderId, queryType, showOnlyUnread, se
             type: queryType,
             onlyUnreadItems: showOnlyUnread ?? false,
         }
-
+        
         return await backend.getFeedItems(filter);
     }
 

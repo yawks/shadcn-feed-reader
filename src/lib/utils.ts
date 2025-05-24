@@ -36,7 +36,7 @@ export function timeSince(epoch: number) {
           if (interval >= 1) {
             intervalType = 'minute';
           } else {
-            interval = seconds;
+            interval = Math.floor(seconds);
             intervalType = 'second';
           }
         }

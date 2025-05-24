@@ -14,7 +14,7 @@ interface ItemsListProps {
 export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
   const backend = new FeedBackend();
   return (
-    <div className="flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80">
+    <div className="flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80 border-r border-r-gray">
       <ScrollArea className="h-full">
         {items.map((item: FeedItem) => {
           const { id, title, feed, pubDate, thumbnailUrl } = item;

@@ -9,6 +9,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
 import { useParams } from '@tanstack/react-router'
 
 export default function Feeds({ showOnlyUnread, showOnlyStarred }: { readonly showOnlyUnread: boolean, readonly showOnlyStarred: boolean }) {
@@ -45,7 +46,7 @@ export default function Feeds({ showOnlyUnread, showOnlyStarred }: { readonly sh
             <FilterItemList queryType={queryType} feedId={params.feedId} folderId={params.folderId} showOnlyUnread={showOnlyUnread} selectedFeedArticle={selectedFeedArticle} setSelectedFeedArticle={setSelectedFeedArticle} />
           </Suspense>
           {/* Right Side */}
-          {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : null}
+          {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : (<WebPageLoader/>)}
         </section>
       </Main>
     </>
