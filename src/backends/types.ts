@@ -1,6 +1,6 @@
 export interface Backend {
   getFolders: () => Promise<FeedFolder[]>
-  getFeedItems(filter: FeedFilter, offset: number): Promise<FeedItem[]>
+  getFeedItems(query: FeedQuery, offset: number): Promise<FeedItem[]>
 }
 
 export type FeedFolder = {
@@ -32,14 +32,19 @@ export type FeedItem = {
 }
 
 export enum FeedType {
-  ALL = 'all',
-  STARRED = 'starred',
   FOLDER = 'folder',
-  FEED = 'feed'
+  FEED = 'feed',
+  STARRED = 'starred',
 }
 
-export type FeedFilter = {
-  id: string
-  type: FeedType
-  onlyUnreadItems: boolean
+export enum FeedFilter {
+  ALL = 'all',
+  UNREAD = 'unread',
+}
+
+export type FeedQuery = {
+  feedType?: FeedType
+  feedFilter: FeedFilter,
+  feedId?: string
+  folderId?: string
 }

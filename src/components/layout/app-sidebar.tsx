@@ -1,4 +1,5 @@
-import { IconFolder, IconListDetails, IconNews, IconStar } from '@tabler/icons-react'
+import { FeedFilter, FeedType } from '@/backends/types'
+import { IconListDetails, IconNews, IconStar } from '@tabler/icons-react'
 import {
   Sidebar,
   SidebarContent,
@@ -11,51 +12,35 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { Suspense, useState } from 'react'
 
-import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
-import { FeedFolder } from '@/backends/types'
+import { Button } from '../ui/button'
 import { FoldersLoader } from './loaders/folders-loader'
-import { Link } from '@tanstack/react-router'
-import { NavGroup } from '@/components/layout/nav-group'
-import { NavItem } from './types'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { FoldersNavGroup } from './folders-nav-group'
+import { Suspense } from 'react'
+import { useFeedQuery } from '@/context/feed-query-provider'
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [showOnlyUnread, setShowOnlyUnread] = useState(false)
-  const [showOnlyStarred, setShowOnlyStarred] = useState(false)
+  const { feedQuery, setFeedQuery } = useFeedQuery()
+  console.log('AppSidebar', feedQuery)
 
-  const getFolders = async () => {
-    const backend = new FeedBackend();
-    const folders: FeedFolder[] = await backend.getFolders();
-    const navItems: NavItem[] = folders.map((folder) => {
-      return {
-        title: folder.name,
-        url: `/${showOnlyUnread ? 'unread' : 'all'}/${showOnlyStarred ? 'starred' : 'all'}/folder/${folder.id}`,
-        icon: IconFolder,
-        badge: folder.unreadCount > 0 ? String(folder.unreadCount) : undefined,
-        items: folder.feeds.map((feed) => {
-          return {
-            title: feed.title,
-            url: `/${showOnlyUnread ? 'unread' : 'all'}/${showOnlyStarred ? 'starred' : 'all'}/feed/${feed.id}`,
-            iconUrl: feed.faviconUrl,
-            badge: feed.unreadCount > 0 ? String(feed.unreadCount) : undefined,
-          }
-        })
-      }
+
+  const toggleFeedQueryButton = (feedFilter?: FeedFilter, feedType?: FeedType) => {
+    let feedId = feedQuery.feedId;
+    let folderId = feedQuery.folderId;
+    let filter = feedFilter ?? feedQuery.feedFilter;
+    const type = feedType ?? feedQuery.feedType;
+    if (type == FeedType.STARRED) {
+      filter = FeedFilter.ALL;
+      feedId = undefined;
+      folderId = undefined;
+    }
+    setFeedQuery({
+      feedFilter: filter,
+      feedType: type,
+      feedId: feedId,
+      folderId: folderId
     })
-
-    return navItems
   }
-
-  const FoldersNavGroup = () => {
-    const { data } = useSuspenseQuery({
-      queryKey: ['folders'],
-      queryFn: getFolders,
-    });
-
-    return <NavGroup key="folders" title="Folders" items={data} />;
-  };
 
   return (
     <Sidebar collapsible='icon' variant='floating' {...props}>
@@ -69,30 +54,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuButton
                 asChild
                 tooltip='All'>
-                <Link to={`/all/${showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyUnread(false)} >
-                  <IconNews className={!showOnlyUnread ? 'text-blue-500' : ''} />
-                  <span className={`text-xs ${!showOnlyUnread ? 'font-bold text-blue-500' : null}`}>All</span>
-                </Link>
+                <Button onClick={() => {
+                  toggleFeedQueryButton(FeedFilter.ALL)
+                }}
+                  className='bg-transparent hover:bg-transparent justify-start text-secondary-foreground hover:text-blue-500'>
+                  <IconNews className={feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.ALL ? 'text-blue-500' : ''} />
+                  <span className={`text-xs ${feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.ALL ? 'font-bold text-blue-500' : null}`}>All</span>
+                </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
                 tooltip='Only unread'>
-                <Link to={`/unread/${showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyUnread(true)} >
-                  <IconListDetails className={showOnlyUnread ? 'text-blue-500' : ''} />
-                  <span className={`text-xs ${showOnlyUnread ? 'font-bold text-blue-500' : null}`}>Only unread</span>
-                </Link>
+                <Button onClick={() => {
+                  toggleFeedQueryButton(FeedFilter.UNREAD)
+                }} className='bg-transparent hover:bg-transparent justify-start text-secondary-foreground hover:text-blue-500'>
+                  <IconListDetails className={feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.UNREAD ? 'text-blue-500' : ''} />
+                  <span className={`text-xs ${feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.UNREAD ? 'font-bold text-blue-500' : null}`}>Only unread</span>
+                </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
                 tooltip='Starred'>
-                <Link to={`/${showOnlyUnread ? 'unread' : 'all'}/${!showOnlyStarred ? 'starred' : 'all'}`} onClick={() => setShowOnlyStarred(!showOnlyStarred)}>
-                  <IconStar className={showOnlyStarred ? 'text-blue-500' : ''}/>
-                  <span className={`text-xs ${showOnlyStarred ? 'font-bold text-blue-500' : null}`}>Starred</span>
-                </Link>
+                <Button onClick={() => {
+                  toggleFeedQueryButton(undefined, FeedType.STARRED)
+                }} className='bg-transparent hover:bg-transparent justify-start text-secondary-foreground hover:text-blue-500'>
+                  <IconStar className={feedQuery.feedType == FeedType.STARRED ? 'text-blue-500' : ''} />
+                  <span className={`text-xs ${feedQuery.feedType == FeedType.STARRED ? 'font-bold text-blue-500' : null}`}>Starred</span>
+                </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -105,6 +97,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
       </SidebarFooter>
       <SidebarRail />
-    </Sidebar>
+    </Sidebar >
   )
 }

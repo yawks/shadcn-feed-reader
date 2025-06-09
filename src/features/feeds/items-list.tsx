@@ -32,7 +32,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                 <div className="flex gap-2 p-3">
                   {thumbnailUrl != '' ? (
                     <div className="flex-none items-center justify-center w-10 h-10 rounded-sm">
-                      <img src={thumbnailUrl} alt={title} className="w-10 h-10 rounded-sm" />
+                      <img src={thumbnailUrl} alt={title} className="w-10 rounded-sm" />
                     </div>
                   ) : null}
                   <div>

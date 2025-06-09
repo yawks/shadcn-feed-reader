@@ -26,6 +26,7 @@ import { Route as authForgotPasswordImport } from './routes/(auth)/forgot-passwo
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedUsersIndexImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTasksIndexImport } from './routes/_authenticated/tasks/index'
+import { Route as AuthenticatedStarredIndexImport } from './routes/_authenticated/starred/index'
 import { Route as AuthenticatedSettingsIndexImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedHelpCenterIndexImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedChatsIndexImport } from './routes/_authenticated/chats/index'
@@ -36,14 +37,6 @@ import { Route as AuthenticatedSettingsAppearanceImport } from './routes/_authen
 import { Route as AuthenticatedSettingsAccountImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedFolderFolderIdImport } from './routes/_authenticated/folder/$folderId'
 import { Route as AuthenticatedFeedFeedIdImport } from './routes/_authenticated/feed/$feedId'
-import { Route as AuthenticatedUnreadStarredIndexImport } from './routes/_authenticated/unread/starred/index'
-import { Route as AuthenticatedUnreadAllIndexImport } from './routes/_authenticated/unread/all/index'
-import { Route as AuthenticatedAllStarredIndexImport } from './routes/_authenticated/all/starred/index'
-import { Route as AuthenticatedAllAllIndexImport } from './routes/_authenticated/all/all/index'
-import { Route as AuthenticatedUnreadStarredFolderFolderIdImport } from './routes/_authenticated/unread/starred/folder/$folderId'
-import { Route as AuthenticatedUnreadAllFolderFolderIdImport } from './routes/_authenticated/unread/all/folder/$folderId'
-import { Route as AuthenticatedAllStarredFolderFolderIdImport } from './routes/_authenticated/all/starred/folder/$folderId'
-import { Route as AuthenticatedAllAllFolderFolderIdImport } from './routes/_authenticated/all/all/folder/$folderId'
 
 // Create/Update Routes
 
@@ -138,6 +131,12 @@ const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexImport.update({
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
+const AuthenticatedStarredIndexRoute = AuthenticatedStarredIndexImport.update({
+  id: '/starred/',
+  path: '/starred/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
 const AuthenticatedSettingsIndexRoute = AuthenticatedSettingsIndexImport.update(
   {
     id: '/',
@@ -205,61 +204,6 @@ const AuthenticatedFeedFeedIdRoute = AuthenticatedFeedFeedIdImport.update({
   path: '/feed/$feedId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-
-const AuthenticatedUnreadStarredIndexRoute =
-  AuthenticatedUnreadStarredIndexImport.update({
-    id: '/unread/starred/',
-    path: '/unread/starred/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedUnreadAllIndexRoute =
-  AuthenticatedUnreadAllIndexImport.update({
-    id: '/unread/all/',
-    path: '/unread/all/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedAllStarredIndexRoute =
-  AuthenticatedAllStarredIndexImport.update({
-    id: '/all/starred/',
-    path: '/all/starred/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedAllAllIndexRoute = AuthenticatedAllAllIndexImport.update({
-  id: '/all/all/',
-  path: '/all/all/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-
-const AuthenticatedUnreadStarredFolderFolderIdRoute =
-  AuthenticatedUnreadStarredFolderFolderIdImport.update({
-    id: '/unread/starred/folder/$folderId',
-    path: '/unread/starred/folder/$folderId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedUnreadAllFolderFolderIdRoute =
-  AuthenticatedUnreadAllFolderFolderIdImport.update({
-    id: '/unread/all/folder/$folderId',
-    path: '/unread/all/folder/$folderId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedAllStarredFolderFolderIdRoute =
-  AuthenticatedAllStarredFolderFolderIdImport.update({
-    id: '/all/starred/folder/$folderId',
-    path: '/all/starred/folder/$folderId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-
-const AuthenticatedAllAllFolderFolderIdRoute =
-  AuthenticatedAllAllFolderFolderIdImport.update({
-    id: '/all/all/folder/$folderId',
-    path: '/all/all/folder/$folderId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 
 // Populate the FileRoutesByPath interface
 
@@ -426,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexImport
       parentRoute: typeof AuthenticatedSettingsRouteImport
     }
+    '/_authenticated/starred/': {
+      id: '/_authenticated/starred/'
+      path: '/starred'
+      fullPath: '/starred'
+      preLoaderRoute: typeof AuthenticatedStarredIndexImport
+      parentRoute: typeof AuthenticatedRouteImport
+    }
     '/_authenticated/tasks/': {
       id: '/_authenticated/tasks/'
       path: '/tasks'
@@ -438,62 +389,6 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof AuthenticatedUsersIndexImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/all/all/': {
-      id: '/_authenticated/all/all/'
-      path: '/all/all'
-      fullPath: '/all/all'
-      preLoaderRoute: typeof AuthenticatedAllAllIndexImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/all/starred/': {
-      id: '/_authenticated/all/starred/'
-      path: '/all/starred'
-      fullPath: '/all/starred'
-      preLoaderRoute: typeof AuthenticatedAllStarredIndexImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/unread/all/': {
-      id: '/_authenticated/unread/all/'
-      path: '/unread/all'
-      fullPath: '/unread/all'
-      preLoaderRoute: typeof AuthenticatedUnreadAllIndexImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/unread/starred/': {
-      id: '/_authenticated/unread/starred/'
-      path: '/unread/starred'
-      fullPath: '/unread/starred'
-      preLoaderRoute: typeof AuthenticatedUnreadStarredIndexImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/all/all/folder/$folderId': {
-      id: '/_authenticated/all/all/folder/$folderId'
-      path: '/all/all/folder/$folderId'
-      fullPath: '/all/all/folder/$folderId'
-      preLoaderRoute: typeof AuthenticatedAllAllFolderFolderIdImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/all/starred/folder/$folderId': {
-      id: '/_authenticated/all/starred/folder/$folderId'
-      path: '/all/starred/folder/$folderId'
-      fullPath: '/all/starred/folder/$folderId'
-      preLoaderRoute: typeof AuthenticatedAllStarredFolderFolderIdImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/unread/all/folder/$folderId': {
-      id: '/_authenticated/unread/all/folder/$folderId'
-      path: '/unread/all/folder/$folderId'
-      fullPath: '/unread/all/folder/$folderId'
-      preLoaderRoute: typeof AuthenticatedUnreadAllFolderFolderIdImport
-      parentRoute: typeof AuthenticatedRouteImport
-    }
-    '/_authenticated/unread/starred/folder/$folderId': {
-      id: '/_authenticated/unread/starred/folder/$folderId'
-      path: '/unread/starred/folder/$folderId'
-      fullPath: '/unread/starred/folder/$folderId'
-      preLoaderRoute: typeof AuthenticatedUnreadStarredFolderFolderIdImport
       parentRoute: typeof AuthenticatedRouteImport
     }
   }
@@ -532,16 +427,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUrlUrlRoute: typeof AuthenticatedUrlUrlRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
+  AuthenticatedStarredIndexRoute: typeof AuthenticatedStarredIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
-  AuthenticatedAllAllIndexRoute: typeof AuthenticatedAllAllIndexRoute
-  AuthenticatedAllStarredIndexRoute: typeof AuthenticatedAllStarredIndexRoute
-  AuthenticatedUnreadAllIndexRoute: typeof AuthenticatedUnreadAllIndexRoute
-  AuthenticatedUnreadStarredIndexRoute: typeof AuthenticatedUnreadStarredIndexRoute
-  AuthenticatedAllAllFolderFolderIdRoute: typeof AuthenticatedAllAllFolderFolderIdRoute
-  AuthenticatedAllStarredFolderFolderIdRoute: typeof AuthenticatedAllStarredFolderFolderIdRoute
-  AuthenticatedUnreadAllFolderFolderIdRoute: typeof AuthenticatedUnreadAllFolderFolderIdRoute
-  AuthenticatedUnreadStarredFolderFolderIdRoute: typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -552,20 +440,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUrlUrlRoute: AuthenticatedUrlUrlRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
+  AuthenticatedStarredIndexRoute: AuthenticatedStarredIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
-  AuthenticatedAllAllIndexRoute: AuthenticatedAllAllIndexRoute,
-  AuthenticatedAllStarredIndexRoute: AuthenticatedAllStarredIndexRoute,
-  AuthenticatedUnreadAllIndexRoute: AuthenticatedUnreadAllIndexRoute,
-  AuthenticatedUnreadStarredIndexRoute: AuthenticatedUnreadStarredIndexRoute,
-  AuthenticatedAllAllFolderFolderIdRoute:
-    AuthenticatedAllAllFolderFolderIdRoute,
-  AuthenticatedAllStarredFolderFolderIdRoute:
-    AuthenticatedAllStarredFolderFolderIdRoute,
-  AuthenticatedUnreadAllFolderFolderIdRoute:
-    AuthenticatedUnreadAllFolderFolderIdRoute,
-  AuthenticatedUnreadStarredFolderFolderIdRoute:
-    AuthenticatedUnreadStarredFolderFolderIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -595,16 +472,9 @@ export interface FileRoutesByFullPath {
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/starred': typeof AuthenticatedStarredIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
-  '/all/all': typeof AuthenticatedAllAllIndexRoute
-  '/all/starred': typeof AuthenticatedAllStarredIndexRoute
-  '/unread/all': typeof AuthenticatedUnreadAllIndexRoute
-  '/unread/starred': typeof AuthenticatedUnreadStarredIndexRoute
-  '/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
-  '/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
-  '/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
-  '/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRoutesByTo {
@@ -629,16 +499,9 @@ export interface FileRoutesByTo {
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/starred': typeof AuthenticatedStarredIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
-  '/all/all': typeof AuthenticatedAllAllIndexRoute
-  '/all/starred': typeof AuthenticatedAllStarredIndexRoute
-  '/unread/all': typeof AuthenticatedUnreadAllIndexRoute
-  '/unread/starred': typeof AuthenticatedUnreadStarredIndexRoute
-  '/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
-  '/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
-  '/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
-  '/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRoutesById {
@@ -666,16 +529,9 @@ export interface FileRoutesById {
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/starred/': typeof AuthenticatedStarredIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
-  '/_authenticated/all/all/': typeof AuthenticatedAllAllIndexRoute
-  '/_authenticated/all/starred/': typeof AuthenticatedAllStarredIndexRoute
-  '/_authenticated/unread/all/': typeof AuthenticatedUnreadAllIndexRoute
-  '/_authenticated/unread/starred/': typeof AuthenticatedUnreadStarredIndexRoute
-  '/_authenticated/all/all/folder/$folderId': typeof AuthenticatedAllAllFolderFolderIdRoute
-  '/_authenticated/all/starred/folder/$folderId': typeof AuthenticatedAllStarredFolderFolderIdRoute
-  '/_authenticated/unread/all/folder/$folderId': typeof AuthenticatedUnreadAllFolderFolderIdRoute
-  '/_authenticated/unread/starred/folder/$folderId': typeof AuthenticatedUnreadStarredFolderFolderIdRoute
 }
 
 export interface FileRouteTypes {
@@ -704,16 +560,9 @@ export interface FileRouteTypes {
     | '/chats'
     | '/help-center'
     | '/settings/'
+    | '/starred'
     | '/tasks'
     | '/users'
-    | '/all/all'
-    | '/all/starred'
-    | '/unread/all'
-    | '/unread/starred'
-    | '/all/all/folder/$folderId'
-    | '/all/starred/folder/$folderId'
-    | '/unread/all/folder/$folderId'
-    | '/unread/starred/folder/$folderId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -737,16 +586,9 @@ export interface FileRouteTypes {
     | '/chats'
     | '/help-center'
     | '/settings'
+    | '/starred'
     | '/tasks'
     | '/users'
-    | '/all/all'
-    | '/all/starred'
-    | '/unread/all'
-    | '/unread/starred'
-    | '/all/all/folder/$folderId'
-    | '/all/starred/folder/$folderId'
-    | '/unread/all/folder/$folderId'
-    | '/unread/starred/folder/$folderId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -772,16 +614,9 @@ export interface FileRouteTypes {
     | '/_authenticated/chats/'
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
+    | '/_authenticated/starred/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
-    | '/_authenticated/all/all/'
-    | '/_authenticated/all/starred/'
-    | '/_authenticated/unread/all/'
-    | '/_authenticated/unread/starred/'
-    | '/_authenticated/all/all/folder/$folderId'
-    | '/_authenticated/all/starred/folder/$folderId'
-    | '/_authenticated/unread/all/folder/$folderId'
-    | '/_authenticated/unread/starred/folder/$folderId'
   fileRoutesById: FileRoutesById
 }
 
@@ -846,16 +681,9 @@ export const routeTree = rootRoute
         "/_authenticated/url/$url",
         "/_authenticated/chats/",
         "/_authenticated/help-center/",
+        "/_authenticated/starred/",
         "/_authenticated/tasks/",
-        "/_authenticated/users/",
-        "/_authenticated/all/all/",
-        "/_authenticated/all/starred/",
-        "/_authenticated/unread/all/",
-        "/_authenticated/unread/starred/",
-        "/_authenticated/all/all/folder/$folderId",
-        "/_authenticated/all/starred/folder/$folderId",
-        "/_authenticated/unread/all/folder/$folderId",
-        "/_authenticated/unread/starred/folder/$folderId"
+        "/_authenticated/users/"
       ]
     },
     "/_authenticated/settings": {
@@ -943,44 +771,16 @@ export const routeTree = rootRoute
       "filePath": "_authenticated/settings/index.tsx",
       "parent": "/_authenticated/settings"
     },
+    "/_authenticated/starred/": {
+      "filePath": "_authenticated/starred/index.tsx",
+      "parent": "/_authenticated"
+    },
     "/_authenticated/tasks/": {
       "filePath": "_authenticated/tasks/index.tsx",
       "parent": "/_authenticated"
     },
     "/_authenticated/users/": {
       "filePath": "_authenticated/users/index.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/all/all/": {
-      "filePath": "_authenticated/all/all/index.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/all/starred/": {
-      "filePath": "_authenticated/all/starred/index.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/unread/all/": {
-      "filePath": "_authenticated/unread/all/index.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/unread/starred/": {
-      "filePath": "_authenticated/unread/starred/index.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/all/all/folder/$folderId": {
-      "filePath": "_authenticated/all/all/folder/$folderId.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/all/starred/folder/$folderId": {
-      "filePath": "_authenticated/all/starred/folder/$folderId.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/unread/all/folder/$folderId": {
-      "filePath": "_authenticated/unread/all/folder/$folderId.tsx",
-      "parent": "/_authenticated"
-    },
-    "/_authenticated/unread/starred/folder/$folderId": {
-      "filePath": "_authenticated/unread/starred/folder/$folderId.tsx",
       "parent": "/_authenticated"
     }
   }

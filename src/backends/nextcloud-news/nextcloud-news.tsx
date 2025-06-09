@@ -1,4 +1,4 @@
-import { Backend, Feed, FeedFilter, FeedFolder, FeedItem, FeedType } from '../types';
+import { Backend, Feed, FeedFilter, FeedFolder, FeedItem, FeedQuery, FeedType } from '../types';
 import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems } from './nextcloud-news-types';
 
 import { api } from '@/utils/request';
@@ -85,15 +85,16 @@ export default class FeedBackend implements Backend {
 
   }
 
-  async getFeedItems(filter: FeedFilter, offset: number = 0): Promise<FeedItem[]> {
+  async getFeedItems(query: FeedQuery, offset: number = 0): Promise<FeedItem[]> {
     let items: FeedItem[] = [];
     try {
       const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-2/items?' + new URLSearchParams({
         batchSize: String(NB_ITEMS_TO_LOAD),
         offset: String(offset),
-        id: filter.id == '' ? '0' : filter.id,
-        type: getFeedType(filter.type),
-        getRead: String(!filter.onlyUnreadItems)
+        id: String(query.feedId ?? query.folderId ?? '0'),
+        type: getNextcloudFeedType(query),
+        getRead: String(query.feedFilter != FeedFilter.UNREAD),
+        oldestFirst: 'false',
       }).toString(), this._getOptions());
       items = itemsQuery.items.map((item: NNItem) => {
         return {
@@ -141,15 +142,17 @@ function getItemImageURL(item: NNItem): string {
   return image;
 }
 
-function getFeedType(type: FeedType): string {
-  switch (type) {
-    case FeedType.ALL:
-      return '3';
-    case FeedType.STARRED:
-      return '2';
-    case FeedType.FOLDER:
-      return '1';
-    default:
-      return '0';
+function getNextcloudFeedType(query: FeedQuery): string {
+  let nextCloudFeedType: string = '0';
+  if (!query.feedId) {
+    if (query.feedType == FeedType.STARRED) {
+      nextCloudFeedType = '2';
+    } else if (query.feedType == FeedType.FOLDER) {
+      nextCloudFeedType = '1';
+    } else if (query.feedFilter == FeedFilter.ALL) {
+      nextCloudFeedType = '3';
+    }
   }
+
+  return nextCloudFeedType
 }
