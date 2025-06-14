@@ -19,7 +19,7 @@ export type Feed = {
 }
 
 export type FeedItem = {
-  id: string
+  id: number
   feed: Feed | null
   folder: FeedFolder | null
   title: string

@@ -12,6 +12,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
 import { useFeedQuery } from '@/context/feed-query-provider'
 import { useParams } from '@tanstack/react-router'
+import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
 
 export default function Feeds() {
   const params = useParams({ strict: false });
@@ -38,6 +39,33 @@ export default function Feeds() {
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
+  // Infinite query pour charger les items par page
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useSuspenseInfiniteQuery({
+    queryKey: ['feedItems', feedQuery],
+    queryFn: async ({ pageParam = 0 }) => {
+      const backend = new (await import('@/backends/nextcloud-news/nextcloud-news')).default();
+      return backend.getFeedItems(feedQuery, pageParam);
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      // lastPage est le tableau d'items retourné
+      if (lastPage.length === 0) return undefined;
+      return lastPage[lastPage.length - 1].id; // ou autre logique d'offset
+    },
+  });
+
+  // Fusionner toutes les pages d'items
+  const items = data.pages.flat();
+
+  // Appeler fetchNextPage quand on veut charger plus
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  };
+
   return (
     <>
       {/* ===== Top Heading ===== */}
@@ -54,7 +82,19 @@ export default function Feeds() {
           <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
           {/* Left Side */}
           <Suspense fallback={<ItemsListLoader />}>
-            <FilterItemList feedQuery={feedQuery} selectedFeedArticle={selectedFeedArticle} setSelectedFeedArticle={setSelectedFeedArticle} />
+            <div className="flex flex-col h-full">
+              <FilterItemList
+                items={items}
+                selectedFeedArticle={selectedFeedArticle}
+                setSelectedFeedArticle={setSelectedFeedArticle}
+                onScrollEnd={loadMore}
+              />
+              {isFetchingNextPage && (
+                <div className="w-full flex justify-center py-2">
+                  <ItemsListLoader />
+                </div>
+              )}
+            </div>
           </Suspense>
           {/* Right Side */}
           {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : (<WebPageLoader />)}

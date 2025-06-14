@@ -1,28 +1,44 @@
-import { FeedItem, FeedQuery } from "@/backends/types";
-
-import FeedBackend from "@/backends/nextcloud-news/nextcloud-news";
+import { FeedItem } from "@/backends/types";
 import { ItemsList } from "./items-list";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useRef } from "react";
 
 interface FilterItemsProps {
-    readonly feedQuery: FeedQuery;
+    readonly items: FeedItem[];
     readonly selectedFeedArticle: FeedItem | null;
     readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
+    readonly onScrollEnd: () => void;
 }
 
+export function FilterItemList({ items, selectedFeedArticle, setSelectedFeedArticle, onScrollEnd }: FilterItemsProps) {
+    const scrollRef = useRef<HTMLDivElement>(null);
 
-export function FilterItemList({ feedQuery, selectedFeedArticle, setSelectedFeedArticle }: FilterItemsProps) {
-    const getFeedItems = async () => {
-        const backend = new FeedBackend();
+    // Déclenche onScrollEnd uniquement si l'utilisateur scrolle vers le bas
+    const lastScrollTop = useRef(0);
 
-        return await backend.getFeedItems(feedQuery);
-    }
+    const handleScroll = () => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const isScrollingDown = el.scrollTop > lastScrollTop.current;
+        if (
+            isScrollingDown &&
+            el.scrollTop + el.clientHeight >= el.scrollHeight - 10
+        ) {
+            onScrollEnd();
+        }
+        lastScrollTop.current = el.scrollTop;
+    };
 
-
-    const { data } = useSuspenseQuery({
-        queryKey: ['feeds', feedQuery],
-        queryFn: getFeedItems,
-    });
-
-    return <ItemsList items={data} selectedFeedArticle={selectedFeedArticle} setSelectedFeedArticle={setSelectedFeedArticle} />;
-};
+    return (
+        <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            style={{ overflowY: 'auto', height: '100%' }}
+        >
+            <ItemsList
+                items={items}
+                selectedFeedArticle={selectedFeedArticle}
+                setSelectedFeedArticle={setSelectedFeedArticle}
+            />
+        </div>
+    );
+}
