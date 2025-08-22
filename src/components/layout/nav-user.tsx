@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   BadgeCheck,
   Bell,
@@ -7,7 +7,6 @@ import {
   LogOut,
   Sparkles,
 } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -24,16 +24,28 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 
+import { useAuth } from '@/utils/auth'
+
 export function NavUser({
   user,
-}: {
+}: Readonly<{
   user: {
     name: string
     email: string
     avatar: string
   }
-}) {
+}>) {
   const { isMobile } = useSidebar()
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
+
+  const handleLogout = () => {
+    // Use the centralized signOut function
+    signOut()
+    
+    // Redirect to sign-in page
+    navigate({ to: '/sign-in' })
+  }
 
   return (
     <SidebarMenu>
@@ -102,7 +114,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Log out
             </DropdownMenuItem>

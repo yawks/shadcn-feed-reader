@@ -88,17 +88,20 @@ export default class FeedBackend implements Backend {
   async getFeedItems(query: FeedQuery, offset?: number): Promise<FeedItem[]> {
     let items: FeedItem[] = [];
     try {
-      const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-2/items?' + new URLSearchParams({
+      const params: { [key: string]: string } = {
         batchSize: String(NB_ITEMS_TO_LOAD),
-        offset: String(offset ?? 0),
         id: String(query.feedId ?? query.folderId ?? '0'),
         type: getNextcloudFeedType(query),
         getRead: String(query.feedFilter != FeedFilter.UNREAD),
         oldestFirst: 'false',
-      }).toString(), this._getOptions());
+      };
+      if (offset && offset > 0) {
+        params['offset'] = String(offset);
+      }
+      const itemsQuery = await api.get<NNItems>(this.url + '/index.php/apps/news/api/v1-3/items?' + new URLSearchParams(params).toString(), this._getOptions());
       items = itemsQuery.items.map((item: NNItem) => {
         return {
-          id: String(item.id),
+          id: item.id,
           feed: null, //String(item.feedId), TODO get the feed object
           title: item.title,
           url: item.url,

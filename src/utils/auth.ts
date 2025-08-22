@@ -5,6 +5,9 @@ export const useAuth = () => {
 
   const signOut = () => {
     localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem('backend-url')
+    localStorage.removeItem('backend-login')
+    localStorage.removeItem('backend-password')
   }
 
   const isLogged = () => localStorage.getItem('isAuthenticated') === 'true'
