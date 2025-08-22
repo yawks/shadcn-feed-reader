@@ -84,7 +84,7 @@ export function NavGroup({ title, items }: Readonly<NavGroup>) {
 }
 
 const NavBadge = ({ children }: { children: ReactNode }) => (
-  <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary border-primary/20 shadow-sm'>
+  <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-sidebar-accent/10 text-sidebar-accent-foreground border-sidebar-accent/20 shadow-sm'>
     {children}
   </Badge>
 )
@@ -100,7 +100,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
         asChild
         isActive={isActive}
         tooltip={item.title}
-        className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-primary/10 data-[active=true]:border-primary/20"
+        className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-sidebar-accent data-[active=true]:border-sidebar-accent/20"
       >
         <Link 
           to={item.url} 
@@ -111,7 +111,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
           className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
         >
           <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-            {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+            {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
             {item.iconUrl ? (
               <img 
                 alt={item.title} 
@@ -121,7 +121,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
             ) : null}
           </div>
           <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${
-            isActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+            isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
           }`}>
             {item.title}
           </span>
@@ -152,7 +152,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
           <SidebarMenuButton 
             tooltip={item.title} 
             isActive={isActive}
-            className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-primary/10 data-[active=true]:border-primary/20"
+            className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-sidebar-accent data-[active=true]:border-sidebar-accent/20"
           >
             <Link 
               to={item.url ?? "."} 
@@ -163,7 +163,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
               className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
             >
               <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+                {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
                 {item.iconUrl ? (
                   <img 
                     src={item.iconUrl} 
@@ -173,7 +173,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                 ) : null}
               </div>
               <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
-                isActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+                isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
               }`}>
                 {item.title}
               </span>
@@ -195,7 +195,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                   <SidebarMenuSubButton
                     asChild
                     isActive={isSubActive}
-                    className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-primary/10 data-[active=true]:border-l-2 data-[active=true]:border-primary"
+                    className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent"
                   >
                     <Link 
                       to={subItem.url} 
@@ -206,11 +206,11 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                       className="flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200"
                     >
                       <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                        {subItem.icon ? <subItem.icon className={`transition-colors duration-200 ${isSubActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+                        {subItem.icon ? <subItem.icon className={`transition-colors duration-200 ${isSubActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
                         {getSubItemIcon(subItem, item)}
                       </div>
                       <span className={`flex-1 truncate text-xs font-medium transition-colors duration-200 ${
-                        isSubActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+                        isSubActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
                       }`}>
                         {subItem.title}
                       </span>

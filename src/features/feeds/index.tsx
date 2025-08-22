@@ -1,5 +1,6 @@
 import { FeedItem, FeedType } from '@/backends/types'
-import { Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useParams } from '@tanstack/react-router'
 
 import { FeedArticle } from './FeedArticle'
 import { FilterItemList } from './FilterItemList'
@@ -11,11 +12,11 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
 import { useFeedQuery } from '@/context/feed-query-provider'
-import { useParams } from '@tanstack/react-router'
-import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 
 export default function Feeds() {
   const params = useParams({ strict: false });
+  const location = useLocation();
   const { feedQuery, setFeedQuery } = useFeedQuery()
 
   useEffect(() => {
@@ -33,9 +34,17 @@ export default function Feeds() {
         feedId: undefined,
         folderId: params.folderId
       })
+    } else {
+      // Cas pour "All articles" (route /)
+      setFeedQuery({
+        feedFilter: feedQuery.feedFilter,
+        feedType: undefined, // Tous les articles, pas de type spécifique
+        feedId: undefined,
+        folderId: undefined
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.feedId, params.folderId])
+  }, [params.feedId, params.folderId, location.pathname])
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
@@ -45,13 +54,16 @@ export default function Feeds() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useSuspenseInfiniteQuery({
+    isLoading,
+    error,
+  } = useInfiniteQuery({
     queryKey: ['feedItems', feedQuery],
     queryFn: async ({ pageParam = 0 }) => {
       const backend = new (await import('@/backends/nextcloud-news/nextcloud-news')).default();
       return backend.getFeedItems(feedQuery, pageParam);
     },
-    getNextPageParam: (lastPage, allPages) => {
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: FeedItem[], _allPages: FeedItem[][]) => {
       // lastPage est le tableau d'items retourné
       if (lastPage.length === 0) return undefined;
       return lastPage[lastPage.length - 1].id; // ou autre logique d'offset
@@ -59,7 +71,27 @@ export default function Feeds() {
   });
 
   // Fusionner toutes les pages d'items
-  const items = data.pages.flat();
+  const items = data?.pages.flat() ?? [];
+
+  // Gestion des états d'erreur
+  if (error) {
+    return (
+      <>
+        <Header>
+          <Search />
+          <div className='ml-auto flex items-center space-x-4'>
+            <ThemeSwitch />
+            <ProfileDropdown />
+          </div>
+        </Header>
+        <Main fixed>
+          <div className="flex h-full items-center justify-center">
+            <p className="text-red-500">Erreur lors du chargement des articles: {error.message}</p>
+          </div>
+        </Main>
+      </>
+    );
+  }
 
   // Appeler fetchNextPage quand on veut charger plus
   const loadMore = () => {
@@ -81,7 +113,9 @@ export default function Feeds() {
         <section className='flex h-full'>
           <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
           {/* Left Side */}
-          <Suspense fallback={<ItemsListLoader />}>
+          {isLoading ? (
+            <ItemsListLoader />
+          ) : (
             <div className="flex flex-col h-full">
               <FilterItemList
                 items={items}
@@ -95,7 +129,7 @@ export default function Feeds() {
                 </div>
               )}
             </div>
-          </Suspense>
+          )}
           {/* Right Side */}
           {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : (<WebPageLoader />)}
         </section>

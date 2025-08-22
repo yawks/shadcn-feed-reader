@@ -1,6 +1,7 @@
+import { IconFolder, IconNews } from "@tabler/icons-react";
+
 import FeedBackend from "@/backends/nextcloud-news/nextcloud-news";
 import { FeedFolder } from "@/backends/types";
-import { IconFolder } from "@tabler/icons-react";
 import { NavGroup } from "./nav-group";
 import { NavItem } from "./types";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -23,6 +24,12 @@ const getFolders = async () => {
                 }
             })
         }
+    })
+
+    navItems.unshift({
+        title: 'All Articles',
+        url: '/',
+        icon: IconNews
     })
 
     return navItems

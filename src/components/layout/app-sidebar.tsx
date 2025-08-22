@@ -47,19 +47,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
       </SidebarHeader>
       <SidebarContent>
+        <Suspense fallback={<FoldersLoader />}>
+          <FoldersNavGroup />
+        </Suspense>
+
         <SidebarGroup>
-          <SidebarGroupLabel>General</SidebarGroupLabel>
+          <SidebarGroupLabel>Filters</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                tooltip='All'>
+                tooltip='Read + Unread'>
                 <Button onClick={() => {
                   toggleFeedQueryButton(FeedFilter.ALL)
                 }}
                   className='bg-transparent hover:bg-transparent justify-start text-secondary-foreground hover:text-blue-500'>
                   <IconNews className={feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.ALL ? 'text-blue-500' : ''} />
-                  <span className={`text-xs ${feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.ALL ? 'font-bold text-blue-500' : null}`}>All</span>
+                  <span className={`text-xs ${feedQuery.feedType != FeedType.STARRED && feedQuery.feedFilter == FeedFilter.ALL ? 'font-bold text-blue-500' : null}`}>Read + Unread</span>
                 </Button>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -89,10 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-
-        <Suspense fallback={<FoldersLoader />}>
-          <FoldersNavGroup />
-        </Suspense>
+        
       </SidebarContent>
       <SidebarFooter>
       </SidebarFooter>
