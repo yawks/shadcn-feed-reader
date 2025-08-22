@@ -29,6 +29,30 @@ import {
 import { NavCollapsible, NavItem, NavLink, type NavGroup } from './types'
 import { IconNews } from '@tabler/icons-react'
 
+function getSubItemIcon(subItem: NavItem, parentItem: NavCollapsible) {
+  if (subItem.iconUrl) {
+    return (
+      <img 
+        src={subItem.iconUrl} 
+        alt={subItem.title} 
+        className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
+      />
+    )
+  }
+  
+  if (parentItem.iconUrl) {
+    return (
+      <img 
+        src={parentItem.iconUrl} 
+        alt={parentItem.title} 
+        className="w-4 h-4 rounded-sm ring-1 ring-border/10 opacity-60 transition-all duration-200 group-hover:opacity-80 group-hover:scale-110"
+      />
+    )
+  }
+  
+  return null
+}
+
 export function NavGroup({ title, items }: Readonly<NavGroup>) {
   const { state } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
@@ -60,79 +84,146 @@ export function NavGroup({ title, items }: Readonly<NavGroup>) {
 }
 
 const NavBadge = ({ children }: { children: ReactNode }) => (
-  <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
+  <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary border-primary/20 shadow-sm'>
+    {children}
+  </Badge>
 )
 
 const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
   const { setOpenMobile } = useSidebar()
   const [, setSelectedFolderOrFeed] = useState<NavLink | NavCollapsible | null>(null)
+  const isActive = checkIsActive(href, item)
+  
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        isActive={checkIsActive(href, item)}
+        isActive={isActive}
         tooltip={item.title}
+        className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-primary/10 data-[active=true]:border-primary/20"
       >
-        <Link to={item.url} onClick={() => {
-          setOpenMobile(false)
-          setSelectedFolderOrFeed(item)
-        }}>
-          {item.icon ? item.icon && <item.icon /> : null}
-          {item.iconUrl ? <img alt={item.title} src={item.iconUrl} className="w-4 h-4" /> : null}
-          <span className='text-xs'>{item.title}</span>
-          {item.badge && <NavBadge>{item.badge}</NavBadge>}
+        <Link 
+          to={item.url} 
+          onClick={() => {
+            setOpenMobile(false)
+            setSelectedFolderOrFeed(item)
+          }}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
+        >
+          <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+            {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+            {item.iconUrl ? (
+              <img 
+                alt={item.title} 
+                src={item.iconUrl} 
+                className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110" 
+              />
+            ) : null}
+          </div>
+          <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${
+            isActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+          }`}>
+            {item.title}
+          </span>
+          {item.badge && (
+            <div className="flex-shrink-0">
+              <NavBadge>{item.badge}</NavBadge>
+            </div>
+          )}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
 }
 
-function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: string }) {
+function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible; href: string }>) {
   const { setOpenMobile } = useSidebar()
   const [, setSelectedFolderOrFeed] = useState<NavLink | NavCollapsible | null>(null)
+  const isActive = checkIsActive(href, item)
+  
   return (
     <Collapsible
       asChild
-      defaultOpen={checkIsActive(href, item)}
+      defaultOpen={isActive}
       className='group/collapsible'
     >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip={item.title} isActive={checkIsActive(href, item)}>
-            <Link to={item.url ?? "."} onClick={() => {
-              setOpenMobile(false)
-              setSelectedFolderOrFeed(item)
-            }} className="items-center flex">
-              {item.icon ? item.icon && <item.icon /> : null}
-              {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
-              <span className={`text-xs  flex-auto px-2 ${item.classes ?? ''}`}>{item.title}</span>
-              {item.badge && <NavBadge>{item.badge}</NavBadge>}
+          <SidebarMenuButton 
+            tooltip={item.title} 
+            isActive={isActive}
+            className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-primary/10 data-[active=true]:border-primary/20"
+          >
+            <Link 
+              to={item.url ?? "."} 
+              onClick={() => {
+                setOpenMobile(false)
+                setSelectedFolderOrFeed(item)
+              }} 
+              className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
+            >
+              <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+                {item.iconUrl ? (
+                  <img 
+                    src={item.iconUrl} 
+                    alt={item.title} 
+                    className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
+                  />
+                ) : null}
+              </div>
+              <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
+                isActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+              }`}>
+                {item.title}
+              </span>
+              {item.badge && (
+                <div className="flex-shrink-0">
+                  <NavBadge>{item.badge}</NavBadge>
+                </div>
+              )}
             </Link>
-            <ChevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
+            <ChevronRight className='ml-2 h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 text-muted-foreground group-hover:text-foreground' />
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent className='CollapsibleContent'>
-          <SidebarMenuSub>
-            {item.items.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.title}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={checkIsActive(href, subItem)}
-                >
-                  <Link to={subItem.url} onClick={() => {
-                    setOpenMobile(false)
-                    setSelectedFolderOrFeed(subItem)
-                  }} className="w-full flex">
-                    {subItem.icon ? <subItem.icon /> : null}
-                    {subItem.iconUrl ? <><img src={subItem.iconUrl} alt={subItem.title} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.style.display = 'block'; }} className='w-4 h-4'></img><IconNews className="hidden" /></> : null}
-                    {item.iconUrl ? <img src={item.iconUrl} alt={item.title} className="w-4 h-4"></img> : null}
-
-                    <span className="flex-auto truncate text-xs">{subItem.title}</span>
-                    {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-                  </Link>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
+          <SidebarMenuSub className="space-y-1 px-2">
+            {item.items.map((subItem) => {
+              const isSubActive = checkIsActive(href, subItem)
+              return (
+                <SidebarMenuSubItem key={subItem.title}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={isSubActive}
+                    className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-primary/10 data-[active=true]:border-l-2 data-[active=true]:border-primary"
+                  >
+                    <Link 
+                      to={subItem.url} 
+                      onClick={() => {
+                        setOpenMobile(false)
+                        setSelectedFolderOrFeed(subItem)
+                      }} 
+                      className="flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200"
+                    >
+                      <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                        {subItem.icon ? <subItem.icon className={`transition-colors duration-200 ${isSubActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
+                        {getSubItemIcon(subItem, item)}
+                      </div>
+                      <span className={`flex-1 truncate text-xs font-medium transition-colors duration-200 ${
+                        isSubActive ? 'text-primary' : 'text-foreground group-hover:text-foreground'
+                      }`}>
+                        {subItem.title}
+                      </span>
+                      {subItem.badge && (
+                        <div className="flex-shrink-0">
+                          <NavBadge>{subItem.badge}</NavBadge>
+                        </div>
+                      )}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              )
+            })}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>
@@ -155,7 +246,7 @@ const SidebarMenuCollapsedDropdown = ({
             tooltip={item.title}
             isActive={checkIsActive(href, item)}
           >
-            {item.icon && typeof (item.icon) == "string" ? <img src={item.icon} className='w-4 h-4'></img> : (
+            {item.icon && typeof (item.icon) == "string" ? <img src={item.icon} alt={item.title} className='w-4 h-4'></img> : (
               item.icon && <item.icon />
             )}
             <span className='text-xs'>{item.title}</span>
@@ -174,7 +265,7 @@ const SidebarMenuCollapsedDropdown = ({
                 to={sub.url}
                 className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
               >
-                {item.icon && typeof (item.icon) == "string" ? <><img src={item.icon} className='w-4 h-4'></img><IconNews className="hidden" /></> : (
+                {item.icon && typeof (item.icon) == "string" ? <><img src={item.icon} alt={item.title} className='w-4 h-4'></img><IconNews className="hidden" /></> : (
                   item.icon && <item.icon />
                 )}
                 <span className='max-w-52 text-wra text-xs'>{sub.title}</span>

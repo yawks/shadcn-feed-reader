@@ -1,7 +1,21 @@
+import { useEffect, useState } from "react"
+
 import { FeedItem } from "@/backends/types"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 export function FeedArticle({ item }: { readonly item: FeedItem }) {
+    const [isLoading, setIsLoading] = useState(true)
+
+    // Remet l'état de loading à true quand l'URL de l'article change
+    useEffect(() => {
+        setIsLoading(true)
+    }, [item.url])
+
+    const handleLoad = () => {
+        setIsLoading(false)
+    }
+
     return (
         <div
             className={cn(
@@ -9,8 +23,21 @@ export function FeedArticle({ item }: { readonly item: FeedItem }) {
 
             )}
         >
-            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full'>
-                <iframe className='w-full h-full' src={item.url} title="Feed article" />
+            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full relative'>
+                {isLoading && (
+                    <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/80'>
+                        <div className='flex flex-col items-center space-y-4'>
+                            <Skeleton className='h-8 w-8 rounded-full animate-spin border-2 border-primary border-t-transparent' />
+                            <p className='text-sm text-muted-foreground'>Loading article...</p>
+                        </div>
+                    </div>
+                )}
+                <iframe 
+                    className='w-full h-full' 
+                    src={item.url} 
+                    title="Feed article"
+                    onLoad={handleLoad}
+                />
             </div>
         </div>
     )

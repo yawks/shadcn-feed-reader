@@ -32,7 +32,7 @@ export function FilterItemList({ items, selectedFeedArticle, setSelectedFeedArti
         <div
             ref={scrollRef}
             onScroll={handleScroll}
-            style={{ overflowY: 'auto', height: '100%' }}
+            className="h-full overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-border/80"
         >
             <ItemsList
                 items={items}
