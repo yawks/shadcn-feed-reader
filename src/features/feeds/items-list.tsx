@@ -18,7 +18,7 @@ function getTitleColor(isSelected: boolean, isUnread: boolean): string {
 export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
   const backend = new FeedBackend();
   return (
-    <div className="flex w-full flex-col sm:w-56 lg:w-72 2xl:w-80 border-r border-border/40">
+    <div className="flex w-full flex-col border-r border-border/40">
       <ScrollArea className="h-full">
         <div className="space-y-1 p-2">
           {items.map((item: FeedItem) => {

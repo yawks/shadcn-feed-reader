@@ -28,7 +28,7 @@ export function ItemLoader({ id }: { readonly id: string }) {
 export function ItemsListLoader() {
     // Simulate items to be displayed while loading
     return (
-        <div className='flex w-full flex-col gap-2 sm:w-56 lg:w-72 2xl:w-80 border-r border-r-gray'>
+        <div className='flex w-full flex-col gap-2 border-r border-r-gray'>
             <ScrollArea className='-mx-3 h-full p-3'>
                 {Array.from({ length: 8 }, (_, index) => (
                     <ItemLoader key={index} id={String(index + 1)} />

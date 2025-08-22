@@ -10,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from '@/components/ui/sidebar'
 
 import { Button } from '../ui/button'
@@ -21,7 +20,6 @@ import { useFeedQuery } from '@/context/feed-query-provider'
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { feedQuery, setFeedQuery } = useFeedQuery()
-  console.log('AppSidebar', feedQuery)
 
 
   const toggleFeedQueryButton = (feedFilter?: FeedFilter, feedType?: FeedType) => {
@@ -97,7 +95,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar >
   )
 }

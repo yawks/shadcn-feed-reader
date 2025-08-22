@@ -8,16 +8,33 @@ import { Header } from '@/components/layout/header'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
 import { useFeedQuery } from '@/context/feed-query-provider'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 
 export default function Feeds() {
   const params = useParams({ strict: false });
   const location = useLocation();
   const { feedQuery, setFeedQuery } = useFeedQuery()
+
+  // Hook pour gérer les panneaux redimensionnables
+  const {
+    leftFlex,
+    rightFlex,
+    isResizing,
+    handleMouseDown
+  } = useResizablePanelsFlex({
+    leftPanelKey: 'feeds-item-list-flex',
+    rightPanelKey: 'feeds-article-flex', 
+    defaultLeftFlex: 0.4,
+    defaultRightFlex: 0.6,
+    minLeftFlex: 0.25,
+    minRightFlex: 0.35
+  })
 
   useEffect(() => {
     if (params.feedId) {
@@ -110,28 +127,51 @@ export default function Feeds() {
       </Header>
 
       <Main fixed>
-        <section className='flex h-full'>
+        <section className={`flex h-full resizable-container ${isResizing ? 'select-none' : ''}`}>
           <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
-          {/* Left Side */}
-          {isLoading ? (
-            <ItemsListLoader />
-          ) : (
-            <div className="flex flex-col h-full">
-              <FilterItemList
-                items={items}
-                selectedFeedArticle={selectedFeedArticle}
-                setSelectedFeedArticle={setSelectedFeedArticle}
-                onScrollEnd={loadMore}
-              />
-              {isFetchingNextPage && (
-                <div className="w-full flex justify-center py-2">
-                  <ItemsListLoader />
-                </div>
-              )}
-            </div>
-          )}
-          {/* Right Side */}
-          {selectedFeedArticle != null ? (<FeedArticle item={selectedFeedArticle} />) : (<WebPageLoader />)}
+          
+          {/* Left Side - Item List */}
+          <div 
+            id="item-list" 
+            className="flex flex-col h-full bg-background"
+            style={{ flex: `${leftFlex} 1 0%` }}
+          >
+            {isLoading ? (
+              <ItemsListLoader />
+            ) : (
+              <>
+                <FilterItemList
+                  items={items}
+                  selectedFeedArticle={selectedFeedArticle}
+                  setSelectedFeedArticle={setSelectedFeedArticle}
+                  onScrollEnd={loadMore}
+                />
+                {isFetchingNextPage && (
+                  <div className="w-full flex justify-center py-2">
+                    <ItemsListLoader />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Resize Handle */}
+          <ResizeHandle 
+            onMouseDown={handleMouseDown}
+            className="shrink-0"
+          />
+
+          {/* Right Side - Article Content */}
+          <div 
+            className="flex flex-col h-full bg-background"
+            style={{ flex: `${rightFlex} 1 0%` }}
+          >
+            {selectedFeedArticle != null ? (
+              <FeedArticle item={selectedFeedArticle} />
+            ) : (
+              <WebPageLoader />
+            )}
+          </div>
         </section>
       </Main>
     </>

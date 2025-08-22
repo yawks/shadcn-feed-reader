@@ -5,6 +5,7 @@ import Cookies from 'js-cookie'
 import { FeedQueryProvider } from '@/context/feed-query-provider'
 import { SearchProvider } from '@/context/search-context'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarResizeHandle } from '@/components/layout/sidebar-resize-handle'
 import SkipToMain from '@/components/skip-to-main'
 import { cn } from '@/lib/utils'
 
@@ -20,19 +21,23 @@ export const Route = createFileRoute('/_authenticated')({
 
 function RouteComponent() {
   const defaultOpen = Cookies.get('sidebar_state') !== 'false'
+  
   return (
     <SearchProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
         <FeedQueryProvider>
           <SkipToMain />
           <AppSidebar />
+          
+          {/* Handle de redimensionnement pour la sidebar */}
+          <SidebarResizeHandle />
+          
           <div
             id='content'
             className={cn(
               'ml-auto w-full max-w-full',
               'peer-data-[state=collapsed]:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
               'peer-data-[state=expanded]:w-[calc(100%-var(--sidebar-width))]',
-              'sm:transition-[width] sm:duration-200 sm:ease-linear',
               'flex h-svh flex-col',
               'group-data-[scroll-locked=1]/body:h-full',
               'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh'
