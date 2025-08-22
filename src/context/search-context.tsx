@@ -1,4 +1,3 @@
-import { CommandMenu } from '@/components/command-menu'
 import React from 'react'
 
 interface SearchContextType {

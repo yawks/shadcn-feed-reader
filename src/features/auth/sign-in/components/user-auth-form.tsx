@@ -8,14 +8,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { HTMLAttributes, useState } from 'react'
-import { IconBrandFacebook, IconBrandGithub } from '@tabler/icons-react'
-import { Link, useNavigate } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { cn } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 

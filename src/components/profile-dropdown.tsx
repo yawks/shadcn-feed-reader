@@ -2,17 +2,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Link, useNavigate } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/utils/auth'
+import { useNavigate } from '@tanstack/react-router'
 
 export function ProfileDropdown() {
   const navigate = useNavigate()
@@ -31,21 +30,17 @@ export function ProfileDropdown() {
         <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
           <Avatar className='h-8 w-8'>
             <AvatarImage src='/avatars/01.png' alt='@shadcn' />
-            <AvatarFallback>SN</AvatarFallback>
+            <AvatarFallback>{localStorage.getItem('backend-login')?.[0].toLocaleUpperCase()}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className='w-56' align='end' forceMount>
         <DropdownMenuLabel className='font-normal'>
           <div className='flex flex-col space-y-1'>
-            <p className='text-sm leading-none font-medium'>satnaing</p>
-            <p className='text-muted-foreground text-xs leading-none'>
-              satnaingdev@gmail.com
-            </p>
+            <p className='text-sm leading-none font-medium'>{localStorage.getItem('backend-login')}</p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+        {/*<DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link to='/settings'>
               Profile
@@ -65,7 +60,7 @@ export function ProfileDropdown() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem>New Team</DropdownMenuItem>
-        </DropdownMenuGroup>
+        </DropdownMenuGroup>*/}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           Log out
