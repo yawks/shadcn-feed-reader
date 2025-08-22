@@ -1,8 +1,9 @@
-import path from 'path'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
+import path from 'path'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,6 +14,129 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['images/newspaper.svg', 'images/favicon-simple.svg', 'images/favicon-simple-dark.svg'],
+      manifest: {
+        name: 'Shadcn FeedReader',
+        short_name: 'FeedReader',
+        description: 'FeedReader Dashboard UI built with Shadcn and Vite',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        lang: 'fr',
+        icons: [
+          {
+            src: '/images/newspaper.svg',
+            sizes: '32x32',
+            type: 'image/svg+xml'
+          },
+          {
+            src: '/images/newspaper.svg',
+            sizes: 'any',
+            type: 'image/svg+xml'
+          },
+          {
+            src: '/images/newspaper.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml',
+            purpose: 'any'
+          },
+          {
+            src: '/images/newspaper.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'maskable any'
+          }
+        ],
+        categories: ['productivity', 'news'],
+        shortcuts: [
+          {
+            name: 'Dashboard',
+            short_name: 'Dashboard',
+            description: 'Accéder au tableau de bord',
+            url: '/dashboard',
+            icons: [
+              {
+                src: '/images/newspaper.svg',
+                sizes: '32x32',
+                type: 'image/svg+xml'
+              }
+            ]
+          },
+          {
+            name: 'Feeds',
+            short_name: 'Feeds',
+            description: 'Gérer les flux RSS',
+            url: '/feeds',
+            icons: [
+              {
+                src: '/images/newspaper.svg',
+                sizes: '32x32',
+                type: 'image/svg+xml'
+              }
+            ]
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 5000000, // 5MB
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+              }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gstatic-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+              }
+            }
+          },
+          {
+            urlPattern: /\/api\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'apis-cache',
+              networkTimeoutSeconds: 10,
+              expiration: {
+                maxEntries: 16,
+                maxAgeSeconds: 60 * 60 * 24 // <== 24 hours
+              }
+            }
+          },
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // <== 30 days
+              }
+            }
+          }
+        ]
+      },
+      devOptions: {
+        enabled: true
+      }
+    }),
   ],
   resolve: {
     alias: {

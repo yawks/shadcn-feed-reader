@@ -8,7 +8,10 @@ import {
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 
 import { AxiosError } from 'axios'
+import { ConnectionStatus } from '@/components/connection-status'
 import { FontProvider } from './context/font-context'
+import { InstallPWA } from '@/components/install-pwa'
+import { PWAPrompt } from '@/components/pwa-prompt'
 import ReactDOM from 'react-dom/client'
 import { StrictMode } from 'react'
 import { ThemeProvider } from './context/theme-context'
@@ -63,7 +66,7 @@ const queryClient = new QueryClient({
           router.navigate({ to: '/500' })
         }
         if (error.response?.status === 403) {
-          // router.navigate("/forbidden", { replace: true });
+          router.navigate({ to: '/403' })
         }
       }
     },
@@ -99,7 +102,14 @@ if (!rootElement.innerHTML) {
           <FontProvider>
             {(() => {
               const authentication = useAuth();
-              return <RouterProvider router={router} context={{ authentication }} />;
+              return (
+                <>
+                  <PWAPrompt />
+                  <InstallPWA />
+                  <ConnectionStatus />
+                  <RouterProvider router={router} context={{ authentication }} />
+                </>
+              );
             })()}
           </FontProvider>
         </ThemeProvider>
