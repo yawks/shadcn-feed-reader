@@ -4,7 +4,12 @@ import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
-export function FeedArticle({ item }: { readonly item: FeedItem }) {
+interface FeedArticleProps {
+    readonly item: FeedItem
+    readonly isMobile?: boolean
+}
+
+export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [isLoading, setIsLoading] = useState(true)
 
     // Remet l'état de loading à true quand l'URL de l'article change
@@ -19,8 +24,13 @@ export function FeedArticle({ item }: { readonly item: FeedItem }) {
     return (
         <div
             className={cn(
-                'absolute inset-0 left-full z-50 hidden w-full flex-1 flex-col rounded-md border bg-primary-foreground shadow-sm transition-all duration-200 sm:static sm:z-auto sm:flex',
-
+                'flex flex-col rounded-md border bg-primary-foreground shadow-sm h-full w-full',
+                {
+                    // Classes pour mobile : toujours visible et prend toute la place
+                    'flex': isMobile,
+                    // Classes pour desktop : comportement original
+                    'absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex': !isMobile,
+                }
             )}
         >
             <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full relative'>

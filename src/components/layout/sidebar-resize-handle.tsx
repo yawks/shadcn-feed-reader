@@ -21,7 +21,7 @@ export function SidebarResizeHandle() {
   return (
     <ResizeHandle 
       onMouseDown={handleMouseDown}
-      className="fixed top-0 h-full w-3 z-50 bg-transparent hover:bg-border/20 cursor-col-resize"
+      className="fixed top-0 h-full w-3 z-50 bg-transparent hover:bg-border/20 cursor-col-resize hidden md:block"
       style={{ left: `${sidebarWidth - 10}px` }}
     />
   )

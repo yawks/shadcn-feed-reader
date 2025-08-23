@@ -14,6 +14,7 @@ const getFolders = async () => {
             title: folder.name,
             icon: IconFolder,
             badge: folder.unreadCount > 0 ? String(folder.unreadCount) : undefined,
+            url : `/folder/${folder.id}`,
             // @ts-expect-error - Dynamic route parameters are not handled well by the strict router typing
             items: folder.feeds.map((feed) => ({
                 title: feed.title,
