@@ -1,9 +1,9 @@
 import { FeedItem, FeedType } from '@/backends/types'
-import { useEffect, useState } from 'react'
-import { useLocation, useParams } from '@tanstack/react-router'
+import { FilterItemList, FilterItemListRef } from './FilterItemList'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 
 import { FeedArticle } from './FeedArticle'
-import { FilterItemList } from './FilterItemList'
 import { Header } from '@/components/layout/header'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
 import { Main } from '@/components/layout/main'
@@ -21,13 +21,24 @@ import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 export default function Feeds() {
   const params = useParams({ strict: false });
   const location = useLocation();
+  const navigate = useNavigate();
   const { feedQuery, setFeedQuery } = useFeedQuery()
   const isMobile = useIsMobile()
 
-  // État pour gérer l'affichage mobile (liste vs article)
-  const [showArticleOnMobile, setShowArticleOnMobile] = useState(false)
+  // Ref for the list container to manage scroll
+  const filterItemListRef = useRef<FilterItemListRef>(null)
 
-  // Hook pour gérer les panneaux redimensionnables (desktop uniquement)
+  // State to store scroll position
+  const [scrollPosition, setScrollPosition] = useState(0)
+
+  // Get articleId from URL search params
+  const articleId = new URLSearchParams(location.search).get('articleId')
+
+  // Check if we are displaying an article via the URL (articleId parameter)
+  // On mobile, show the article if articleId is present in the URL
+  const showArticleOnMobile = isMobile && Boolean(articleId)
+
+  // Hook to manage resizable panels (desktop only)
   const {
     leftFlex,
     rightFlex,
@@ -58,10 +69,10 @@ export default function Feeds() {
         folderId: params.folderId
       })
     } else {
-      // Cas pour "All articles" (route /)
+      // Case for "All articles" (route /)
       setFeedQuery({
         feedFilter: feedQuery.feedFilter,
-        feedType: undefined, // Tous les articles, pas de type spécifique
+        feedType: undefined, // All articles, no specific type
         feedId: undefined,
         folderId: undefined
       })
@@ -71,20 +82,50 @@ export default function Feeds() {
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
-  // Fonction pour gérer la sélection d'article (desktop et mobile)
+  // Function to handle article selection (desktop and mobile)
   const handleArticleSelection = (article: FeedItem | null) => {
+    console.log('📱 handleArticleSelection called:', { 
+      articleId: article?.id, 
+      title: article?.title, 
+      isMobile 
+    })
+    
     setSelectedFeedArticle(article)
+    
     if (isMobile && article) {
-      setShowArticleOnMobile(true)
+      // Save the scroll position before navigating
+      if (filterItemListRef.current) {
+        const currentScroll = filterItemListRef.current.getScrollTop()
+        setScrollPosition(currentScroll)
+        console.log('💾 Saving scroll position:', currentScroll)
+      }
+      
+      // Navigate to the article by adding the articleId to the URL
+      const searchParams = new URLSearchParams(location.search)
+      searchParams.set('articleId', article.id.toString())
+      
+      console.log('🔄 Navigating to:', location.pathname + '?' + searchParams.toString())
+      
+      navigate({
+        to: location.pathname,
+        search: Object.fromEntries(searchParams.entries())
+      })
     }
   }
 
-  // Fonction pour revenir à la liste sur mobile
+  // Function to go back to the list on mobile
   const handleBackToList = () => {
-    setShowArticleOnMobile(false)
+    // Remove the articleId from the URL to go back to the list
+    const searchParams = new URLSearchParams(location.search)
+    searchParams.delete('articleId')
+    
+    navigate({
+      to: location.pathname,
+      search: Object.fromEntries(searchParams.entries())
+    })
   }
 
-  // Infinite query pour charger les items par page
+  // Infinite query to load items by page
   const {
     data,
     fetchNextPage,
@@ -100,16 +141,52 @@ export default function Feeds() {
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage: FeedItem[], _allPages: FeedItem[][]) => {
-      // lastPage est le tableau d'items retourné
+      // lastPage is the array of returned items
       if (lastPage.length === 0) return undefined;
-      return lastPage[lastPage.length - 1].id; // ou autre logique d'offset
+      return lastPage[lastPage.length - 1].id; // or other offset logic
     },
   });
 
-  // Fusionner toutes les pages d'items
+  // Merge all item pages
   const items = data?.pages.flat() ?? [];
 
-  // Gestion des états d'erreur
+  // Effect to restore scroll position when returning to list (mobile only)
+  useEffect(() => {
+    if (isMobile && !showArticleOnMobile && scrollPosition > 0) {
+      console.log('🔄 Attempting to restore scroll to:', scrollPosition)
+      
+      // Wait for the component to mount and the data to load
+      const restoreScroll = () => {
+        if (filterItemListRef.current && items.length > 0) {
+          console.log('✅ Restoring scroll to:', scrollPosition)
+          filterItemListRef.current.setScrollTop(scrollPosition)
+          // Reset scroll position after restoring to avoid future interference
+          setScrollPosition(0)
+        }
+      }
+      
+      // Try immediately
+      restoreScroll()
+      
+      // Then try with progressive delays just in case
+      const timeouts = [50, 150, 300].map(delay => 
+        setTimeout(restoreScroll, delay)
+      )
+      
+      return () => {
+        timeouts.forEach(clearTimeout)
+      }
+    }
+  }, [showArticleOnMobile, isMobile, scrollPosition, items.length])
+
+  // Find the article selected based on the articleId in the URL
+  const selectedArticleFromUrl = articleId ? 
+    items.find(item => item.id.toString() === articleId.toString()) : null
+  
+  // Use article from URL on mobile
+  const currentSelectedArticle = selectedArticleFromUrl || selectedFeedArticle
+
+  // Error handling
   if (error) {
     return (
       <>
@@ -129,7 +206,7 @@ export default function Feeds() {
     );
   }
 
-  // Appeler fetchNextPage quand on veut charger plus
+  // Call fetchNextPage when we want to load more
   const loadMore = () => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   };
@@ -137,25 +214,29 @@ export default function Feeds() {
   return (
     <>
       {isMobile ? (
-        // Layout mobile complet
+        // Full mobile layout
         <>
           {showArticleOnMobile ? (
-            // Vue article sur mobile
+            // article view on mobile
             <div className="flex flex-col h-dvh">
               <div className="flex items-center p-3 border-b bg-background">
                 <MobileBackButton onBack={handleBackToList} />
                 <h1 className="ml-3 text-lg font-medium truncate">
-                  {selectedFeedArticle?.title}
+                  {currentSelectedArticle?.title}
                 </h1>
               </div>
               <div className="flex-1 overflow-hidden">
-                {selectedFeedArticle && (
-                  <FeedArticle item={selectedFeedArticle} isMobile={true} />
+                {currentSelectedArticle ? (
+                  <FeedArticle item={currentSelectedArticle} isMobile={true} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <WebPageLoader />
+                  </div>
                 )}
               </div>
             </div>
           ) : (
-            // Vue liste sur mobile
+            // list view on mobile
             <>
               <Header>
                 <Search />
@@ -171,19 +252,14 @@ export default function Feeds() {
                   {isLoading ? (
                     <ItemsListLoader />
                   ) : (
-                    <>
-                      <FilterItemList
-                        items={items}
-                        selectedFeedArticle={selectedFeedArticle}
-                        setSelectedFeedArticle={handleArticleSelection}
-                        onScrollEnd={loadMore}
-                      />
-                      {isFetchingNextPage && (
-                        <div className="w-full flex justify-center py-2">
-                          <ItemsListLoader />
-                        </div>
-                      )}
-                    </>
+                    <FilterItemList
+                      ref={filterItemListRef}
+                      items={items}
+                      selectedFeedArticle={currentSelectedArticle}
+                      setSelectedFeedArticle={handleArticleSelection}
+                      onScrollEnd={loadMore}
+                      isFetchingNextPage={isFetchingNextPage}
+                    />
                   )}
                 </div>
               </Main>
@@ -191,7 +267,7 @@ export default function Feeds() {
           )}
         </>
       ) : (
-        // Layout desktop avec resize
+        // Layout desktop with resize
         <>
           <Header>
             <Search />
@@ -214,19 +290,13 @@ export default function Feeds() {
                 {isLoading ? (
                   <ItemsListLoader />
                 ) : (
-                  <>
-                    <FilterItemList
-                      items={items}
-                      selectedFeedArticle={selectedFeedArticle}
-                      setSelectedFeedArticle={setSelectedFeedArticle}
-                      onScrollEnd={loadMore}
-                    />
-                    {isFetchingNextPage && (
-                      <div className="w-full flex justify-center py-2">
-                        <ItemsListLoader />
-                      </div>
-                    )}
-                  </>
+                  <FilterItemList
+                    items={items}
+                    selectedFeedArticle={currentSelectedArticle}
+                    setSelectedFeedArticle={setSelectedFeedArticle}
+                    onScrollEnd={loadMore}
+                    isFetchingNextPage={isFetchingNextPage}
+                  />
                 )}
               </div>
 
@@ -241,8 +311,8 @@ export default function Feeds() {
                 className="flex flex-col h-full bg-background"
                 style={{ flex: `${rightFlex} 1 0%` }}
               >
-                {selectedFeedArticle != null ? (
-                  <FeedArticle item={selectedFeedArticle} isMobile={false} />
+                {currentSelectedArticle != null ? (
+                  <FeedArticle item={currentSelectedArticle} isMobile={false} />
                 ) : (
                   <WebPageLoader />
                 )}

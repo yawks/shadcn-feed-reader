@@ -16,7 +16,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['images/newspaper.svg', 'images/favicon-simple.svg', 'images/favicon-simple-dark.svg'],
+      includeAssets: ['images/favicon.svg', 'images/favicon-32x32.png', 'images/favicon-16x16.png', 'images/apple-touch-icon.png', 'images/icon-192.png', 'images/icon-512.png'],
       manifest: {
         name: 'Shadcn FeedReader',
         short_name: 'FeedReader',
@@ -30,26 +30,26 @@ export default defineConfig({
         lang: 'fr',
         icons: [
           {
-            src: '/images/newspaper.svg',
+            src: '/images/favicon-32x32.png',
             sizes: '32x32',
-            type: 'image/svg+xml'
+            type: 'image/png'
           },
           {
-            src: '/images/newspaper.svg',
-            sizes: 'any',
-            type: 'image/svg+xml'
-          },
-          {
-            src: '/images/newspaper.svg',
+            src: '/images/icon-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/images/newspaper.svg',
+            src: '/images/icon-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'maskable any'
+          },
+          {
+            src: '/images/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png'
           }
         ],
         categories: ['productivity', 'news'],

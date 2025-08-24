@@ -1,6 +1,6 @@
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
+import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { timeSince } from '@/lib/utils';
 
 interface ItemsListProps {
@@ -17,9 +17,10 @@ function getTitleColor(isSelected: boolean, isUnread: boolean): string {
 
 export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
   const backend = new FeedBackend();
+  
   return (
     <div className="flex w-full flex-col border-r border-border/40">
-      <ScrollArea className="h-full">
+      <div className="h-full overflow-y-auto">
         <div className="space-y-1 p-2">
           {items.map((item: FeedItem) => {
             const { id, title, feed, pubDate, thumbnailUrl } = item;
@@ -63,15 +64,24 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                     
                     <div className="flex-1 min-w-0 space-y-1">
                       <h3 className={`
-                        font-medium leading-tight line-clamp-2 
+                        font-medium leading-tight line-clamp-4
                         ${getTitleColor(isSelected, isUnread)}
                         group-hover:text-foreground transition-colors duration-200
                       `}>
                         {title}
                       </h3>
                       
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span className="font-medium truncate">{feed?.title}</span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          {feed?.faviconUrl && (
+                            <FeedFavicon 
+                              src={feed.faviconUrl} 
+                              alt={feed.title}
+                              className="w-3 h-3 rounded-sm flex-shrink-0"
+                            />
+                          )}
+                          <span className="font-medium truncate">{feed?.title}</span>
+                        </div>
                         <span className="text-muted-foreground/60">•</span>
                         <time className="whitespace-nowrap">{timeSince(pubDate?.getTime() ?? 0)}</time>
                       </div>
@@ -87,7 +97,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

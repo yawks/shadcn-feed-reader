@@ -72,6 +72,7 @@ export default class FeedBackend implements Backend {
           title: feed.title,
           unreadCount: feed.unreadCount,
           faviconUrl: feed.faviconLink,
+          folderId: String(feed.folderId),
         } as Feed;
         feedsInFolders[feed.folderId].feeds.push(newFeed);
         feedsInFolders[feed.folderId].unreadCount += feed.unreadCount;
@@ -85,9 +86,32 @@ export default class FeedBackend implements Backend {
 
   }
 
+  private async _getFeedsMapping(): Promise<{ [feedId: number]: Feed }> {
+    const feedsMapping: { [feedId: number]: Feed } = {};
+    try {
+      const feedsQuery = await api.get<NNFeeds>(this.url + '/index.php/apps/news/api/v1-2/feeds', this._getOptions());
+      feedsQuery.feeds.forEach((feed: NNFeed) => {
+        feedsMapping[feed.id] = {
+          id: String(feed.id),
+          title: feed.title,
+          unreadCount: feed.unreadCount,
+          faviconUrl: feed.faviconLink,
+          folderId: String(feed.folderId),
+        } as Feed;
+      });
+    } catch (error) {
+      throw new Error('Network response was not ok' + error)
+    }
+
+    return feedsMapping;
+  }
+
   async getFeedItems(query: FeedQuery, offset?: number): Promise<FeedItem[]> {
     let items: FeedItem[] = [];
     try {
+      // Récupérer tous les feeds pour créer un mapping feedId -> Feed
+      const feedsMapping = await this._getFeedsMapping();
+      
       const params: { [key: string]: string } = {
         batchSize: String(NB_ITEMS_TO_LOAD),
         id: String(query.feedId ?? query.folderId ?? '0'),
@@ -102,7 +126,7 @@ export default class FeedBackend implements Backend {
       items = itemsQuery.items.map((item: NNItem) => {
         return {
           id: item.id,
-          feed: null, //String(item.feedId), TODO get the feed object
+          feed: feedsMapping[item.feedId] || null,
           title: item.title,
           url: item.url,
           pubDate: new Date(item.pubDate * 1000),

@@ -14,7 +14,6 @@ export function MobileBackButton({ onBack }: MobileBackButtonProps) {
       className="flex items-center gap-2"
     >
       <ArrowLeft size={16} />
-      Retour
     </Button>
   )
 }
