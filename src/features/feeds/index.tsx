@@ -3,8 +3,10 @@ import { FilterItemList, FilterItemListRef } from './FilterItemList'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 
+import { Button } from '@/components/ui/button'
 import { FeedArticle } from './FeedArticle'
 import { Header } from '@/components/layout/header'
+import { IconX } from '@tabler/icons-react'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
 import { Main } from '@/components/layout/main'
 import { MobileBackButton } from '@/components/mobile-back-button'
@@ -17,12 +19,14 @@ import { useFeedQuery } from '@/context/feed-query-provider'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
+import { useSearch } from '@/context/search-context'
 
 export default function Feeds() {
   const params = useParams({ strict: false });
   const location = useLocation();
   const navigate = useNavigate();
   const { feedQuery, setFeedQuery } = useFeedQuery()
+  const { isSearchMode, searchResults, clearSearchMode } = useSearch()
   const isMobile = useIsMobile()
 
   // Ref for the list container to manage scroll
@@ -147,8 +151,8 @@ export default function Feeds() {
     },
   });
 
-  // Merge all item pages
-  const items = data?.pages.flat() ?? [];
+  // Merge all item pages or use search results if in search mode
+  const items = isSearchMode ? searchResults : (data?.pages.flat() ?? []);
 
   // Effect to restore scroll position when returning to list (mobile only)
   useEffect(() => {
@@ -249,7 +253,27 @@ export default function Feeds() {
                 <div className="flex flex-col h-full">
                   <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
                   
-                  {isLoading ? (
+                  {/* Search mode banner */}
+                  {isSearchMode && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          Search Results ({searchResults.length} articles)
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearSearchMode}
+                        className="h-6 w-6 p-0"
+                      >
+                        <IconX className="h-4 w-4" />
+                        <span className="sr-only">Clear search</span>
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {(isLoading && !isSearchMode) ? (
                     <ItemsListLoader />
                   ) : (
                     <FilterItemList
@@ -287,7 +311,27 @@ export default function Feeds() {
                 className="flex flex-col h-full bg-background"
                 style={{ flex: `${leftFlex} 1 0%` }}
               >
-                {isLoading ? (
+                {/* Search mode banner */}
+                {isSearchMode && (
+                  <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        Search Results ({searchResults.length} articles)
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearSearchMode}
+                      className="h-6 w-6 p-0"
+                    >
+                      <IconX className="h-4 w-4" />
+                      <span className="sr-only">Clear search</span>
+                    </Button>
+                  </div>
+                )}
+                
+                {(isLoading && !isSearchMode) ? (
                   <ItemsListLoader />
                 ) : (
                   <FilterItemList

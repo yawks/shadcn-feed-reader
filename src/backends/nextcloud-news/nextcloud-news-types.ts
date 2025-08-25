@@ -56,3 +56,7 @@ export type NNFeeds = {
 export type NNItems = {
   items: NNItem[]
 }
+
+export type NNSearchResult = {
+  items: NNItem[]
+}

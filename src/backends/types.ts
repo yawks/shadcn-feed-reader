@@ -1,6 +1,7 @@
 export interface Backend {
   getFolders: () => Promise<FeedFolder[]>
   getFeedItems(query: FeedQuery, offset: number): Promise<FeedItem[]>
+  searchItems(content: string): Promise<FeedItem[]>
 }
 
 export type FeedFolder = {

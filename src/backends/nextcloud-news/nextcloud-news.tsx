@@ -1,5 +1,5 @@
 import { Backend, Feed, FeedFilter, FeedFolder, FeedItem, FeedQuery, FeedType } from '../types';
-import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems } from './nextcloud-news-types';
+import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems, NNSearchResult } from './nextcloud-news-types';
 
 import { api } from '@/utils/request';
 
@@ -149,6 +149,42 @@ export default class FeedBackend implements Backend {
     } catch (error) {
       throw new Error('Network response was not ok' + error)
     }
+  }
+
+  async searchItems(content: string): Promise<FeedItem[]> {
+    let items: FeedItem[] = [];
+    try {
+      // Get all feeds for creating a mapping feedId -> Feed
+      const feedsMapping = await this._getFeedsMapping();
+      
+      const params: { [key: string]: string } = {
+        content: content,
+        includeBody: 'true'
+      };
+      
+      const searchQuery = await api.get<NNSearchResult>(
+        this.url + '/index.php/apps/news/api/v1-3/search?' + new URLSearchParams(params).toString(), 
+        this._getOptions()
+      );
+      
+      items = searchQuery.items.map((item: NNItem) => {
+        return {
+          id: item.id,
+          feed: feedsMapping[item.feedId] || null,
+          title: item.title,
+          url: item.url,
+          pubDate: new Date(item.pubDate * 1000),
+          read: !item.unread,
+          starred: item.starred,
+          body: item.body,
+          thumbnailUrl: getItemImageURL(item),
+        } as FeedItem
+      });
+    } catch (error) {
+      throw new Error('Network response was not ok' + error)
+    }
+
+    return items;
   }
 
 }
