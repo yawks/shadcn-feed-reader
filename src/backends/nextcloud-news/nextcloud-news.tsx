@@ -111,7 +111,7 @@ export default class FeedBackend implements Backend {
     try {
       // Récupérer tous les feeds pour créer un mapping feedId -> Feed
       const feedsMapping = await this._getFeedsMapping();
-      
+
       const params: { [key: string]: string } = {
         batchSize: String(NB_ITEMS_TO_LOAD),
         id: String(query.feedId ?? query.folderId ?? '0'),
@@ -156,17 +156,17 @@ export default class FeedBackend implements Backend {
     try {
       // Get all feeds for creating a mapping feedId -> Feed
       const feedsMapping = await this._getFeedsMapping();
-      
+
       const params: { [key: string]: string } = {
         content: content,
         includeBody: 'true'
       };
-      
+
       const searchQuery = await api.get<NNSearchResult>(
-        this.url + '/index.php/apps/news/api/v1-3/search?' + new URLSearchParams(params).toString(), 
+        this.url + '/index.php/apps/news/api/v1-3/search?' + new URLSearchParams(params).toString(),
         this._getOptions()
       );
-      
+
       items = searchQuery.items.map((item: NNItem) => {
         return {
           id: item.id,
@@ -212,7 +212,7 @@ function getNextcloudFeedType(query: FeedQuery): string {
       nextCloudFeedType = '2';
     } else if (query.feedType == FeedType.FOLDER) {
       nextCloudFeedType = '1';
-    } else if (query.feedFilter == FeedFilter.ALL) {
+    } else if (query.feedFilter == FeedFilter.ALL || query.feedFilter == FeedFilter.UNREAD) {
       nextCloudFeedType = '3';
     }
   }

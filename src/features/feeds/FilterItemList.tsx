@@ -108,7 +108,7 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
                     selectedFeedArticle={selectedFeedArticle}
                     setSelectedFeedArticle={setSelectedFeedArticle}
                 />
-                <div className="w-full flex justify-center py-2 min-h-[60px]">
+                <div className="w-full py-2 min-h-[60px]">
                     {isFetchingNextPage && <ItemsListLoader />}
                 </div>
             </div>

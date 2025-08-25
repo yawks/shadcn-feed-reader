@@ -14,8 +14,8 @@ export function useResizablePanelsFlex({
   rightPanelKey,
   defaultLeftFlex,
   defaultRightFlex,
-  minLeftFlex = 0.2,
-  minRightFlex = 0.3
+  minLeftFlex = 0.15,
+  minRightFlex = 0.15
 }: UseResizablePanelsFlexOptions) {
   const [leftFlex, setLeftFlex] = useState(() => {
     const saved = localStorage.getItem(leftPanelKey)

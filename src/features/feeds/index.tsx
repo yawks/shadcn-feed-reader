@@ -53,8 +53,8 @@ export default function Feeds() {
     rightPanelKey: 'feeds-article-flex', 
     defaultLeftFlex: 0.4,
     defaultRightFlex: 0.6,
-    minLeftFlex: 0.25,
-    minRightFlex: 0.35
+    minLeftFlex: 0.15,
+    minRightFlex: 0.15
   })
 
   useEffect(() => {
@@ -86,29 +86,18 @@ export default function Feeds() {
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
-  // Function to handle article selection (desktop and mobile)
+    // Function to handle article selection (desktop and mobile)
   const handleArticleSelection = (article: FeedItem | null) => {
-    console.log('📱 handleArticleSelection called:', { 
-      articleId: article?.id, 
-      title: article?.title, 
-      isMobile 
-    })
-    
     setSelectedFeedArticle(article)
     
     if (isMobile && article) {
       // Save the scroll position before navigating
-      if (filterItemListRef.current) {
-        const currentScroll = filterItemListRef.current.getScrollTop()
-        setScrollPosition(currentScroll)
-        console.log('💾 Saving scroll position:', currentScroll)
-      }
+      const currentScroll = filterItemListRef.current?.getScrollTop() || 0
+      setScrollPosition(currentScroll)
       
-      // Navigate to the article by adding the articleId to the URL
+      // Navigate to article with articleId in search params
       const searchParams = new URLSearchParams(location.search)
       searchParams.set('articleId', article.id.toString())
-      
-      console.log('🔄 Navigating to:', location.pathname + '?' + searchParams.toString())
       
       navigate({
         to: location.pathname,
@@ -157,12 +146,9 @@ export default function Feeds() {
   // Effect to restore scroll position when returning to list (mobile only)
   useEffect(() => {
     if (isMobile && !showArticleOnMobile && scrollPosition > 0) {
-      console.log('🔄 Attempting to restore scroll to:', scrollPosition)
-      
       // Wait for the component to mount and the data to load
       const restoreScroll = () => {
         if (filterItemListRef.current && items.length > 0) {
-          console.log('✅ Restoring scroll to:', scrollPosition)
           filterItemListRef.current.setScrollTop(scrollPosition)
           // Reset scroll position after restoring to avoid future interference
           setScrollPosition(0)
@@ -309,7 +295,11 @@ export default function Feeds() {
               <div 
                 id="item-list" 
                 className="flex flex-col h-full bg-background"
-                style={{ flex: `${leftFlex} 1 0%` }}
+                style={{ 
+                  width: `${leftFlex * 100}%`,
+                  minWidth: 0,
+                  flexShrink: 0
+                }}
               >
                 {/* Search mode banner */}
                 {isSearchMode && (
@@ -353,7 +343,11 @@ export default function Feeds() {
               {/* Right Side - Article Content */}
               <div 
                 className="flex flex-col h-full bg-background"
-                style={{ flex: `${rightFlex} 1 0%` }}
+                style={{ 
+                  width: `${rightFlex * 100}%`,
+                  minWidth: 0,
+                  flexShrink: 0
+                }}
               >
                 {currentSelectedArticle != null ? (
                   <FeedArticle item={currentSelectedArticle} isMobile={false} />
