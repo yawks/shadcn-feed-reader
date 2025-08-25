@@ -68,10 +68,10 @@ export function SearchDialog() {
   const handleItemSelect = (item: FeedItem) => {
     // Close the search dialog
     setOpen(false)
-    
+
     // Enable search mode to show search results in the main feed view
     setIsSearchMode(true)
-    
+
     // For now, just open the article in a new tab
     // The search results are already available in the context
     window.open(item.url, '_blank', 'noopener,noreferrer')
@@ -93,21 +93,21 @@ export function SearchDialog() {
         {!searchQuery.trim() && !isSearching && (
           <CommandEmpty>Start typing to search articles...</CommandEmpty>
         )}
-        
+
         {isSearching && (
           <CommandEmpty>Searching...</CommandEmpty>
         )}
-        
+
         {searchError && (
           <CommandEmpty className="text-destructive">
             Error: {searchError}
           </CommandEmpty>
         )}
-        
+
         {searchQuery.trim() && !isSearching && !searchError && searchResults.length === 0 && (
           <CommandEmpty>No articles found.</CommandEmpty>
         )}
-        
+
         {searchResults.length > 0 && (
           <CommandGroup heading="Articles">
             {searchResults.map((item) => (
@@ -119,26 +119,26 @@ export function SearchDialog() {
               >
                 <div className="flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 ring-border/10">
                   {item.thumbnailUrl ? (
-                    <img 
-                      src={item.thumbnailUrl} 
-                      alt={item.title} 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={item.thumbnailUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-muted" />
                   )}
                 </div>
-                
+
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="font-medium leading-tight line-clamp-2 text-foreground">
                     {item.title}
                   </div>
-                  
+
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       {item.feed?.faviconUrl && (
-                        <FeedFavicon 
-                          src={item.feed.faviconUrl} 
+                        <FeedFavicon
+                          src={item.feed.faviconUrl}
                           alt={item.feed.title}
                           className="w-3 h-3 rounded-sm flex-shrink-0"
                         />

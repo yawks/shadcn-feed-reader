@@ -2,6 +2,8 @@ import { FeedItem } from '@/backends/types'
 import React from 'react'
 
 interface SearchContextType {
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
   searchQuery: string
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>
   searchResults: FeedItem[]
@@ -22,6 +24,7 @@ interface Props {
 }
 
 export function SearchProvider({ children }: Props) {
+  const [open, setOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [searchResults, setSearchResults] = React.useState<FeedItem[]>([])
   const [isSearching, setIsSearching] = React.useState(false)
@@ -29,6 +32,7 @@ export function SearchProvider({ children }: Props) {
   const [isSearchMode, setIsSearchMode] = React.useState(false)
 
   const clearSearchMode = React.useCallback(() => {
+    setOpen(false)
     setIsSearchMode(false)
     setSearchResults([])
     setSearchQuery('')
@@ -37,6 +41,8 @@ export function SearchProvider({ children }: Props) {
 
   const value = React.useMemo(
     () => ({
+      open,
+      setOpen,
       searchQuery,
       setSearchQuery,
       searchResults,
@@ -49,7 +55,7 @@ export function SearchProvider({ children }: Props) {
       setIsSearchMode,
       clearSearchMode,
     }),
-    [searchQuery, searchResults, isSearching, searchError, isSearchMode, clearSearchMode]
+    [open, searchQuery, searchResults, isSearching, searchError, isSearchMode, clearSearchMode]
   )
 
   return (

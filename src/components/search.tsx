@@ -21,6 +21,8 @@ interface Props {
 
 export function Search({ className = '', placeholder = 'Search articles...' }: Props) {
   const {
+    open,
+    setOpen,
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -31,8 +33,6 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
     setSearchError,
     setIsSearchMode,
   } = useSearch()
-
-  const [open, setOpen] = React.useState(false)
   const backend = React.useMemo(() => new FeedBackend(), [])
   const inputRef = React.useRef<HTMLInputElement>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -51,7 +51,7 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
     }
     document.addEventListener('keydown', down)
     return () => document.removeEventListener('keydown', down)
-  }, [])
+  }, [setOpen])
 
   // Close popup when clicking outside
   React.useEffect(() => {
@@ -68,7 +68,7 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [open])
+  }, [open, setOpen])
 
   // Debounced search effect for autocomplete
   React.useEffect(() => {
