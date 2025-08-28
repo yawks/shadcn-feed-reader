@@ -49,8 +49,8 @@ export default function Feeds() {
     isResizing,
     handleMouseDown
   } = useResizablePanelsFlex({
-    leftPanelKey: 'feeds-item-list-flex',
-    rightPanelKey: 'feeds-article-flex', 
+    leftPanelKey: 'feeds-65-flex',
+    rightPanelKey: 'feeds-article-flex',
     defaultLeftFlex: 0.4,
     defaultRightFlex: 0.6,
     minLeftFlex: 0.15,
@@ -86,19 +86,19 @@ export default function Feeds() {
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
-    // Function to handle article selection (desktop and mobile)
+  // Function to handle article selection (desktop and mobile)
   const handleArticleSelection = (article: FeedItem | null) => {
     setSelectedFeedArticle(article)
-    
+
     if (isMobile && article) {
       // Save the scroll position before navigating
       const currentScroll = filterItemListRef.current?.getScrollTop() || 0
       setScrollPosition(currentScroll)
-      
+
       // Navigate to article with articleId in search params
       const searchParams = new URLSearchParams(location.search)
       searchParams.set('articleId', article.id.toString())
-      
+
       navigate({
         to: location.pathname,
         search: Object.fromEntries(searchParams.entries())
@@ -111,7 +111,7 @@ export default function Feeds() {
     // Remove the articleId from the URL to go back to the list
     const searchParams = new URLSearchParams(location.search)
     searchParams.delete('articleId')
-    
+
     navigate({
       to: location.pathname,
       search: Object.fromEntries(searchParams.entries())
@@ -154,15 +154,15 @@ export default function Feeds() {
           setScrollPosition(0)
         }
       }
-      
+
       // Try immediately
       restoreScroll()
-      
+
       // Then try with progressive delays just in case
-      const timeouts = [50, 150, 300].map(delay => 
+      const timeouts = [50, 150, 300].map(delay =>
         setTimeout(restoreScroll, delay)
       )
-      
+
       return () => {
         timeouts.forEach(clearTimeout)
       }
@@ -170,9 +170,9 @@ export default function Feeds() {
   }, [showArticleOnMobile, isMobile, scrollPosition, items.length])
 
   // Find the article selected based on the articleId in the URL
-  const selectedArticleFromUrl = articleId ? 
+  const selectedArticleFromUrl = articleId ?
     items.find(item => item.id.toString() === articleId.toString()) : null
-  
+
   // Use article from URL on mobile
   const currentSelectedArticle = selectedArticleFromUrl || selectedFeedArticle
 
@@ -238,7 +238,7 @@ export default function Feeds() {
               <Main fixed>
                 <div className="flex flex-col h-full">
                   <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
-                  
+
                   {/* Search mode banner */}
                   {isSearchMode && (
                     <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b">
@@ -258,7 +258,7 @@ export default function Feeds() {
                       </Button>
                     </div>
                   )}
-                  
+
                   {(isLoading && !isSearchMode) ? (
                     <ItemsListLoader />
                   ) : (
@@ -290,15 +290,15 @@ export default function Feeds() {
           <Main fixed>
             <section className={`flex h-full resizable-container ${isResizing ? 'select-none' : ''}`}>
               <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
-              
+
               {/* Left Side - Item List */}
-              <div 
-                id="item-list" 
+              <div
+                id="item-list"
                 className="flex flex-col h-full bg-background"
-                style={{ 
+                style={{
                   width: `${leftFlex * 100}%`,
                   minWidth: 0,
-                  flexShrink: 0
+                  flexShrink: 0,
                 }}
               >
                 {/* Search mode banner */}
@@ -320,7 +320,7 @@ export default function Feeds() {
                     </Button>
                   </div>
                 )}
-                
+
                 {(isLoading && !isSearchMode) ? (
                   <ItemsListLoader />
                 ) : (
@@ -335,15 +335,15 @@ export default function Feeds() {
               </div>
 
               {/* Resize Handle - Hidden on mobile */}
-              <ResizeHandle 
+              <ResizeHandle
                 onMouseDown={handleMouseDown}
                 className="shrink-0 hidden md:block"
               />
 
               {/* Right Side - Article Content */}
-              <div 
+              <div
                 className="flex flex-col h-full bg-background"
-                style={{ 
+                style={{
                   width: `${rightFlex * 100}%`,
                   minWidth: 0,
                   flexShrink: 0
