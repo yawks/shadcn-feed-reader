@@ -50,3 +50,43 @@ export function timeSince(epoch: number) {
 
   return interval + ' ' + intervalType + ' ago';
 }
+
+/**
+ * Convert epoch to a shortened "readable" format
+ * @param {*} epoch
+ * @returns string : 4h ago, 2d ago, ...
+ */
+export function timeSinceShort(epoch: number) {
+  const seconds = Math.floor(new Date().getTime() - epoch) / 1000;
+
+  let intervalType;
+  let interval = Math.floor(seconds / 31536000);
+  if (interval >= 1) {
+    intervalType = 'y';
+  } else {
+    interval = Math.floor(seconds / 2592000);
+    if (interval >= 1) {
+      intervalType = 'mo';
+    } else {
+      interval = Math.floor(seconds / 86400);
+      if (interval >= 1) {
+        intervalType = 'd';
+      } else {
+        interval = Math.floor(seconds / 3600);
+        if (interval >= 1) {
+          intervalType = 'h';
+        } else {
+          interval = Math.floor(seconds / 60);
+          if (interval >= 1) {
+            intervalType = 'm';
+          } else {
+            interval = Math.floor(seconds);
+            intervalType = 's';
+          }
+        }
+      }
+    }
+  }
+
+  return interval + intervalType + ' ago';
+}

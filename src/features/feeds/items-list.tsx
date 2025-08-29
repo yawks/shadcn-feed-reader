@@ -1,7 +1,7 @@
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
 import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
-import { timeSince } from '@/lib/utils';
+import { timeSinceShort } from '@/lib/utils';
 
 interface ItemsListProps {
   readonly items: Readonly<FeedItem[]>;
@@ -46,49 +46,54 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                     item.read = true
                   }}
                 >
-                  {/* Unread article indicator */}
-                  {isUnread && (
-                    <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-primary rounded-full shadow-sm"></div>
-                  )}
-
-                  <div className={`flex gap-3 ${isUnread ? 'ml-3' : ''}`}>
-                    <div className="flex-shrink-0 w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 ring-border/10">
-                      <img
-                        src={thumbnailUrl || '/public/images/feed_icon.png'}
-                        alt={title}
-                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                        onError={e => {
-                          const target = e.currentTarget;
-                          if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
-                            target.src = '/public/images/feed_icon.png';
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
-                      <h3 className={`
-                        feed-item-title font-medium leading-tight line-clamp-4
-                        ${getTitleColor(isSelected, isUnread)}
-                        group-hover:text-foreground transition-colors duration-200
-                      `}>
-                        {title}
-                      </h3>
-
-                      <div className="feed-item-summary flex items-center gap-2 text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          {feed?.faviconUrl && (
-                            <FeedFavicon
-                              src={feed.faviconUrl}
-                              alt={feed.title}
-                              className="w-3 h-3 rounded-sm flex-shrink-0"
-                            />
-                          )}
-                          <span className="font-medium truncate">{feed?.title}</span>
+                  <div className="space-y-2">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                        {/* Thumbnail with unread indicator as border */}
+                        <div className={`
+                          w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
+                          ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
+                        `}>
+                          <img
+                            src={thumbnailUrl || '/public/images/feed_icon.png'}
+                            alt={title}
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                            onError={e => {
+                              const target = e.currentTarget;
+                              if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
+                                target.src = '/public/images/feed_icon.png';
+                              }
+                            }}
+                          />
                         </div>
-                        <span className="text-muted-foreground/60">•</span>
-                        <time className="whitespace-nowrap">{timeSince(pubDate?.getTime() ?? 0)}</time>
                       </div>
+
+                      <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
+                        <h3 className={`
+                          feed-item-title font-medium leading-tight line-clamp-4
+                          ${getTitleColor(isSelected, isUnread)}
+                          group-hover:text-foreground transition-colors duration-200
+                        `}>
+                          {title}
+                        </h3>
+                      </div>
+                    </div>
+                    
+                    {/* Feed info spanning full width */}
+                    <div className="flex items-center justify-between gap-2 text-muted-foreground/80">
+                      <div className="flex items-center gap-1 min-w-0">
+                        {feed?.faviconUrl && (
+                          <FeedFavicon
+                            src={feed.faviconUrl}
+                            alt={feed.title}
+                            className="w-3 h-3 rounded-sm flex-shrink-0"
+                          />
+                        )}
+                        <span className="text-xs font-medium truncate">
+                          {feed?.title}
+                        </span>
+                      </div>
+                      <time className="text-xs whitespace-nowrap flex-shrink-0">{timeSinceShort(pubDate?.getTime() ?? 0)}</time>
                     </div>
                   </div>
 
