@@ -10,9 +10,11 @@ import { cn, timeSince } from '@/lib/utils'
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import { FeedFavicon } from '@/components/ui/feed-favicon'
 import { FeedItem } from '@/backends/types'
-import { IconSearch } from '@tabler/icons-react'
+import { IconSearch, IconX } from '@tabler/icons-react'
 import React from 'react'
 import { useSearch } from '@/context/search-context'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   readonly className?: string
@@ -36,39 +38,65 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
   const backend = React.useMemo(() => new FeedBackend(), [])
   const inputRef = React.useRef<HTMLInputElement>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
+  const [isExpanded, setIsExpanded] = React.useState(false)
+
+  const handleMobileSearchToggle = React.useCallback(() => {
+    if (!isExpanded) {
+      setIsExpanded(true)
+      setOpen(true)
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
+    }
+  }, [isExpanded, setOpen])
+
+  const handleMobileClose = React.useCallback(() => {
+    setIsExpanded(false)
+    setOpen(false)
+    setSearchQuery('')
+  }, [setOpen, setSearchQuery])
 
   // Global keyboard shortcut for Cmd+K
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        setOpen(true)
-        // Focus the input when opening with keyboard
-        setTimeout(() => {
-          inputRef.current?.focus()
-        }, 0)
+        if (isMobile) {
+          handleMobileSearchToggle()
+        } else {
+          setOpen(true)
+          // Focus the input when opening with keyboard
+          setTimeout(() => {
+            inputRef.current?.focus()
+          }, 0)
+        }
       }
     }
     document.addEventListener('keydown', down)
     return () => document.removeEventListener('keydown', down)
-  }, [setOpen])
+  }, [setOpen, isMobile, handleMobileSearchToggle])
 
   // Close popup when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setOpen(false)
+        // On mobile, also collapse the search field
+        if (isMobile) {
+          setIsExpanded(false)
+        }
       }
     }
 
-    if (open) {
+    if (open || (isMobile && isExpanded)) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [open, setOpen])
+  }, [open, setOpen, isMobile, isExpanded])
 
   // Debounced search effect for autocomplete
   React.useEffect(() => {
@@ -99,6 +127,10 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
     if (!searchQuery.trim()) return
     
     setOpen(false)
+    // On mobile, also collapse the search field
+    if (isMobile) {
+      setIsExpanded(false)
+    }
     
     try {
       setIsSearching(true)
@@ -116,50 +148,115 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
 
   const handleItemSelect = (item: FeedItem) => {
     setOpen(false)
+    // On mobile, also collapse the search field
+    if (isMobile) {
+      setIsExpanded(false)
+    }
     // Open the article in a new tab
     window.open(item.url, '_blank', 'noopener,noreferrer')
   }
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Main search input */}
-      <div className="relative">
-        <IconSearch
-          aria-hidden='true'
-          className='absolute top-1/2 left-1.5 -translate-y-1/2 h-4 w-4 text-muted-foreground'
-        />
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              handleSearch()
-            }
-            if (e.key === 'Escape') {
-              setOpen(false)
-              inputRef.current?.blur()
-            }
-          }}
-          placeholder={placeholder}
-          className={cn(
-            'bg-muted/25 text-foreground placeholder:text-muted-foreground hover:bg-muted/50 h-8 w-full flex-1 rounded-md text-sm border border-input pl-7 pr-12 md:w-40 lg:w-56 xl:w-72 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            className
+      {/* Mobile: Show button when collapsed, input when expanded */}
+      {isMobile ? (
+        <>
+          {!isExpanded ? (
+            // Mobile search button
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMobileSearchToggle}
+              className="flex items-center gap-2 h-8 px-3 bg-muted/25 hover:bg-muted/50"
+            >
+              <IconSearch className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Search...</span>
+            </Button>
+          ) : (
+            // Mobile expanded search input
+            <div className="fixed inset-x-0 top-0 z-50 bg-background border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <IconSearch
+                    aria-hidden='true'
+                    className='absolute top-1/2 left-3 -translate-y-1/2 h-4 w-4 text-muted-foreground'
+                  />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleSearch()
+                      }
+                      if (e.key === 'Escape') {
+                        handleMobileClose()
+                      }
+                    }}
+                    placeholder={placeholder}
+                    className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMobileClose}
+                  className="h-10 w-10 p-0"
+                >
+                  <IconX className="h-4 w-4" />
+                  <span className="sr-only">Close search</span>
+                </Button>
+              </div>
+            </div>
           )}
-        />
-        <kbd className='bg-muted pointer-events-none absolute top-[0.3rem] right-[0.3rem] hidden h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex'>
-          <span className='text-xs'>⌘</span>K
-        </kbd>
-      </div>
+        </>
+      ) : (
+        // Desktop: Regular search input
+        <div className="relative">
+          <IconSearch
+            aria-hidden='true'
+            className='absolute top-1/2 left-1.5 -translate-y-1/2 h-4 w-4 text-muted-foreground'
+          />
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleSearch()
+              }
+              if (e.key === 'Escape') {
+                setOpen(false)
+                inputRef.current?.blur()
+              }
+            }}
+            placeholder={placeholder}
+            className={cn(
+              'bg-muted/25 text-foreground placeholder:text-muted-foreground hover:bg-muted/50 h-8 w-full flex-1 rounded-md text-sm border border-input pl-7 pr-12 md:w-40 lg:w-56 xl:w-72 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+              className
+            )}
+          />
+          <kbd className='bg-muted pointer-events-none absolute top-[0.3rem] right-[0.3rem] hidden h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex'>
+            <span className='text-xs'>⌘</span>K
+          </kbd>
+        </div>
+      )}
 
       {/* Autocomplete popup */}
       {open && (searchQuery.trim() || isSearching) && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+        <div className={cn(
+          "absolute z-50 bg-popover border border-border rounded-md shadow-lg overflow-hidden",
+          isMobile && isExpanded 
+            ? "fixed inset-x-4 top-20 max-h-[calc(100vh-6rem)]" 
+            : "top-full left-0 right-0 mt-1 max-h-[300px]"
+        )}>
           <Command shouldFilter={false}>
-            <CommandList className="max-h-[300px]">
+            <CommandList className={isMobile ? "max-h-[calc(100vh-8rem)]" : "max-h-[300px]"}>
               {!searchQuery.trim() && !isSearching && (
                 <CommandEmpty>Start typing to search articles...</CommandEmpty>
               )}
