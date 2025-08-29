@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
 import { FeedArticle } from './FeedArticle'
+import { FontSizeSwitch } from '@/components/font-size-switch'
 import { Header } from '@/components/layout/header'
 import { IconX } from '@tabler/icons-react'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
@@ -183,13 +184,14 @@ export default function Feeds() {
         <Header>
           <Search />
           <div className='ml-auto flex items-center space-x-4'>
+            <FontSizeSwitch />
             <ThemeSwitch />
             <ProfileDropdown />
           </div>
         </Header>
         <Main fixed>
           <div className="flex h-full items-center justify-center">
-            <p className="text-red-500">Erreur lors du chargement des articles: {error.message}</p>
+            <p className="text-red-500">Error loading articles: {error.message}</p>
           </div>
         </Main>
       </>
@@ -231,6 +233,7 @@ export default function Feeds() {
               <Header>
                 <Search />
                 <div className='ml-auto flex items-center space-x-4'>
+                  <FontSizeSwitch />
                   <ThemeSwitch />
                   <ProfileDropdown />
                 </div>
@@ -282,6 +285,7 @@ export default function Feeds() {
           <Header>
             <Search />
             <div className='ml-auto flex items-center space-x-4'>
+              <FontSizeSwitch />
               <ThemeSwitch />
               <ProfileDropdown />
             </div>

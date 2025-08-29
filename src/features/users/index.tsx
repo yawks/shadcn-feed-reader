@@ -1,13 +1,14 @@
+import { FontSizeSwitch } from '@/components/font-size-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { columns } from './components/users-columns'
 import { UsersDialogs } from './components/users-dialogs'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
-import { UsersTable } from './components/users-table'
 import UsersProvider from './context/users-context'
+import { UsersTable } from './components/users-table'
+import { columns } from './components/users-columns'
 import { userListSchema } from './data/schema'
 import { users } from './data/users'
 
@@ -20,6 +21,7 @@ export default function Users() {
       <Header fixed>
         <Search />
         <div className='ml-auto flex items-center space-x-4'>
+          <FontSizeSwitch />
           <ThemeSwitch />
           <ProfileDropdown />
         </div>

@@ -10,6 +10,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { ConnectionStatus } from '@/components/connection-status'
 import { FontProvider } from './context/font-context'
+import { FontSizeProvider } from './context/font-size-context'
 import { InstallPWA } from '@/components/install-pwa'
 import { PWAPrompt } from '@/components/pwa-prompt'
 import ReactDOM from 'react-dom/client'
@@ -100,17 +101,19 @@ if (!rootElement.innerHTML) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
           <FontProvider>
-            {(() => {
-              const authentication = useAuth();
-              return (
-                <>
-                  <PWAPrompt />
-                  <InstallPWA />
-                  <ConnectionStatus />
-                  <RouterProvider router={router} context={{ authentication }} />
-                </>
-              );
-            })()}
+            <FontSizeProvider>
+              {(() => {
+                const authentication = useAuth();
+                return (
+                  <>
+                    <PWAPrompt />
+                    <InstallPWA />
+                    <ConnectionStatus />
+                    <RouterProvider router={router} context={{ authentication }} />
+                  </>
+                );
+              })()}
+            </FontSizeProvider>
           </FontProvider>
         </ThemeProvider>
       </QueryClientProvider>

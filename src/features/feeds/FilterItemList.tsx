@@ -22,7 +22,7 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
         const scrollRef = useRef<HTMLDivElement>(null);
         const isInternalScrollChange = useRef(false);
 
-        // Expose les méthodes pour contrôler le scroll depuis le parent
+        // Expose methods to control scroll from parent
         useImperativeHandle(ref, () => ({
             getScrollTop: () => scrollRef.current?.scrollTop || 0,
             setScrollTop: (position: number) => {
@@ -36,30 +36,30 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
             }
         }));
 
-        // Déclenche onScrollEnd uniquement si l'utilisateur scrolle vers le bas
+        // Trigger onScrollEnd only when user scrolls down
         const lastScrollTop = useRef(0);
         const previousItemsLength = useRef(items.length);
         const isLoadingMore = useRef(false);
         const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
-        // Maintenir la position de scroll quand les items changent
+        // Maintain scroll position when items change
         useEffect(() => {
             if (items.length > previousItemsLength.current) {
-                // De nouveaux items ont été ajoutés
+                // New items have been added
                 isLoadingMore.current = true;
                 const el = scrollRef.current;
                 if (el) {
-                    // Sauvegarder la position actuelle
+                    // Save current position
                     const savedScrollTop = el.scrollTop;
                     
-                    // Attendre que le DOM soit mis à jour
+                    // Wait for DOM to be updated
                     if (scrollTimeout.current) {
                         clearTimeout(scrollTimeout.current);
                     }
                     
                     scrollTimeout.current = setTimeout(() => {
                         if (el) {
-                            // Forcer la restauration de la position
+                            // Force position restoration
                             el.scrollTop = savedScrollTop;
                         }
                         isLoadingMore.current = false;
@@ -70,7 +70,7 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
             previousItemsLength.current = items.length;
         }, [items.length]);
 
-        // Nettoyer le timeout au démontage
+        // Clean up timeout on unmount
         useEffect(() => {
             return () => {
                 if (scrollTimeout.current) {
@@ -83,7 +83,7 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
             const el = scrollRef.current;
             if (!el) return;
             
-            // Ignorer les changements de scroll internes (setScrollTop)
+            // Ignore internal scroll changes (setScrollTop)
             if (isInternalScrollChange.current) return;
             
             const isScrollingDown = el.scrollTop > lastScrollTop.current;

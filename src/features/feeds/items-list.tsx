@@ -46,7 +46,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                     item.read = true
                   }}
                 >
-                  {/* Indicateur d'article non lu */}
+                  {/* Unread article indicator */}
                   {isUnread && (
                     <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-primary rounded-full shadow-sm"></div>
                   )}
@@ -68,14 +68,14 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
 
                     <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
                       <h3 className={`
-                        font-medium leading-tight line-clamp-4
+                        feed-item-title font-medium leading-tight line-clamp-4
                         ${getTitleColor(isSelected, isUnread)}
                         group-hover:text-foreground transition-colors duration-200
                       `}>
                         {title}
                       </h3>
 
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="feed-item-summary flex items-center gap-2 text-muted-foreground">
                         <div className="flex items-center gap-1">
                           {feed?.faviconUrl && (
                             <FeedFavicon
@@ -92,7 +92,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                     </div>
                   </div>
 
-                  {/* Effet de sélection avec animation */}
+                  {/* Selection effect with animation */}
                   {isSelected && (
                     <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-primary/5 to-transparent pointer-events-none"></div>
                   )}

@@ -8,6 +8,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { Button } from '@/components/ui/button'
+import { FontSizeSwitch } from '@/components/font-size-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Overview } from './components/overview'
@@ -26,6 +27,7 @@ export default function Dashboard() {
         <TopNav links={topNav} />
         <div className='ml-auto flex items-center space-x-4'>
           <Search />
+          <FontSizeSwitch />
           <ThemeSwitch />
           <ProfileDropdown />
         </div>

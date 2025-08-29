@@ -5,6 +5,11 @@
 
 :root {
   --radius: 0.625rem;
+  
+  /* Font size variables for dynamic sizing */
+  --font-size-folder: 1rem;
+  --font-size-item: 1rem;
+  
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
@@ -202,4 +207,27 @@
 
 .skeleton-loading {
   animation: loading 2s infinite;
+}
+
+/* Dynamic font sizing for folders and feed items */
+.nav-folder-text {
+  font-size: var(--font-size-folder) !important;
+}
+
+.nav-item-text {
+  font-size: var(--font-size-item) !important;
+}
+
+/* Apply to sidebar navigation items */
+[data-sidebar] .sidebar-menu-button span {
+  font-size: var(--font-size-folder) !important;
+}
+
+/* Apply to feed article list items */
+.feed-item-title {
+  font-size: var(--font-size-item) !important;
+}
+
+.feed-item-summary {
+  font-size: calc(var(--font-size-item) * 0.875) !important;
 }

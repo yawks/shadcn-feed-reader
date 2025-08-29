@@ -120,7 +120,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
               />
             ) : null}
           </div>
-          <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${
+          <span className={`nav-folder-text font-medium flex-1 transition-colors duration-200 ${
             isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
           }`}>
             {item.title}
@@ -172,7 +172,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                   />
                 ) : null}
               </div>
-              <span className={`text-xs font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
+              <span className={`nav-folder-text font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
                 isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
               }`}>
                 {item.title}
@@ -209,7 +209,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                         {subItem.icon ? <subItem.icon className={`transition-colors duration-200 ${isSubActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
                         {getSubItemIcon(subItem, item)}
                       </div>
-                      <span className={`flex-1 truncate text-xs font-medium transition-colors duration-200 ${
+                      <span className={`nav-item-text flex-1 truncate font-medium transition-colors duration-200 ${
                         isSubActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
                       }`}>
                         {subItem.title}

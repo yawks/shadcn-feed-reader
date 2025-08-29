@@ -1,4 +1,3 @@
-import { Outlet } from '@tanstack/react-router'
 import {
   IconBrowserCheck,
   IconNotification,
@@ -6,13 +5,16 @@ import {
   IconTool,
   IconUser,
 } from '@tabler/icons-react'
-import { Separator } from '@/components/ui/separator'
+
+import { FontSizeSwitch } from '@/components/font-size-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
+import { Outlet } from '@tanstack/react-router'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
+import { Separator } from '@/components/ui/separator'
 import SidebarNav from './components/sidebar-nav'
+import { ThemeSwitch } from '@/components/theme-switch'
 
 export default function Settings() {
   return (
@@ -21,6 +23,7 @@ export default function Settings() {
       <Header>
         <Search />
         <div className='ml-auto flex items-center space-x-4'>
+          <FontSizeSwitch />
           <ThemeSwitch />
           <ProfileDropdown />
         </div>
