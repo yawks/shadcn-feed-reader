@@ -31,8 +31,7 @@ export const FontSizeProvider: React.FC<{ children: React.ReactNode }> = ({
     const applyFontSize = (size: FontSize) => {
       const root = document.documentElement
       
-      // Apply CSS custom properties for different UI elements
-      root.style.setProperty('--font-size-folder', fontSizeMap[size])
+      // Apply CSS custom properties only for feed items (not folders)
       root.style.setProperty('--font-size-item', fontSizeMap[size])
       
       // Also update the base font size for consistency

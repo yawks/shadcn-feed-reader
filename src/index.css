@@ -6,8 +6,7 @@
 :root {
   --radius: 0.625rem;
   
-  /* Font size variables for dynamic sizing */
-  --font-size-folder: 1rem;
+  /* Font size variable for dynamic sizing of feed items */
   --font-size-item: 1rem;
   
   --background: oklch(1 0 0);
@@ -209,21 +208,7 @@
   animation: loading 2s infinite;
 }
 
-/* Dynamic font sizing for folders and feed items */
-.nav-folder-text {
-  font-size: var(--font-size-folder) !important;
-}
-
-.nav-item-text {
-  font-size: var(--font-size-item) !important;
-}
-
-/* Apply to sidebar navigation items */
-[data-sidebar] .sidebar-menu-button span {
-  font-size: var(--font-size-folder) !important;
-}
-
-/* Apply to feed article list items */
+/* Dynamic font sizing for feed items */
 .feed-item-title {
   font-size: var(--font-size-item) !important;
 }

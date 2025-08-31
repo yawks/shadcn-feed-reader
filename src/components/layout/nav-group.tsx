@@ -120,7 +120,7 @@ const SidebarMenuLink = ({ item, href }: { item: NavLink; href: string }) => {
               />
             ) : null}
           </div>
-          <span className={`nav-folder-text font-medium flex-1 transition-colors duration-200 ${
+          <span className={`font-medium flex-1 transition-colors duration-200 ${
             isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
           }`}>
             {item.title}
@@ -172,7 +172,7 @@ function SidebarMenuCollapsible({ item, href }: Readonly<{ item: NavCollapsible;
                   />
                 ) : null}
               </div>
-              <span className={`nav-folder-text font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
+              <span className={`font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
                 isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
               }`}>
                 {item.title}

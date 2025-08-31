@@ -5,16 +5,16 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { IconSearch, IconX } from '@tabler/icons-react'
 import { cn, timeSince } from '@/lib/utils'
 
+import { Button } from '@/components/ui/button'
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import { FeedFavicon } from '@/components/ui/feed-favicon'
 import { FeedItem } from '@/backends/types'
-import { IconSearch, IconX } from '@tabler/icons-react'
 import React from 'react'
-import { useSearch } from '@/context/search-context'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Button } from '@/components/ui/button'
+import { useSearch } from '@/context/search-context'
 
 interface Props {
   readonly className?: string
@@ -162,15 +162,15 @@ export function Search({ className = '', placeholder = 'Search articles...' }: P
       {isMobile ? (
         <>
           {!isExpanded ? (
-            // Mobile search button
+            // Mobile search button - smaller and icon-only
             <Button
               variant="outline"
               size="sm"
               onClick={handleMobileSearchToggle}
-              className="flex items-center gap-2 h-8 px-3 bg-muted/25 hover:bg-muted/50"
+              className="h-8 w-8 p-0 bg-muted/25 hover:bg-muted/50"
             >
               <IconSearch className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Search...</span>
+              <span className="sr-only">Search</span>
             </Button>
           ) : (
             // Mobile expanded search input
