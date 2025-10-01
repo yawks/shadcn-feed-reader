@@ -20,11 +20,16 @@ async fn fetch_article(url: String) -> Result<String, String> {
     let response = client.get(url_obj.clone()).send().await.map_err(|e| e.to_string())?;
     let html = response.text().await.map_err(|e| e.to_string())?;
 
-    // Use a cursor as the readability::extractor::extract function expects a mutable reader.
-    let mut content = Cursor::new(html);
-    let product = readability::extractor::extract(&mut content, &url_obj).map_err(|e| e.to_string())?;
+    // Attempt to extract the main content using the readability crate.
+    let mut content_cursor = Cursor::new(html.as_bytes());
+    if let Ok(product) = readability::extractor::extract(&mut content_cursor, &url_obj) {
+        if !product.content.trim().is_empty() {
+            return Ok(product.content);
+        }
+    }
 
-    Ok(product.content)
+    // If readability fails or returns empty content, fall back to the full HTML.
+    Ok(html)
 }
 
 fn main() {
