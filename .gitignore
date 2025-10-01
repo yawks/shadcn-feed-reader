@@ -30,3 +30,6 @@ dist-ssr
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# Tauri
+src-tauri/target

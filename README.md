@@ -1,67 +1,78 @@
-# Shadcn Admin Dashboard
+# Shadcn Admin - Tauri
 
-Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
+Ceci est la version de bureau de l'application Shadcn Admin, construite avec [Tauri](https://tauri.app/).
 
-![alt text](public/images/shadcn-admin.png)
+## Prérequis
 
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
+Avant de commencer, vous devez avoir les outils suivants installés sur votre système :
 
-> This is not a starter project (template) though. I'll probably make one in the future.
+- [Node.js](https://nodejs.org/) (v18 ou plus récent)
+- [pnpm](https://pnpm.io/)
+- [Rust](https://www.rust-lang.org/tools/install)
 
-## Features
+### Dépendances spécifiques à la plateforme
 
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global Search Command
-- 10+ pages
-- Extra custom components
+#### Pour macOS
 
-## Tech Stack
-
-**UI:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
-
-**Build Tool:** [Vite](https://vitejs.dev/)
-
-**Routing:** [TanStack Router](https://tanstack.com/router/latest)
-
-**Type Checking:** [TypeScript](https://www.typescriptlang.org/)
-
-**Linting/Formatting:** [Eslint](https://eslint.org/) & [Prettier](https://prettier.io/)
-
-**Icons:** [Tabler Icons](https://tabler.io/icons)
-
-## Run Locally
-
-Clone the project
+Vous devez installer les outils de ligne de commande Xcode :
 
 ```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
+xcode-select --install
 ```
 
-Go to the project directory
+#### Pour Android
+
+Le développement Android nécessite une configuration plus complexe. Vous devrez installer et configurer :
+
+1.  **Android Studio** : Téléchargez et installez [Android Studio](https://developer.android.com/studio).
+2.  **SDK et NDK Android** : Suivez les instructions de la [documentation officielle de Tauri](https://v2.tauri.app/start/prerequisites/#android) pour configurer correctement votre environnement de développement Android. Cela inclut la configuration des variables d'environnement comme `ANDROID_HOME` et `NDK_HOME`.
+
+## Installation
+
+Clonez le dépôt et installez les dépendances JavaScript :
 
 ```bash
-  cd shadcn-admin
+git clone <URL_DU_REPO>
+cd shadcn-admin-tauri
+pnpm install
 ```
 
-Install dependencies
+## Développement
+
+Pour lancer l'application en mode développement avec rechargement à chaud :
 
 ```bash
-  pnpm install
+pnpm tauri dev
 ```
 
-Start the server
+Cela ouvrira une fenêtre de bureau avec votre application.
+
+## Construire l'application
+
+### Pour macOS
+
+Pour construire l'application de bureau pour macOS, exécutez la commande suivante :
 
 ```bash
-  pnpm run dev
+pnpm tauri build
 ```
 
-## Author
+L'application compilée se trouvera dans le répertoire `src-tauri/target/release/bundle/macos/`.
 
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
+### Pour Android
 
-## License
+1.  **Initialiser le projet Android** (à ne faire qu'une seule fois) :
+    Cette commande va générer les fichiers de projet Android nécessaires dans `src-tauri/gen/android`.
 
-Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+    ```bash
+    pnpm tauri android init
+    ```
+
+2.  **Construire l'application Android** :
+    Pour construire le paquet APK ou AAB, exécutez :
+
+    ```bash
+    pnpm tauri android build
+    ```
+
+    Le paquet compilé se trouvera dans `src-tauri/gen/android/app/build/outputs/apk/release/` ou un chemin similaire. Vous pouvez également ouvrir le projet `src-tauri/gen/android` dans Android Studio pour construire et gérer votre application.
