@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { invoke } from "@tauri-apps/api/tauri"
+import { invoke } from "@tauri-apps/api/core"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
