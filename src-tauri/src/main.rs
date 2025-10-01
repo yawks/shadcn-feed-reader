@@ -3,24 +3,28 @@
     windows_subsystem = "windows"
 )]
 
-use readability::extractor;
-use std::time::Duration;
+use std::io::Cursor;
 use tauri::command;
+use tokio::time::Duration;
+use url::Url;
 
 #[command]
 async fn fetch_article(url: String) -> Result<String, String> {
+    let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let response = client.get(url_obj.clone()).send().await.map_err(|e| e.to_string())?;
     let html = response.text().await.map_err(|e| e.to_string())?;
 
-    // Use the extractor to get the main content of the article
-    let article = extractor::extract_text(&html).map_err(|e| e.to_string())?;
+    // Use a cursor as the readability::extractor::extract function expects a mutable reader.
+    let mut content = Cursor::new(html);
+    let product = readability::extractor::extract(&mut content, &url_obj).map_err(|e| e.to_string())?;
 
-    Ok(article)
+    Ok(product.content)
 }
 
 fn main() {
