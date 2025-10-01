@@ -25,7 +25,11 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 const content: string = await invoke("fetch_article", { url: item.url })
                 setArticleContent(content)
             } catch (err) {
-                setError(err as string)
+                if (err instanceof Error) {
+                    setError(err.message)
+                } else {
+                    setError(String(err))
+                }
             } finally {
                 setIsLoading(false)
             }
