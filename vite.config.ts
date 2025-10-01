@@ -1,5 +1,4 @@
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
-import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 import path from 'path'
 import react from '@vitejs/plugin-react-swc'
@@ -14,33 +13,7 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'shadcn-feed-reader',
-        short_name: 'FeedReader',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#2563eb',
-        icons: [
-          {
-            src: '/images/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/images/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-        ],
-      },
-      workbox: {
-        clientsClaim: true,
-        skipWaiting: true,
-      },
-    }),
+    // PWA plugin removed for Tauri migration
   ],
   resolve: {
     alias: {

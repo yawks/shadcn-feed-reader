@@ -18,7 +18,7 @@ import { Button } from '../ui/button'
 import { FoldersLoader } from './loaders/folders-loader'
 import { FoldersNavGroup } from './folders-nav-group'
 import { Suspense } from 'react'
-import { useFeedQuery } from '@/hooks/use-feed-query'
+import { useFeedQuery } from '@/context/use-feed-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useSearch } from '@/context/search-context'
 

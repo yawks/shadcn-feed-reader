@@ -20,8 +20,8 @@
   },
   "app": {
     "security": {
-      "csp": null,
-      "dangerousDisableAssetCspModification": true
+  "csp": null,
+  "dangerousDisableAssetCspModification": true
     },
     "windows": [
       {
