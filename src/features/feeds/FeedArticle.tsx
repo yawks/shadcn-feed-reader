@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { invoke } from "@tauri-apps/api/tauri"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -11,29 +12,39 @@ interface FeedArticleProps {
 
 export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [isLoading, setIsLoading] = useState(true)
+    const [articleContent, setArticleContent] = useState("")
+    const [error, setError] = useState<string | null>(null)
 
-    // Remet l'état de loading à true quand l'URL de l'article change
     useEffect(() => {
-        setIsLoading(true)
-    }, [item.url])
+        const fetchArticleContent = async () => {
+            if (!item.url) return
 
-    const handleLoad = () => {
-        setIsLoading(false)
-    }
+            setIsLoading(true)
+            setError(null)
+            try {
+                const content: string = await invoke("fetch_article", { url: item.url })
+                setArticleContent(content)
+            } catch (err) {
+                setError(err as string)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchArticleContent()
+    }, [item.url])
 
     return (
         <div
             className={cn(
                 'flex flex-col rounded-md border bg-primary-foreground shadow-sm h-full w-full',
                 {
-                    // Classes pour mobile : toujours visible et prend toute la place
                     'flex': isMobile,
-                    // Classes pour desktop : comportement original
                     'absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex': !isMobile,
                 }
             )}
         >
-            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full relative'>
+            <div className='mb-1 flex flex-none justify-between rounded-t-md bg-secondary shadow-lg h-full relative overflow-auto'>
                 {isLoading && (
                     <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/80'>
                         <div className='flex flex-col items-center space-y-4'>
@@ -42,12 +53,19 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                         </div>
                     </div>
                 )}
-                <iframe 
-                    className='w-full h-full' 
-                    src={item.url} 
-                    title="Feed article"
-                    onLoad={handleLoad}
-                />
+                {error && (
+                    <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/80'>
+                        <div className='flex flex-col items-center space-y-4'>
+                            <p className='text-sm text-red-500'>{error}</p>
+                        </div>
+                    </div>
+                )}
+                {!isLoading && !error && (
+                    <div
+                        className='prose dark:prose-invert p-4 w-full'
+                        dangerouslySetInnerHTML={{ __html: articleContent }}
+                    />
+                )}
             </div>
         </div>
     )
