@@ -2,7 +2,7 @@ use crate::ProxyState;
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::{header, Request, StatusCode, Uri},
+    http::{header, Request, StatusCode},
     response::Response,
     routing::get,
     Router,
@@ -102,7 +102,7 @@ async fn proxy_handler(
 
         Ok(builder.body(Body::from(output)).unwrap())
     } else {
-        let body = Body::from_stream(response.stream());
+        let body = Body::from_stream(response.bytes_stream());
         Ok(builder.body(body).unwrap())
     }
 }
