@@ -4,13 +4,36 @@
 )]
 
 use std::io::Cursor;
-use tauri::command;
+use std::sync::{Arc, Mutex};
+use tauri::{command, AppHandle, Manager, State};
 use tokio::time::Duration;
 use url::Url;
 use reqwest::header::USER_AGENT;
-use regex::Regex;
+
+mod proxy;
 
 const FALLBACK_SIGNAL: &str = "READABILITY_FAILED_FALLBACK";
+
+// Shared state for the proxy's base URL
+#[derive(Clone)]
+pub struct ProxyState {
+    pub base_url: Arc<Mutex<Url>>,
+}
+
+#[command]
+async fn start_proxy(app_handle: AppHandle) -> Result<u16, String> {
+    let state: tauri::State<ProxyState> = app_handle.state();
+    let port = proxy::start_proxy_server(state.inner().clone()).await;
+    Ok(port)
+}
+
+#[command]
+fn set_proxy_url(url: String, state: State<ProxyState>) -> Result<(), String> {
+    let new_url = Url::parse(&url).map_err(|e| e.to_string())?;
+    let mut base_url = state.base_url.lock().unwrap();
+    *base_url = new_url;
+    Ok(())
+}
 
 #[command]
 async fn fetch_article(url: String) -> Result<String, String> {
@@ -82,29 +105,6 @@ async fn fetch_article(url: String) -> Result<String, String> {
         return Err("Content appears to be binary or corrupted.".into());
     }
 
-    // Check if we got a minimal HTML document (likely from JavaScript-heavy sites)
-    let html_normalized = html.trim().replace('\n', "").replace('\r', "");
-    
-    // Multiple patterns to catch different variations of empty HTML
-    let patterns = [
-        r"^<!DOCTYPE html><html><head></head><body></body></html>$",
-        r"^<!doctype html><html><head></head><body></body></html>$", 
-        r"^<html><head></head><body></body></html>$",
-        r"^<!DOCTYPE html><html><head>\s*</head><body>\s*</body></html>$",
-    ];
-    
-    for pattern in &patterns {
-        let regex = Regex::new(pattern).unwrap();
-        if regex.is_match(&html_normalized) {
-            return Ok(FALLBACK_SIGNAL.to_string());
-        }
-    }
-    
-    // Additional check: if the body is essentially empty
-    if html.len() < 200 && !html.contains("<p") && !html.contains("<div") && !html.contains("<article") && !html.contains("<main") {
-        return Ok(FALLBACK_SIGNAL.to_string());
-    }
-
     let mut content_cursor = Cursor::new(html.as_bytes());
     match readability::extractor::extract(&mut content_cursor, &url_obj) {
         Ok(product) => {
@@ -130,61 +130,20 @@ async fn fetch_article(url: String) -> Result<String, String> {
     }
 }
 
-#[command]
-async fn fetch_raw_html(url: String) -> Result<String, String> {
-    let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .gzip(true)
-        .brotli(true)
-        .deflate(true)
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let response = client
-        .get(url_obj.clone())
-        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .header("Accept-Language", "en-US,en;q=0.5")
-        .header("Connection", "keep-alive")
-        .header("Upgrade-Insecure-Requests", "1")
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let html_content = response.text().await.map_err(|e| e.to_string())?;
-
-    let base_url = url_obj.join("./").unwrap().to_string();
-    let base_tag = format!(r#"<base href="{}">"#, base_url);
-
-    // Use a case-insensitive regex to find the <head> tag
-    let head_re = Regex::new("(?i)<head.*?>").unwrap();
-    let mut new_html = if head_re.is_match(&html_content) {
-        head_re.replace(&html_content, |caps: &regex::Captures| {
-            format!("{}{}", &caps[0], base_tag)
-        }).to_string()
-    } else {
-        // If no <head> tag, prepend to the document
-        format!("{}<html><head>{}</head>{}", base_tag, base_tag, html_content)
-    };
-
-    // Inject the postMessage script before the closing body tag
-    let script = "<script>window.parent.postMessage('iframe-loaded', '*')</script>";
-    let body_re = Regex::new("(?i)</body>").unwrap();
-    if body_re.is_match(&new_html) {
-        new_html = body_re.replace(&new_html, format!("{}</body>", script)).to_string();
-    } else {
-        new_html.push_str(script);
-    }
-
-    Ok(new_html)
-}
 
 fn main() {
+    let initial_url = Url::parse("http://localhost").unwrap(); // Default empty URL
+    let proxy_state = ProxyState {
+        base_url: Arc::new(Mutex::new(initial_url)),
+    };
+
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![fetch_article, fetch_raw_html])
+        .manage(proxy_state)
+        .invoke_handler(tauri::generate_handler![
+            fetch_article,
+            start_proxy,
+            set_proxy_url
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -26,87 +26,104 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
 
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
-    const [rawHtml, setRawHtml] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [viewMode, setViewMode] = useState<ArticleViewMode>("readability")
+    const [proxyPort, setProxyPort] = useState<number | null>(null)
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
     const isIframeView = viewMode === "original" || viewMode === "dark"
 
     useEffect(() => {
-        const fetchArticleContent = async () => {
+        invoke("start_proxy")
+            .then(port => setProxyPort(port as number))
+            .catch(err => {
+                console.error("Failed to start proxy:", err)
+                setError("Failed to start proxy server.")
+            })
+    }, [])
+
+    useEffect(() => {
+        const setupView = async () => {
             if (!item.url) return
 
             setIsLoading(true)
             setError(null)
-            setRawHtml(null)
+            setArticleContent("")
 
-            try {
-                if (viewMode === "readability") {
-                    const content: string = await invoke("fetch_article", {
-                        url: item.url,
-                    })
+            if (viewMode === "readability") {
+                try {
+                    const content: string = await invoke("fetch_article", { url: item.url })
                     if (content === FALLBACK_SIGNAL) {
-                        setViewMode("original") // This will trigger a re-render and run the effect again
+                        setViewMode("original")
                     } else {
                         setArticleContent(content)
-                        setIsLoading(false)
                     }
-                } else if (isIframeView) {
-                    const html: string = await invoke("fetch_raw_html", {
-                        url: item.url,
-                    })
-                    setRawHtml(html)
+                } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err))
+                } finally {
+                    setIsLoading(false)
                 }
-            } catch (err) {
-                setError(err instanceof Error ? err.message : String(err))
-                setIsLoading(false)
+            } else if (isIframeView && proxyPort) {
+                try {
+                    await invoke("set_proxy_url", { url: item.url })
+                    const targetUrl = new URL(item.url)
+                    const proxyUrl = `http://127.0.0.1:${proxyPort}${targetUrl.pathname}${targetUrl.search}?t=${Date.now()}`
+                    if (iframeRef.current) {
+                        iframeRef.current.src = proxyUrl
+                    }
+                } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err))
+                    setIsLoading(false)
+                }
             }
         }
 
-        fetchArticleContent()
-    }, [item.url, viewMode, isIframeView])
+        if ((isIframeView && proxyPort) || !isIframeView) {
+            setupView()
+        }
+    }, [item.url, viewMode, isIframeView, proxyPort])
 
     useEffect(() => {
-        const handleMessage = async (event: MessageEvent) => {
-            if (event.data === 'iframe-loaded') {
-                setIsLoading(false);
+        const iframe = iframeRef.current
+        if (!isIframeView || !iframe) {
+            return
+        }
 
-                const iframe = iframeRef.current;
-                if (!iframe || !iframe.contentDocument) return;
+        const handleLoad = async () => {
+            setIsLoading(false)
+            const doc = iframe.contentDocument
+            if (!doc) return
 
-                const doc = iframe.contentDocument;
-                const style = doc.getElementById(NATIVE_DARK_READER_STYLE_ID);
-                if (style) style.remove();
-
-                if (viewMode === "dark") {
-                    enableDarkMode({
-                        brightness: 100,
-                        contrast: 90,
-                        sepia: 10,
-                    });
-                    const css = await exportGeneratedCSS();
-                    disableDarkMode();
-
-                    const newStyle = doc.createElement("style");
-                    newStyle.id = NATIVE_DARK_READER_STYLE_ID;
-                    newStyle.textContent = css;
-                    doc.head.appendChild(newStyle);
-                } else {
-                    disableDarkMode();
-                }
+            const oldStyle = doc.getElementById(NATIVE_DARK_READER_STYLE_ID)
+            if (oldStyle) {
+                oldStyle.remove()
             }
-        };
+            disableDarkMode()
 
-        window.addEventListener('message', handleMessage);
+            if (viewMode === "dark") {
+                enableDarkMode({
+                    brightness: 100,
+                    contrast: 90,
+                    sepia: 10,
+                })
+                const css = await exportGeneratedCSS()
+                disableDarkMode()
+
+                const newStyle = doc.createElement("style")
+                newStyle.id = NATIVE_DARK_READER_STYLE_ID
+                newStyle.textContent = css
+                doc.head.appendChild(newStyle)
+            }
+        }
+
+        iframe.addEventListener("load", handleLoad)
         return () => {
-            window.removeEventListener('message', handleMessage);
-        };
-    }, [viewMode, theme, rawHtml]);
+            iframe.removeEventListener("load", handleLoad)
+        }
+    }, [isIframeView, viewMode, theme])
 
     const handleViewModeChange = (mode: ArticleViewMode) => {
-        setIsLoading(true)
         setViewMode(mode)
     }
 
@@ -151,8 +168,9 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                                 className={cn("h-full w-full", {
                                     invisible: isLoading,
                                 })}
-                                srcDoc={rawHtml ?? ""}
+                                src="about:blank"
                                 title="Feed article"
+                                sandbox="allow-scripts allow-same-origin"
                             />
                         ) : (
                             <div
