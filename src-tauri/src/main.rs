@@ -8,6 +8,7 @@ use tauri::command;
 use tokio::time::Duration;
 use url::Url;
 use reqwest::header::USER_AGENT;
+use regex::Regex;
 
 const FALLBACK_SIGNAL: &str = "READABILITY_FAILED_FALLBACK";
 
@@ -93,7 +94,7 @@ async fn fetch_article(url: String) -> Result<String, String> {
     ];
     
     for pattern in &patterns {
-        let regex = regex::Regex::new(pattern).unwrap();
+        let regex = Regex::new(pattern).unwrap();
         if regex.is_match(&html_normalized) {
             return Ok(FALLBACK_SIGNAL.to_string());
         }
@@ -129,8 +130,6 @@ async fn fetch_article(url: String) -> Result<String, String> {
     }
 }
 
-use regex::Regex;
-
 #[command]
 async fn fetch_raw_html(url: String) -> Result<String, String> {
     let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
@@ -161,16 +160,24 @@ async fn fetch_raw_html(url: String) -> Result<String, String> {
     let base_tag = format!(r#"<base href="{}">"#, base_url);
 
     // Use a case-insensitive regex to find the <head> tag
-    let re = Regex::new("(?i)<head.*?>").unwrap();
-
-    let new_html = if re.is_match(&html_content) {
-        re.replace(&html_content, |caps: &regex::Captures| {
+    let head_re = Regex::new("(?i)<head.*?>").unwrap();
+    let mut new_html = if head_re.is_match(&html_content) {
+        head_re.replace(&html_content, |caps: &regex::Captures| {
             format!("{}{}", &caps[0], base_tag)
         }).to_string()
     } else {
         // If no <head> tag, prepend to the document
-        format!("{}<html><head>{}</head>", base_tag, html_content)
+        format!("{}<html><head>{}</head>{}", base_tag, base_tag, html_content)
     };
+
+    // Inject the postMessage script before the closing body tag
+    let script = "<script>window.parent.postMessage('iframe-loaded', '*')</script>";
+    let body_re = Regex::new("(?i)</body>").unwrap();
+    if body_re.is_match(&new_html) {
+        new_html = body_re.replace(&new_html, format!("{}</body>", script)).to_string();
+    } else {
+        new_html.push_str(script);
+    }
 
     Ok(new_html)
 }

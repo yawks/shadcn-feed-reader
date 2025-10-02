@@ -48,9 +48,10 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                         url: item.url,
                     })
                     if (content === FALLBACK_SIGNAL) {
-                        setViewMode("original")
+                        setViewMode("original") // This will trigger a re-render and run the effect again
                     } else {
                         setArticleContent(content)
+                        setIsLoading(false)
                     }
                 } else if (isIframeView) {
                     const html: string = await invoke("fetch_raw_html", {
@@ -60,7 +61,6 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : String(err))
-            } finally {
                 setIsLoading(false)
             }
         }
@@ -69,53 +69,41 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     }, [item.url, viewMode, isIframeView])
 
     useEffect(() => {
-        if (isIframeView && iframeRef.current) {
-            const iframe = iframeRef.current
-            const handleLoad = async () => {
-                setIsLoading(false)
-                const doc = iframe.contentDocument
-                if (!doc) {
-                    return
-                }
+        const handleMessage = async (event: MessageEvent) => {
+            if (event.data === 'iframe-loaded') {
+                setIsLoading(false);
 
-                const style = doc.getElementById(NATIVE_DARK_READER_STYLE_ID)
+                const iframe = iframeRef.current;
+                if (!iframe || !iframe.contentDocument) return;
+
+                const doc = iframe.contentDocument;
+                const style = doc.getElementById(NATIVE_DARK_READER_STYLE_ID);
+                if (style) style.remove();
 
                 if (viewMode === "dark") {
-                    if (style) return
-
                     enableDarkMode({
                         brightness: 100,
                         contrast: 90,
                         sepia: 10,
-                    })
-                    const css = await exportGeneratedCSS()
-                    disableDarkMode()
+                    });
+                    const css = await exportGeneratedCSS();
+                    disableDarkMode();
 
-                    const newStyle = doc.createElement("style")
-                    newStyle.id = NATIVE_DARK_READER_STYLE_ID
-                    newStyle.textContent = css
-                    doc.head.appendChild(newStyle)
+                    const newStyle = doc.createElement("style");
+                    newStyle.id = NATIVE_DARK_READER_STYLE_ID;
+                    newStyle.textContent = css;
+                    doc.head.appendChild(newStyle);
                 } else {
-                    if (style) {
-                        style.remove()
-                    }
-                    disableDarkMode()
+                    disableDarkMode();
                 }
             }
-            iframe.addEventListener("load", handleLoad)
-            return () => {
-                iframe.removeEventListener("load", handleLoad)
-                const doc = iframe.contentDocument
-                if (doc) {
-                    const style = doc.getElementById(NATIVE_DARK_READER_STYLE_ID)
-                    if (style) {
-                        style.remove()
-                    }
-                }
-                disableDarkMode()
-            }
-        }
-    }, [isIframeView, viewMode, theme])
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, [viewMode, theme, rawHtml]);
 
     const handleViewModeChange = (mode: ArticleViewMode) => {
         setIsLoading(true)
@@ -161,7 +149,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                             <iframe
                                 ref={iframeRef}
                                 className={cn("h-full w-full", {
-                                    invisible: isLoading || !rawHtml,
+                                    invisible: isLoading,
                                 })}
                                 srcDoc={rawHtml ?? ""}
                                 title="Feed article"
