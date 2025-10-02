@@ -129,7 +129,7 @@ async fn fetch_article(url: String) -> Result<String, String> {
     }
 }
 
-use scraper::{Html, Selector};
+use regex::Regex;
 
 #[command]
 async fn fetch_raw_html(url: String) -> Result<String, String> {
@@ -157,15 +157,22 @@ async fn fetch_raw_html(url: String) -> Result<String, String> {
 
     let html_content = response.text().await.map_err(|e| e.to_string())?;
 
-    let mut document = Html::parse_document(&html_content);
-    let head_selector = Selector::parse("head").unwrap();
+    let base_url = url_obj.join("./").unwrap().to_string();
+    let base_tag = format!(r#"<base href="{}">"#, base_url);
 
-    if let Some(mut head) = document.select(&head_selector).next() {
-        let base_url = url_obj.join("./").unwrap().to_string();
-        head.prepend_html(&format!(r#"<base href="{}">"#, base_url));
-    }
+    // Use a case-insensitive regex to find the <head> tag
+    let re = Regex::new("(?i)<head.*?>").unwrap();
 
-    Ok(document.html())
+    let new_html = if re.is_match(&html_content) {
+        re.replace(&html_content, |caps: &regex::Captures| {
+            format!("{}{}", &caps[0], base_tag)
+        }).to_string()
+    } else {
+        // If no <head> tag, prepend to the document
+        format!("{}<html><head>{}</head>", base_tag, html_content)
+    };
+
+    Ok(new_html)
 }
 
 fn main() {
