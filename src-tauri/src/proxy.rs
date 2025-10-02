@@ -1,21 +1,15 @@
+use crate::ProxyState;
 use axum::{
     body::Body,
     extract::{Path, State},
     http::{header, Request, StatusCode, Uri},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
     Router,
 };
 use lol_html::{element, HtmlRewriter, Settings};
-use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
-use url::Url;
-
-#[derive(Clone)]
-pub struct ProxyState {
-    pub base_url: Arc<Mutex<Url>>,
-}
 
 pub async fn start_proxy_server(state: ProxyState) -> u16 {
     let port = portpicker::pick_unused_port().expect("failed to find a free port");
@@ -43,19 +37,22 @@ async fn proxy_handler(
     let base_url = state.base_url.lock().unwrap().clone();
     let target_url = base_url.join(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    *req.uri_mut() = target_url.to_string().parse::<Uri>().unwrap();
-    req.headers_mut().insert(
-        header::HOST,
-        base_url.host_str().unwrap().parse().unwrap(),
-    );
-    req.headers_mut().insert(
+    let client = reqwest::Client::new();
+    let mut client_req = client
+        .request(req.method().clone(), target_url)
+        .headers(req.headers().clone());
+
+    if let Some(host) = base_url.host_str() {
+        client_req = client_req.header(header::HOST, host);
+    }
+
+    client_req = client_req.header(
         header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36".parse().unwrap(),
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     );
 
-    let client = reqwest::Client::new();
     let response = client
-        .execute(req.into())
+        .execute(client_req.build().unwrap())
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
@@ -105,7 +102,7 @@ async fn proxy_handler(
 
         Ok(builder.body(Body::from(output)).unwrap())
     } else {
-        let body = Body::from_stream(response.bytes_stream());
+        let body = Body::from_stream(response.stream());
         Ok(builder.body(body).unwrap())
     }
 }
