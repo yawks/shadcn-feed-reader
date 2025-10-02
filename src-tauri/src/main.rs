@@ -129,6 +129,8 @@ async fn fetch_article(url: String) -> Result<String, String> {
     }
 }
 
+use scraper::{Html, Selector};
+
 #[command]
 async fn fetch_raw_html(url: String) -> Result<String, String> {
     let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
@@ -143,7 +145,7 @@ async fn fetch_raw_html(url: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     let response = client
-        .get(url_obj)
+        .get(url_obj.clone())
         .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
         .header("Accept-Language", "en-US,en;q=0.5")
@@ -153,7 +155,17 @@ async fn fetch_raw_html(url: String) -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    response.text().await.map_err(|e| e.to_string())
+    let html_content = response.text().await.map_err(|e| e.to_string())?;
+
+    let mut document = Html::parse_document(&html_content);
+    let head_selector = Selector::parse("head").unwrap();
+
+    if let Some(mut head) = document.select(&head_selector).next() {
+        let base_url = url_obj.join("./").unwrap().to_string();
+        head.prepend_html(&format!(r#"<base href="{}">"#, base_url));
+    }
+
+    Ok(document.html())
 }
 
 fn main() {
