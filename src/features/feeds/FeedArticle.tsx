@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { invoke } from "@tauri-apps/api/core"
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK";
 
@@ -35,7 +35,6 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     setArticleContent(content);
                 }
             } catch (err) {
-                console.error("Error fetching article:", err);
                 if (err instanceof Error) {
                     setError(err.message);
                 } else {
