@@ -5,6 +5,8 @@ import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
+const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK";
+
 interface FeedArticleProps {
     readonly item: FeedItem
     readonly isMobile?: boolean
@@ -14,6 +16,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
     const [error, setError] = useState<string | null>(null)
+    const [useIframe, setUseIframe] = useState(false);
 
     useEffect(() => {
         const fetchArticleContent = async () => {
@@ -21,22 +24,34 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
 
             setIsLoading(true)
             setError(null)
+            setUseIframe(false);
+
             try {
-                const content: string = await invoke("fetch_article", { url: item.url })
-                setArticleContent(content)
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message)
+                const content: string = await invoke("fetch_article", { url: item.url });
+
+                if (content === FALLBACK_SIGNAL) {
+                    setUseIframe(true);
                 } else {
-                    setError(String(err))
+                    setArticleContent(content);
+                }
+            } catch (err) {
+                console.error("Error fetching article:", err);
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(String(err));
                 }
             } finally {
-                setIsLoading(false)
+                setIsLoading(false);
             }
         }
 
         fetchArticleContent()
     }, [item.url])
+
+    const handleIframeLoad = () => {
+        setIsLoading(false);
+    };
 
     return (
         <div
@@ -59,16 +74,23 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 )}
                 {error && (
                     <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/80'>
-                        <div className='flex flex-col items-center space-y-4'>
-                            <p className='text-sm text-red-500'>{error}</p>
-                        </div>
+                        <p className='text-sm text-red-500'>{error}</p>
                     </div>
                 )}
                 {!isLoading && !error && (
-                    <div
-                        className='prose dark:prose-invert p-4 w-full'
-                        dangerouslySetInnerHTML={{ __html: articleContent }}
-                    />
+                    useIframe ? (
+                        <iframe
+                            className='w-full h-full'
+                            src={item.url}
+                            title="Feed article"
+                            onLoad={handleIframeLoad}
+                        />
+                    ) : (
+                        <div
+                            className='prose dark:prose-invert p-4 w-full'
+                            dangerouslySetInnerHTML={{ __html: articleContent }}
+                        />
+                    )
                 )}
             </div>
         </div>
