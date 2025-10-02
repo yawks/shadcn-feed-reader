@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK"
+const NATIVE_DARK_READER_STYLE_ID = "dark-reader-style"
 
 interface FeedArticleProps {
     readonly item: FeedItem
@@ -77,7 +78,6 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     return
                 }
 
-                const NATIVE_DARK_READER_STYLE_ID = "dark-reader-style"
                 const style = doc.getElementById(NATIVE_DARK_READER_STYLE_ID)
 
                 if (viewMode === "dark") {
