@@ -139,6 +139,32 @@ async fn fetch_article(url: String) -> Result<String, String> {
         return Err("Content appears to be binary or corrupted.".into());
     }
 
+<<<<<<< HEAD
+=======
+    // Check if we got a minimal HTML document (likely from JavaScript-heavy sites)
+    let html_normalized = html.trim().replace('\n', "").replace('\r', "");
+    
+    // Multiple patterns to catch different variations of empty HTML
+    let patterns = [
+        r"^<!DOCTYPE html><html><head></head><body></body></html>$",
+        r"^<!doctype html><html><head></head><body></body></html>$", 
+        r"^<html><head></head><body></body></html>$",
+        r"^<!DOCTYPE html><html><head>\s*</head><body>\s*</body></html>$",
+    ];
+    
+    for pattern in &patterns {
+        let regex = regex::Regex::new(pattern).unwrap();
+        if regex.is_match(&html_normalized) {
+            return Ok(FALLBACK_SIGNAL.to_string());
+        }
+    }
+    
+    // Additional check: if the body is essentially empty
+    if html.len() < 200 && !html.contains("<p") && !html.contains("<div") && !html.contains("<article") && !html.contains("<main") {
+        return Ok(FALLBACK_SIGNAL.to_string());
+    }
+
+>>>>>>> a7fa57d (fix article display using rust website extraction)
     let mut content_cursor = Cursor::new(html.as_bytes());
     match readability::extractor::extract(&mut content_cursor, &url_obj) {
         Ok(product) => {

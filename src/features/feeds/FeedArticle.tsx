@@ -1,11 +1,18 @@
+<<<<<<< HEAD
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { useEffect, useRef, useState } from "react"
+=======
+import { useEffect, useState } from "react"
+>>>>>>> a7fa57d (fix article display using rust website extraction)
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { invoke } from "@tauri-apps/api/core"
+<<<<<<< HEAD
 import { useTheme } from "@/context/theme-context"
+=======
+>>>>>>> a7fa57d (fix article display using rust website extraction)
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK"
 
@@ -57,6 +64,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 } finally {
                     setIsLoading(false)
                 }
+<<<<<<< HEAD
             } else if (isIframeView && proxyPort) {
                 try {
                     await invoke("set_proxy_url", { url: item.url });
@@ -68,6 +76,13 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 } catch (err) {
                     setError(err instanceof Error ? err.message : String(err));
                     setIsLoading(false);
+=======
+            } catch (err) {
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(String(err));
+>>>>>>> a7fa57d (fix article display using rust website extraction)
                 }
             }
         }
