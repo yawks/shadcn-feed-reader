@@ -129,9 +129,36 @@ async fn fetch_article(url: String) -> Result<String, String> {
     }
 }
 
+#[command]
+async fn fetch_raw_html(url: String) -> Result<String, String> {
+    let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(url_obj)
+        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    response.text().await.map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![fetch_article])
+        .invoke_handler(tauri::generate_handler![fetch_article, fetch_raw_html])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
