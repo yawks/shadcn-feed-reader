@@ -12,7 +12,7 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 // The entire Dark Reader library source code, to be injected.
-const DARK_READER_JS: &str = include_str!("../../../node_modules/darkreader/darkreader.js");
+const DARK_READER_JS: &str = include_str!("../../node_modules/darkreader/darkreader.js");
 
 // The listener script that will be injected to handle communication.
 const LISTENER_SCRIPT: &str = r#"
