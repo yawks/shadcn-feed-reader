@@ -11,6 +11,29 @@ use lol_html::{element, HtmlRewriter, Settings};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
+// The entire Dark Reader library source code, to be injected.
+const DARK_READER_JS: &str = include_str!("../../../node_modules/darkreader/darkreader.js");
+
+// The listener script that will be injected to handle communication.
+const LISTENER_SCRIPT: &str = r#"
+<script>
+    // Injected Dark Reader library
+    {{DARK_READER_JS}}
+
+    // Listener for messages from the parent window
+    window.addEventListener('message', (event) => {
+        const { action, enabled, theme } = event.data;
+        if (action === 'SET_DARK_MODE') {
+            if (enabled) {
+                DarkReader.enable(theme);
+            } else {
+                DarkReader.disable();
+            }
+        }
+    });
+</script>
+"#;
+
 pub async fn start_proxy_server(state: ProxyState) -> u16 {
     let port = portpicker::pick_unused_port().expect("failed to find a free port");
 
@@ -73,25 +96,13 @@ async fn proxy_handler(
         let text = response.text().await.unwrap();
         let mut output = Vec::new();
 
+        let final_script = LISTENER_SCRIPT.replace("{{DARK_READER_JS}}", DARK_READER_JS);
+
         let mut rewriter = HtmlRewriter::new(
             Settings {
                 element_content_handlers: vec![
-                    element!("a[href], link[href]", |el| {
-                        if let Some(href) = el.get_attribute("href") {
-                            if !href.starts_with("http") && !href.starts_with("//") {
-                                let new_href = format!("/{}", href.trim_start_matches('/'));
-                                el.set_attribute("href", &new_href).unwrap();
-                            }
-                        }
-                        Ok(())
-                    }),
-                    element!("img[src], script[src], iframe[src]", |el| {
-                         if let Some(src) = el.get_attribute("src") {
-                            if !src.starts_with("http") && !src.starts_with("//") {
-                                let new_src = format!("/{}", src.trim_start_matches('/'));
-                                el.set_attribute("src", &new_src).unwrap();
-                            }
-                        }
+                    element!("body", |el| {
+                        el.append(&final_script, lol_html::html_content::ContentType::Html);
                         Ok(())
                     }),
                 ],

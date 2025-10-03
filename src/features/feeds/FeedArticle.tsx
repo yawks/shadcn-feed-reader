@@ -1,9 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import {
-    disable as disableDarkMode,
-    enable as enableDarkMode,
-    exportGeneratedCSS,
-} from "darkreader"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,7 +9,6 @@ import { invoke } from "@tauri-apps/api/core"
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK"
-const NATIVE_DARK_READER_STYLE_ID = "dark-reader-style"
 
 interface FeedArticleProps {
     readonly item: FeedItem
@@ -68,10 +62,8 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 try {
                     await invoke("set_proxy_url", { url: item.url });
                     const targetUrl = new URL(item.url);
-                    // Use a consistent path for the initial load, letting the proxy handle the full path
                     const proxyUrl = `http://localhost:${proxyPort}${targetUrl.pathname}${targetUrl.search}`;
                     if (iframeRef.current) {
-                        // A key is used here to force a re-mount, ensuring the new src is loaded.
                         iframeRef.current.src = proxyUrl;
                     }
                 } catch (err) {
@@ -92,30 +84,18 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             return
         }
 
-        const handleLoad = async () => {
+        const handleLoad = () => {
             setIsLoading(false)
-            const doc = iframe.contentDocument
-            if (!doc) return
-
-            const oldStyle = doc.getElementById(NATIVE_DARK_READER_STYLE_ID)
-            if (oldStyle) {
-                oldStyle.remove()
-            }
-            disableDarkMode()
-
-            if (viewMode === "dark") {
-                enableDarkMode({
-                    brightness: 100,
-                    contrast: 90,
-                    sepia: 10,
-                })
-                const css = await exportGeneratedCSS()
-                disableDarkMode()
-
-                const newStyle = doc.createElement("style")
-                newStyle.id = NATIVE_DARK_READER_STYLE_ID
-                newStyle.textContent = css
-                doc.head.appendChild(newStyle)
+            if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({
+                    action: 'SET_DARK_MODE',
+                    enabled: viewMode === 'dark',
+                    theme: {
+                        brightness: 100,
+                        contrast: 90,
+                        sepia: 10,
+                    }
+                }, '*');
             }
         }
 
@@ -123,7 +103,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         return () => {
             iframe.removeEventListener("load", handleLoad)
         }
-    }, [isIframeView, viewMode, theme])
+    }, [isIframeView, viewMode, theme, proxyPort, item.url])
 
     const handleViewModeChange = (mode: ArticleViewMode) => {
         setViewMode(mode)
@@ -166,7 +146,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     {!error &&
                         (isIframeView ? (
                             <iframe
-                                key={item.url}
+                                key={item.url} // Force re-mount on item change
                                 ref={iframeRef}
                                 className={cn("h-full w-full", {
                                     invisible: isLoading,
