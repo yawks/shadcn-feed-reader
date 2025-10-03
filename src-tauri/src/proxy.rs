@@ -29,30 +29,35 @@ pub async fn start_proxy_server(state: ProxyState) -> u16 {
     port
 }
 
+use axum::body::to_bytes;
+
 async fn proxy_handler(
     State(state): State<ProxyState>,
     Path(path): Path<String>,
-    mut req: Request<Body>,
+    req: Request<Body>,
 ) -> Result<Response, StatusCode> {
     let base_url = state.base_url.lock().unwrap().clone();
     let target_url = base_url.join(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
 
+    let (parts, body) = req.into_parts();
+    let body_bytes = to_bytes(body, usize::MAX)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     let client = reqwest::Client::new();
-    let mut client_req = client
-        .request(req.method().clone(), target_url)
-        .headers(req.headers().clone());
-
-    if let Some(host) = base_url.host_str() {
-        client_req = client_req.header(header::HOST, host);
-    }
-
-    client_req = client_req.header(
-        header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    );
+    let client_req = client
+        .request(parts.method, target_url)
+        .headers(parts.headers)
+        .header(
+            header::USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        )
+        .body(body_bytes)
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response = client
-        .execute(client_req.build().unwrap())
+        .execute(client_req)
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
