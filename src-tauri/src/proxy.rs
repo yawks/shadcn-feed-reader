@@ -1,6 +1,6 @@
 use crate::ProxyState;
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     extract::{Path, State},
     http::{header, Request, StatusCode},
     response::Response,
@@ -20,7 +20,7 @@ pub async fn start_proxy_server(state: ProxyState) -> u16 {
         .layer(TraceLayer::new_for_http());
 
     tokio::spawn(async move {
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
+        let listener = TcpListener::bind(format!("localhost:{}", port))
             .await
             .unwrap();
         axum::serve(listener, app).await.unwrap();
@@ -28,8 +28,6 @@ pub async fn start_proxy_server(state: ProxyState) -> u16 {
 
     port
 }
-
-use axum::body::to_bytes;
 
 async fn proxy_handler(
     State(state): State<ProxyState>,

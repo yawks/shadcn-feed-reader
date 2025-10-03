@@ -66,15 +66,17 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 }
             } else if (isIframeView && proxyPort) {
                 try {
-                    await invoke("set_proxy_url", { url: item.url })
-                    const targetUrl = new URL(item.url)
-                    const proxyUrl = `http://127.0.0.1:${proxyPort}${targetUrl.pathname}${targetUrl.search}?t=${Date.now()}`
+                    await invoke("set_proxy_url", { url: item.url });
+                    const targetUrl = new URL(item.url);
+                    // Use a consistent path for the initial load, letting the proxy handle the full path
+                    const proxyUrl = `http://localhost:${proxyPort}${targetUrl.pathname}${targetUrl.search}`;
                     if (iframeRef.current) {
-                        iframeRef.current.src = proxyUrl
+                        // A key is used here to force a re-mount, ensuring the new src is loaded.
+                        iframeRef.current.src = proxyUrl;
                     }
                 } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err))
-                    setIsLoading(false)
+                    setError(err instanceof Error ? err.message : String(err));
+                    setIsLoading(false);
                 }
             }
         }
@@ -164,6 +166,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     {!error &&
                         (isIframeView ? (
                             <iframe
+                                key={item.url}
                                 ref={iframeRef}
                                 className={cn("h-full w-full", {
                                     invisible: isLoading,
