@@ -14,16 +14,22 @@ mod proxy;
 
 const FALLBACK_SIGNAL: &str = "READABILITY_FAILED_FALLBACK";
 
-// Shared state for the proxy's base URL
+// Shared state for the proxy's base URL and port
 #[derive(Clone)]
 pub struct ProxyState {
     pub base_url: Arc<Mutex<Url>>,
+    pub port: Arc<Mutex<Option<u16>>>,
 }
 
 #[command]
 async fn start_proxy(app_handle: AppHandle) -> Result<u16, String> {
     let state: tauri::State<ProxyState> = app_handle.state();
     let port = proxy::start_proxy_server(state.inner().clone()).await;
+    
+    // Store the port in the state
+    let mut port_guard = state.port.lock().unwrap();
+    *port_guard = Some(port);
+    
     Ok(port)
 }
 
@@ -33,6 +39,34 @@ fn set_proxy_url(url: String, state: State<ProxyState>) -> Result<(), String> {
     let mut base_url = state.base_url.lock().unwrap();
     *base_url = new_url;
     Ok(())
+}
+
+#[command]
+async fn fetch_raw_html(url: String) -> Result<String, String> {
+    let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(url_obj.clone())
+        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let html = response.text().await.map_err(|e| e.to_string())?;
+    Ok(html)
 }
 
 #[command]
@@ -135,12 +169,14 @@ fn main() {
     let initial_url = Url::parse("http://localhost").unwrap(); // Default empty URL
     let proxy_state = ProxyState {
         base_url: Arc::new(Mutex::new(initial_url)),
+        port: Arc::new(Mutex::new(None)),
     };
 
     tauri::Builder::default()
         .manage(proxy_state)
         .invoke_handler(tauri::generate_handler![
             fetch_article,
+            fetch_raw_html,
             start_proxy,
             set_proxy_url
         ])

@@ -1,12 +1,11 @@
+import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { useEffect, useRef, useState } from "react"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useTheme } from "@/context/theme-context"
 import { cn } from "@/lib/utils"
 import { invoke } from "@tauri-apps/api/core"
-
-import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
+import { useTheme } from "@/context/theme-context"
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK"
 
@@ -61,8 +60,8 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             } else if (isIframeView && proxyPort) {
                 try {
                     await invoke("set_proxy_url", { url: item.url });
-                    const targetUrl = new URL(item.url);
-                    const proxyUrl = `http://localhost:${proxyPort}${targetUrl.pathname}${targetUrl.search}`;
+                    // Use the /proxy endpoint to fetch the complete page
+                    const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`;
                     if (iframeRef.current) {
                         iframeRef.current.src = proxyUrl;
                     }
