@@ -98,7 +98,7 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
               }}
             />
           ))}
-          <div className="absolute bottom-1 right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+          <div className="absolute bottom-2 right-3 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
             +{articles.length}
           </div>
         </div>

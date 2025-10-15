@@ -143,7 +143,16 @@ export default function Feeds() {
   });
 
   // Merge all item pages or use search results if in search mode
-  const items = useMemo(() => isSearchMode ? searchResults : (data?.pages.flat() ?? []), [isSearchMode, searchResults, data]);
+  const items = useMemo(() => {
+    const allItems = isSearchMode ? searchResults : (data?.pages.flat() ?? []);
+    const uniqueUrls = new Map<string, FeedItem>();
+    allItems.forEach(item => {
+      if (!uniqueUrls.has(item.url)) {
+        uniqueUrls.set(item.url, item);
+      }
+    });
+    return Array.from(uniqueUrls.values());
+  }, [isSearchMode, searchResults, data]);
   const processedItems = useMemo(() => groupArticles(items), [items]);
 
   // Effect to restore scroll position when returning to list (mobile only)
