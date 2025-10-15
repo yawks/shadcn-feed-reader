@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { FeedItem } from "@/backends/types";
 import { ItemsList } from "./items-list";
 import { ItemsListLoader } from "@/components/layout/loaders/itemslist-loader";
+import { ProcessedFeedItem } from "@/utils/grouping";
 
 export interface FilterItemListRef {
     getScrollTop: () => number;
@@ -10,7 +11,7 @@ export interface FilterItemListRef {
 }
 
 interface FilterItemsProps {
-    readonly items: FeedItem[];
+    readonly items: ProcessedFeedItem[];
     readonly selectedFeedArticle: FeedItem | null;
     readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
     readonly onScrollEnd: () => void;

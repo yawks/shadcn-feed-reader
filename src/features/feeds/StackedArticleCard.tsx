@@ -14,7 +14,6 @@ interface StackedArticleCardProps {
 export function StackedArticleCard({ group, isSelected, onSelect }: StackedArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { mainArticle, articles, sources } = group;
-  const totalArticles = 1 + articles.length;
 
   const handleCardClick = () => {
     // If not selected, first select it (which shows it in the right panel on desktop)

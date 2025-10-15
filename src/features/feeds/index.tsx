@@ -16,7 +16,7 @@ import { ResizeHandle } from '@/components/ui/resize-handle'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
-import { useFeedQuery } from '@/context/feed-query-provider'
+import { useFeedQuery } from '@/hooks/use-feed-query'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
@@ -143,7 +143,7 @@ export default function Feeds() {
   });
 
   // Merge all item pages or use search results if in search mode
-  const items = isSearchMode ? searchResults : (data?.pages.flat() ?? []);
+  const items = useMemo(() => isSearchMode ? searchResults : (data?.pages.flat() ?? []), [isSearchMode, searchResults, data]);
   const processedItems = useMemo(() => groupArticles(items), [items]);
 
   // Effect to restore scroll position when returning to list (mobile only)
