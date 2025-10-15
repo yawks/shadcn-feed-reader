@@ -120,18 +120,18 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                   onSelect={handleSelectArticle}
                 />
               );
+            } else {
+              // It's a single article
+              const isSelected = selectedFeedArticle?.id === item.id;
+              return (
+                <SingleArticleCard
+                  key={item.id}
+                  item={item}
+                  isSelected={isSelected}
+                  onSelect={() => handleSelectArticle(item)}
+                />
+              );
             }
-
-            // It's a single article
-            const isSelected = selectedFeedArticle?.id === item.id;
-            return (
-              <SingleArticleCard
-                key={item.id}
-                item={item}
-                isSelected={isSelected}
-                onSelect={() => handleSelectArticle(item)}
-              />
-            );
           })}
         </div>
       </div>
