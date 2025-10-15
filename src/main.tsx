@@ -11,7 +11,6 @@ import { AxiosError } from 'axios'
 import { FontProvider } from './context/font-context'
 import { FontSizeProvider } from './context/font-size-context'
 import { InstallPWA } from '@/components/install-pwa'
-import { PWAPrompt } from '@/components/pwa-prompt'
 import ReactDOM from 'react-dom/client'
 import { StrictMode } from 'react'
 import { ThemeProvider } from './context/theme-context'
@@ -105,7 +104,6 @@ if (!rootElement.innerHTML) {
                 const authentication = useAuth();
                 return (
                   <>
-                    <PWAPrompt />
                     <InstallPWA />
                     <RouterProvider router={router} context={{ authentication }} />
                   </>
