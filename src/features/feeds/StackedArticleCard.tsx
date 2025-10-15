@@ -1,8 +1,8 @@
-import { GroupedFeedItem } from '@/utils/grouping';
-import { useState } from 'react';
 import { FeedFavicon } from '@/components/ui/feed-favicon';
-import { timeSinceShort } from '@/lib/utils';
 import { FeedItem } from '@/backends/types';
+import { GroupedFeedItem } from '@/utils/grouping';
+import { timeSinceShort } from '@/lib/utils';
+import { useState } from 'react';
 
 interface StackedArticleCardProps {
   group: GroupedFeedItem;
@@ -29,106 +29,122 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
 
   return (
     <div className="relative">
-      <div
+      <button
         className={`
-          group relative w-full text-left rounded-lg p-3 transition-all duration-300 ease-in-out
-          border
-          ${isSelected ? 'bg-primary/10 border-primary/20 shadow-md' : 'bg-background/80 border-transparent hover:border-border/40'}
+          group relative w-full text-left rounded-lg p-3 transition-all duration-200 ease-in-out
+          hover:bg-accent/60 hover:shadow-sm hover:scale-[1.02]
+          focus:outline-none
+          ${isSelected
+            ? 'bg-primary/10 border border-primary/20 shadow-md'
+            : 'bg-background/80 border border-transparent hover:border-border/40'
+          }
         `}
+        onClick={handleCardClick}
       >
-        {/* Main Article Content */}
-        <button
-          className="w-full text-left focus:outline-none pb-10"
-          onClick={handleCardClick}
-        >
-          {/* Group Title */}
-          <h2 className="text-sm font-semibold mb-2 px-1 text-foreground/80">{group.title}</h2>
-
-          {/* Main Article Layout */}
-          <div className="space-y-2">
-            <div className="flex gap-3">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 ring-border/10">
-                  <img
-                    src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
-                    alt={mainArticle.title}
-                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
-                <h3 className="font-medium leading-tight line-clamp-4 text-foreground group-hover:text-foreground">
-                  {mainArticle.title}
-                </h3>
+        <div className="space-y-2 pb-4">
+          <div className="flex gap-3">
+            <div className="flex-shrink-0">
+              <div className={`
+                w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
+                ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}
+              `}>
+                <img
+                  src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
+                  alt={mainArticle.title}
+                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                />
               </div>
             </div>
-            {/* Source Favicons */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0 pl-1">
-                {sources.slice(0, 5).map((source, index) => (
-                  <FeedFavicon
-                    key={index}
-                    src={source.faviconUrl}
-                    alt={source.title}
-                    className="w-4 h-4 rounded-sm flex-shrink-0"
-                  />
-                ))}
-                 {sources.length > 5 && <span className="text-xs text-muted-foreground/80">+{sources.length - 5}</span>}
-              </div>
-               <time className="text-xs text-muted-foreground/80 whitespace-nowrap flex-shrink-0">
-                {timeSinceShort(mainArticle.pubDate?.getTime() ?? 0)}
-              </time>
+            <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
+              <h3 className={`
+                font-medium leading-tight line-clamp-4
+                ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'}
+                group-hover:text-foreground transition-colors duration-200
+              `}>
+                {mainArticle.title}
+              </h3>
             </div>
           </div>
-        </button>
-
-        {/* Stack Effect & Badge */}
-        <div className={`
-          absolute bottom-0 left-0 right-0 h-10 px-3 pointer-events-none
-          transition-opacity duration-300 ease-in-out
-          ${isExpanded ? 'opacity-0' : 'opacity-100'}
-        `}>
-          <div className="relative w-full h-full">
-            {articles.slice(0, 2).map((_, index) => (
-              <div
-                key={index}
-                className="h-[2px] bg-border/50 rounded-full absolute bottom-0 left-1/2 -translate-x-1/2"
-                style={{
-                  width: `${95 - (index * 5)}%`,
-                  transform: `translateX(-50%) translateY(${ (index + 1) * -4 }px)`
-                }}
-              />
-            ))}
-            <div className="absolute bottom-1 right-1 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-              +{articles.length}
+          {/* Source Info */}
+          <div className="flex items-center justify-between gap-2 text-muted-foreground/80">
+            <div className="flex items-center gap-1 min-w-0">
+              {mainArticle.feed?.faviconUrl && (
+                <FeedFavicon
+                  src={mainArticle.feed.faviconUrl}
+                  alt={mainArticle.feed.title}
+                  className="w-3 h-3 rounded-sm flex-shrink-0"
+                />
+              )}
+              <span className="text-xs font-medium truncate">
+                {mainArticle.feed?.title}
+              </span>
+              {sources.length > 1 && (
+                <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-md font-medium">
+                  +{sources.length - 1}
+                </span>
+              )}
             </div>
+            <time className="text-xs whitespace-nowrap flex-shrink-0">{timeSinceShort(mainArticle.pubDate?.getTime() ?? 0)}</time>
           </div>
         </div>
-
+        {isSelected && (
+          <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-primary/5 to-transparent pointer-events-none"></div>
+        )}
         {/* Expanded View */}
         <div className={`
           transition-all ease-in-out duration-500 overflow-hidden
-          ${isExpanded ? 'max-h-96 mt-4 border-t border-border/40 pt-3' : 'max-h-0'}
+          ${isExpanded ? 'max-h-96 border-t border-border/40 pt-3' : 'max-h-0'}
         `}>
-          <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Autres articles du dossier :</h4>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {articles.map(article => (
               <button
                 key={article.id}
-                className="w-full text-left flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/80"
+                className="w-full text-left p-2 rounded-md hover:bg-accent/80 transition-colors duration-200"
                 onClick={() => onSelect(article)}
               >
-                <FeedFavicon
-                  src={article.feed?.faviconUrl}
-                  alt={article.feed?.title}
-                  className="w-4 h-4 rounded-sm flex-shrink-0"
-                />
-                <span className="text-sm text-muted-foreground truncate flex-1">{article.title}</span>
+                {/* Header: miniature + titre */}
+                <div className="flex flex-row items-center gap-2">
+                  <div className="flex-shrink-0">
+                    <div className={`
+                      w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
+                      ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}
+                    `}>
+                      <img
+                        src={article.thumbnailUrl || '/public/images/feed_icon.png'}
+                        alt={article.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                  <h4 className={`
+                    text-xs leading-tight line-clamp-2 flex-1
+                    ${!article.read ? 'font-medium' : 'text-muted-foreground'}
+                  `}>
+                    {article.title}
+                  </h4>
+                </div>
+                {/* Footer: favicon + nom + timestamp sur toute la largeur */}
+                <div className="flex items-center gap-1 text-muted-foreground/80 mt-1 w-full mt-2">
+                  {article.feed?.faviconUrl && (
+                    <FeedFavicon
+                      src={article.feed.faviconUrl}
+                      alt={article.feed.title}
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                    />
+                  )}
+                  <span className="text-xs truncate">
+                    {article.feed?.title}
+                  </span>
+                  <span className="flex-1" />
+                  <time className="text-xs whitespace-nowrap flex-shrink-0">
+                    {timeSinceShort(article.pubDate?.getTime() ?? 0)}
+                  </time>
+                </div>
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 }

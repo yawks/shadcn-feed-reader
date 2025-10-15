@@ -32,6 +32,16 @@ function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
 
 // 3. Main Grouping Function
 export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): ProcessedFeedItem[] {
+
+  // Remove duplicate articles by URL (keep the first occurrence)
+  const seenUrls = new Set<string>();
+  const uniqueArticles = articles.filter(article => {
+    if (!article.url) return true;
+    if (seenUrls.has(article.url)) return false;
+    seenUrls.add(article.url);
+    return true;
+  });
+
   const articlesByKeyword: { [keyword: string]: FeedItem[] } = {};
 
   // First pass: group by shared keywords
