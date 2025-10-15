@@ -3,9 +3,6 @@ import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems, NNSearchResult }
 
 import { api } from '@/utils/request';
 
-const NB_ITEMS_TO_LOAD = 20;
-
-
 export default class FeedBackend implements Backend {
   url: string
   login: string
@@ -111,9 +108,11 @@ export default class FeedBackend implements Backend {
     try {
       // Récupérer tous les feeds pour créer un mapping feedId -> Feed
       const feedsMapping = await this._getFeedsMapping();
+      const nbFeeds = Object.keys(feedsMapping).length;
+      const batchSize = nbFeeds > 0 ? 20 * nbFeeds : 20;
 
       const params: { [key: string]: string } = {
-        batchSize: String(NB_ITEMS_TO_LOAD),
+        batchSize: String(batchSize),
         id: String(query.feedId ?? query.folderId ?? '0'),
         type: getNextcloudFeedType(query),
         getRead: String(query.feedFilter != FeedFilter.UNREAD),
