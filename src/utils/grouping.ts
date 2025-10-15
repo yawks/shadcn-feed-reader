@@ -92,3 +92,7 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
 
   return [...finalGroups, ...ungroupedArticles];
 }
+
+export function isGroupedFeedItem(item: ProcessedFeedItem): item is GroupedFeedItem {
+  return 'isGroup' in item && item.isGroup;
+}
