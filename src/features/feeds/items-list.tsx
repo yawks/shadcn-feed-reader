@@ -104,7 +104,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
   return (
     <div className="flex w-full flex-col border-r border-border/40">
       <div className="h-full overflow-y-auto">
-        <div className="space-y-1 p-2">
+        <div className="space-y-1 p-1">
           {items.map((item: ProcessedFeedItem) => {
             if (isGroupedFeedItem(item)) {
               const isGroupSelected = selectedFeedArticle ?
