@@ -1,6 +1,6 @@
 import { FeedItem, FeedType } from '@/backends/types'
 import { FilterItemList, FilterItemListRef } from './FilterItemList'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 import { useSearch } from '@/context/search-context'
+import { groupArticles } from '@/utils/grouping'
 
 export default function Feeds() {
   const params = useParams({ strict: false });
@@ -143,6 +144,7 @@ export default function Feeds() {
 
   // Merge all item pages or use search results if in search mode
   const items = isSearchMode ? searchResults : (data?.pages.flat() ?? []);
+  const processedItems = useMemo(() => groupArticles(items), [items]);
 
   // Effect to restore scroll position when returning to list (mobile only)
   useEffect(() => {
@@ -267,7 +269,7 @@ export default function Feeds() {
                   ) : (
                     <FilterItemList
                       ref={filterItemListRef}
-                      items={items}
+                      items={processedItems}
                       selectedFeedArticle={currentSelectedArticle}
                       setSelectedFeedArticle={handleArticleSelection}
                       onScrollEnd={loadMore}
@@ -329,7 +331,7 @@ export default function Feeds() {
                   <ItemsListLoader />
                 ) : (
                   <FilterItemList
-                    items={items}
+                    items={processedItems}
                     selectedFeedArticle={currentSelectedArticle}
                     setSelectedFeedArticle={setSelectedFeedArticle}
                     onScrollEnd={loadMore}
