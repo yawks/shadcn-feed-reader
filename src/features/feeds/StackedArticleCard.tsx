@@ -38,7 +38,7 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
       >
         {/* Main Article Content */}
         <button
-          className="w-full text-left focus:outline-none"
+          className="w-full text-left focus:outline-none pb-10"
           onClick={handleCardClick}
         >
           {/* Group Title */}
@@ -84,22 +84,24 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
 
         {/* Stack Effect & Badge */}
         <div className={`
-          absolute bottom-0 left-0 right-0 px-2 pointer-events-none
+          absolute bottom-0 left-0 right-0 h-10 px-3 pointer-events-none
           transition-opacity duration-300 ease-in-out
           ${isExpanded ? 'opacity-0' : 'opacity-100'}
         `}>
-          {articles.slice(0, 2).map((_, index) => (
-            <div
-              key={index}
-              className="h-[2px] bg-border/50 rounded-full mx-auto mt-1"
-              style={{
-                width: `${95 - (index * 5)}%`,
-                transform: `translateY(${ (index + 1) * -2 }px)`
-              }}
-            />
-          ))}
-          <div className="absolute bottom-2 right-3 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-            +{articles.length}
+          <div className="relative w-full h-full">
+            {articles.slice(0, 2).map((_, index) => (
+              <div
+                key={index}
+                className="h-[2px] bg-border/50 rounded-full absolute bottom-0 left-1/2 -translate-x-1/2"
+                style={{
+                  width: `${95 - (index * 5)}%`,
+                  transform: `translateX(-50%) translateY(${ (index + 1) * -4 }px)`
+                }}
+              />
+            ))}
+            <div className="absolute bottom-1 right-1 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+              +{articles.length}
+            </div>
           </div>
         </div>
 

@@ -147,7 +147,7 @@ export default function Feeds() {
     const allItems = isSearchMode ? searchResults : (data?.pages.flat() ?? []);
     const uniqueUrls = new Map<string, FeedItem>();
     allItems.forEach(item => {
-      if (!uniqueUrls.has(item.url)) {
+      if (item.url && !uniqueUrls.has(item.url)) {
         uniqueUrls.set(item.url, item);
       }
     });
@@ -314,6 +314,7 @@ export default function Feeds() {
                   width: `${leftFlex * 100}%`,
                   minWidth: 0,
                   flexShrink: 0,
+                  paddingLeft: 0,
                 }}
               >
                 {/* Search mode banner */}
