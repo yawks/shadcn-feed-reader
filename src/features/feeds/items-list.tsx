@@ -1,9 +1,10 @@
-import { FeedItem } from '@/backends/types';
-import { FeedFavicon } from '@/components/ui/feed-favicon';
-import { timeSinceShort } from '@/lib/utils';
 import { ProcessedFeedItem, isGroupedFeedItem } from '@/utils/grouping';
-import { StackedArticleCard } from './StackedArticleCard';
+
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
+import { FeedFavicon } from '@/components/ui/feed-favicon';
+import { FeedItem } from '@/backends/types';
+import { StackedArticleCard } from './StackedArticleCard';
+import { timeSinceShort } from '@/lib/utils';
 
 interface ItemsListProps {
   readonly items: Readonly<ProcessedFeedItem[]>;
@@ -27,7 +28,7 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
         className={`
           group relative w-full text-left rounded-lg p-3 transition-all duration-200 ease-in-out
           hover:bg-accent/60 hover:shadow-sm hover:scale-[1.02]
-          focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
+          focus:outline-none
           ${isSelected
             ? 'bg-primary/10 border border-primary/20 shadow-md'
             : 'bg-background/80 border border-transparent hover:border-border/40'

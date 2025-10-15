@@ -35,12 +35,13 @@ function RouteComponent() {
           <div
             id='content'
             className={cn(
-              'ml-auto w-full max-w-full',
+              'w-full max-w-full', // suppression de ml-auto
               'peer-data-[state=collapsed]:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
               'peer-data-[state=expanded]:w-[calc(100%-var(--sidebar-width))]',
               'flex h-svh flex-col',
               'group-data-[scroll-locked=1]/body:h-full',
-              'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh'
+              'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh',
+              'pl-0' // padding-left forcé à 0
             )}
           >
             <Outlet />
