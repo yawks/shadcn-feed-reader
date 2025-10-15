@@ -1,7 +1,7 @@
 import { FeedItem } from '@/backends/types';
 import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { timeSinceShort } from '@/lib/utils';
-import { ProcessedFeedItem } from '@/utils/grouping';
+import { ProcessedFeedItem, isGroupedFeedItem } from '@/utils/grouping';
 import { StackedArticleCard } from './StackedArticleCard';
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
 
@@ -106,8 +106,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
       <div className="h-full overflow-y-auto">
         <div className="space-y-1 p-2">
           {items.map((item: ProcessedFeedItem) => {
-            if ('isGroup' in item && item.isGroup) {
-              // It's a group
+            if (isGroupedFeedItem(item)) {
               const isGroupSelected = selectedFeedArticle ?
                 item.articles.some(a => a.id === selectedFeedArticle.id) || item.mainArticle.id === selectedFeedArticle.id
                 : false;
@@ -121,7 +120,6 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
                 />
               );
             } else {
-              // It's a single article
               const isSelected = selectedFeedArticle?.id === item.id;
               return (
                 <SingleArticleCard
