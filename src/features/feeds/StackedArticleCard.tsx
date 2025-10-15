@@ -52,6 +52,12 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
                   src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
                   alt={mainArticle.title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  onError={e => {
+                    const target = e.currentTarget;
+                    if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
+                      target.src = '/public/images/feed_icon.png';
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -113,6 +119,12 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
                         src={article.thumbnailUrl || '/public/images/feed_icon.png'}
                         alt={article.title}
                         className="w-full h-full object-cover"
+                        onError={e => {
+                          const target = e.currentTarget;
+                          if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
+                            target.src = '/public/images/feed_icon.png';
+                          }
+                        }}
                       />
                     </div>
                   </div>

@@ -44,8 +44,8 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
 
   const articlesByKeyword: { [keyword: string]: FeedItem[] } = {};
 
-  // First pass: group by shared keywords
-  articles.forEach(article => {
+  // First pass: group by shared keywords (use uniqueArticles)
+  uniqueArticles.forEach(article => {
     const keywords = extractKeywords(article.title);
     keywords.forEach(keyword => {
       if (!articlesByKeyword[keyword]) {
@@ -97,8 +97,8 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
     }
   });
 
-  // Filter out processed articles and combine with groups
-  const ungroupedArticles = articles.filter(article => !processedArticleIds.has(article.id));
+  // Filter out processed articles and combine with groups (use uniqueArticles)
+  const ungroupedArticles = uniqueArticles.filter(article => !processedArticleIds.has(article.id));
 
   return [...finalGroups, ...ungroupedArticles];
 }
