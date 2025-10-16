@@ -1,3 +1,5 @@
+"use client"
+
 import { ChevronRight, MoreVertical } from 'lucide-react'
 import {
   Collapsible,
@@ -30,6 +32,9 @@ import {
 import { Badge } from '../ui/badge'
 import { IconNews } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { RenameDialog } from '@/components/rename-dialog'
 
 const NavBadge = ({ children }: { children: React.ReactNode }) => (
   <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-sidebar-accent/10 text-sidebar-accent-foreground border-sidebar-accent/20 shadow-sm'>
@@ -41,11 +46,88 @@ const NavBadge = ({ children }: { children: React.ReactNode }) => (
 
 // SidebarMenuLink component for non-collapsible items (feeds)
 function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
-  const { setOpenMobile } = useSidebar()
-  const [, setSelectedFolderOrFeed] = useState<NavItem | null>(null)
+  const { setOpenMobile: _setOpenMobile } = useSidebar()
+  const [, _setSelectedFolderOrFeed] = useState<NavItem | null>(null)
   const isActive = checkIsActive(href, item)
+  const queryClient = useQueryClient()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const itemUrl = (item as { url?: string }).url
+  const feedId = (itemUrl as string)?.split('/').pop() ?? null
+  // touch handling for mobile long-press
+  const touchTimer = useRef<number | null>(null)
+  const touchThreshold = 600
+  const onTouchStart = () => {
+    if (touchTimer.current) window.clearTimeout(touchTimer.current)
+    touchTimer.current = window.setTimeout(() => {
+      setMenuOpen(true)
+      setHovered(true)
+    }, touchThreshold) as unknown as number
+  }
+  const onTouchEnd = () => {
+    if (touchTimer.current) { window.clearTimeout(touchTimer.current); touchTimer.current = null }
+  }
+
+  React.useEffect(() => {
+    return () => { if (touchTimer.current) window.clearTimeout(touchTimer.current) }
+  }, [])
+
+  const handleFeedRename = async (newTitle: string) => {
+    const itemUrl = (item as { url?: string }).url
+    const feedId = (itemUrl as string)?.split('/').pop()
+    if (!feedId) return
+    const prev = queryClient.getQueryData<any>(['folders'])
+    // optimistic update: update any subitem with url `/feed/${feedId}`
+    try {
+      queryClient.setQueryData(['folders'], (old: any) => {
+        if (!old) return old
+        return old.map((folder: any) => ({
+          ...folder,
+          items: folder.items?.map((sub: any) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub) || []
+        }))
+      })
+
+      const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+      const backend = new FeedBackend()
+      await backend.renameFeed(feedId, newTitle)
+      // ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ['folders'] })
+      toast.message('Flux renommé')
+    } catch (_err) {
+      // rollback
+      queryClient.setQueryData(['folders'], prev)
+      toast.error('Erreur lors du renommage du flux')
+    }
+  }
+
+  const [feedToDelete, setFeedToDelete] = useState<{ id: string; title: string } | null>(null)
+  const [feedToRename, setFeedToRename] = useState<{ id: string; title: string } | null>(null)
+
+  const handleFeedDeleteConfirmed = async (feedId: string) => {
+    const prev = queryClient.getQueryData<any>(['folders'])
+    try {
+      // optimistic: remove the feed from folders cache
+      queryClient.setQueryData(['folders'], (old: any) => {
+        if (!old) return old
+        return old.map((folder: any) => ({
+          ...folder,
+          items: folder.items?.filter((sub: any) => sub.url !== `/feed/${feedId}`) || []
+        }))
+      })
+
+      const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+      const backend = new FeedBackend()
+      await backend.deleteFeed(feedId)
+      await queryClient.invalidateQueries({ queryKey: ['folders'] })
+      toast.message('Flux supprimé')
+    } catch (_err) {
+      queryClient.setQueryData(['folders'], prev)
+      toast.error('Erreur lors de la suppression du flux')
+    }
+  }
   return (
-    <SidebarMenuItem>
+    <>
+    <SidebarMenuItem onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}>
       <SidebarMenuButton 
         tooltip={item.title} 
         isActive={isActive}
@@ -54,24 +136,50 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
         <Link 
           to={('url' in item ? item.url : ".") ?? "."} 
           onClick={() => {
-            setOpenMobile(false)
-            setSelectedFolderOrFeed(item)
+            _setOpenMobile(false)
+            _setSelectedFolderOrFeed(item)
           }} 
           className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
         >
           <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-            {item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : null}
-            {item.iconUrl ? (
-              <img 
-                src={item.iconUrl} 
-                alt={item.title} 
-                className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
-              />
-            ) : null}
+            {hovered || menuOpen ? (
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
+                    aria-label="Plus d'actions"
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+                  >
+                    <MoreVertical className="w-4 h-4 text-muted-foreground transition-colors duration-200 hover:text-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                  <DropdownMenuItem onSelect={() => { 
+                    setMenuOpen(false);
+                    if (feedId) setFeedToRename({ id: feedId, title: item.title })
+                  }}>
+                    Renommer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => { setMenuOpen(false); if (feedId) setFeedToDelete({ id: feedId, title: item.title }) }} variant="destructive">
+                    Supprimer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
+                item.iconUrl ? (
+                  <img 
+                    src={item.iconUrl} 
+                    alt={item.title} 
+                    className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
+                  />
+                ) : null
+              )
+            )}
           </div>
           <span className={`font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
             isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
-          }`}>
+          }`}> 
             {item.title}
           </span>
           {item.badge && (
@@ -81,14 +189,42 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
           )}
         </Link>
       </SidebarMenuButton>
-    </SidebarMenuItem>
+  </SidebarMenuItem>
+  {/* Rename dialog for feeds */}
+    <RenameDialog
+      open={!!feedToRename}
+      onOpenChange={(open) => { if (!open) setFeedToRename(null) }}
+      title="Renommer le flux"
+      initialValue={feedToRename?.title ?? ''}
+      onConfirm={async (value) => {
+        if (!feedToRename) return
+        await handleFeedRename(value)
+        setFeedToRename(null)
+      }}
+    />
+    {/* Confirm dialog for feed deletion */}
+    <ConfirmDialog
+      open={!!feedToDelete}
+      onOpenChange={(open) => { if (!open) setFeedToDelete(null) }}
+      title="Supprimer le flux ?"
+      desc={`Voulez-vous vraiment supprimer le flux ${feedToDelete?.title ?? ''} ? Cette action est irréversible.`}
+      handleConfirm={async () => {
+        if (!feedToDelete) return
+        await handleFeedDeleteConfirmed(feedToDelete.id)
+        setFeedToDelete(null)
+      }}
+      confirmText="Supprimer"
+      cancelBtnText="Annuler"
+      destructive
+    />
+    </>
   )
 }
 
 // SidebarMenuCollapsible component for folders with context menu and inline rename
 function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: string }) {
-  const { setOpenMobile } = useSidebar()
-  const [, setSelectedFolderOrFeed] = useState<NavItem | null>(null)
+  const { setOpenMobile: _setOpenMobile } = useSidebar()
+  const [, _setSelectedFolderOrFeed] = useState<NavItem | null>(null)
   const queryClient = useQueryClient()
   const isActive = checkIsActive(href, item)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -97,9 +233,35 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
   const inputRef = useRef<HTMLInputElement>(null)
   const [hovered, setHovered] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  // Touch / long-press handling for mobile where hover doesn't exist
+  const touchTimer = useRef<number | null>(null)
+  const touchThreshold = 600 // ms to consider a long-press
+
+  const onTouchStart = (_e: React.TouchEvent) => {
+    // start a timer to open the menu if the user long-presses
+    if (touchTimer.current) window.clearTimeout(touchTimer.current)
+    touchTimer.current = window.setTimeout(() => {
+      setMenuOpen(true)
+      setHovered(true)
+    }, touchThreshold) as unknown as number
+  }
+
+  const onTouchEnd = () => {
+    // clear timer on touch end/cancel (short tap)
+    if (touchTimer.current) {
+      window.clearTimeout(touchTimer.current)
+      touchTimer.current = null
+    }
+  }
+
+  // cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (touchTimer.current) window.clearTimeout(touchTimer.current)
+    }
+  }, [])
 
   const handleRename = async () => {
-    console.log('handleRename called!', { renameValue, originalTitle: item.title }) // Debug: vérifier si la fonction est appelée
     setIsRenaming(false)
     if (renameValue.trim() && renameValue !== item.title) {
       try {
@@ -107,32 +269,28 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
         // Les dossiers ont une URL ajoutée dynamiquement même si le type ne le permet pas
         const itemUrl = (item as { url?: string }).url
         const folderId = (itemUrl as string)?.split('/').pop()
-        console.log('Extracted folderId:', folderId, 'from itemUrl:', itemUrl) // Debug log
         if (folderId) {
-          console.log('Renaming folder:', folderId, 'to:', renameValue) // Debug log
           const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
           const backend = new FeedBackend()
           await backend.renameFolder(folderId, renameValue)
-          console.log('Folder renamed successfully') // Debug log
           // Invalider le cache pour re-fetch les dossiers
           await queryClient.invalidateQueries({ queryKey: ['folders'] })
         } else {
-          console.log('No folderId found, skipping rename')
+          // No folderId found; nothing to rename
         }
-      } catch (error) {
-        console.error('Erreur lors du renommage du dossier:', error) // Debug log
+      } catch (_error) {
+        // Report user-facing error
+        alert('Erreur lors du renommage du dossier')
       }
     } else {
-      console.log('Skipping rename: empty value or same name')
+      // Skip rename: empty value or same name
     }
   }
 
   React.useEffect(() => {
     if (isRenaming && inputRef.current) {
-      console.log('useEffect: Setting focus on input in 200ms')
       // Délai pour s'assurer que le DOM est mis à jour après fermeture du menu
       setTimeout(() => {
-        console.log('useEffect: Focusing input now')
         if (inputRef.current) {
           inputRef.current.focus()
           inputRef.current.select()
@@ -152,7 +310,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
       await backend.deleteFolder(folderId);
       await queryClient.invalidateQueries({ queryKey: ['folders'] });
       setShowDeleteConfirm(false);
-    } catch (error) {
+    } catch (_error) {
       alert('Erreur lors de la suppression du dossier');
     }
   };
@@ -181,6 +339,10 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
         className="relative"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton 
@@ -231,10 +393,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
                   className="font-medium flex-1 bg-transparent border-b border-accent outline-none px-1 text-foreground"
                   value={renameValue}
                   onChange={e => setRenameValue(e.target.value)}
-                                            onBlur={() => {
-                            console.log('Input onBlur triggered!')
-                            handleRename()
-                          }}
+                                            onBlur={() => { handleRename() }}
                   onKeyDown={e => {
                     if (e.key === 'Enter') handleRename()
                     if (e.key === 'Escape') { setIsRenaming(false); setRenameValue(item.title) }
@@ -259,27 +418,132 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
         </CollapsibleTrigger>
         <CollapsibleContent className='CollapsibleContent'>
           <SidebarMenuSub className="space-y-1 px-2">
-            {item.items.map((subItem) => {
-              const isSubActive = checkIsActive(href, subItem)
-              return (
-                <SidebarMenuSubItem key={subItem.title}>
-                  <SidebarMenuSubButton
-                    asChild
-                    isActive={isSubActive}
-                    className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent"
-                  >
-                    <Link to={('url' in subItem ? subItem.url : ".") ?? "."} className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1">
-                      {subItem.title}
-                      {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-                    </Link>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              )
-            })}
+            {item.items?.map((subItem) => (
+              <SidebarMenuSubRow key={subItem.title} subItem={subItem} parentItem={item} href={href} />
+            )) || []}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>
     </Collapsible>
+  )
+}
+
+// Sub-row component: render a subitem (feed) with its own 3-dots menu and mobile long-press
+function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, parentItem: NavCollapsible, href: string }) {
+  const isSubActive = checkIsActive(href, subItem as NavItem)
+  const queryClient = useQueryClient()
+  const [hovered, setHovered] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const touchTimer = useRef<number | null>(null)
+  const touchThreshold = 600
+
+  const onTouchStart = () => {
+    if (touchTimer.current) window.clearTimeout(touchTimer.current)
+    touchTimer.current = window.setTimeout(() => { setMenuOpen(true); setHovered(true) }, touchThreshold) as unknown as number
+  }
+  const onTouchEnd = () => { if (touchTimer.current) { window.clearTimeout(touchTimer.current); touchTimer.current = null } }
+  React.useEffect(() => () => { if (touchTimer.current) window.clearTimeout(touchTimer.current) }, [])
+
+  // rename handled via dialog state (see below)
+  const [subFeedToDelete, setSubFeedToDelete] = useState<{ id: string; title: string } | null>(null)
+  const [subFeedToRename, setSubFeedToRename] = useState<{ id: string; title: string } | null>(null)
+
+  const handleSubFeedRenameConfirmed = async (feedId: string, newTitle: string) => {
+    const prev = queryClient.getQueryData<any>(['folders'])
+    try {
+      queryClient.setQueryData(['folders'], (old: any) => {
+        if (!old) return old
+        return old.map((folder: any) => ({
+          ...folder,
+          items: folder.items?.map((sub: any) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub) || []
+        }))
+      })
+      const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+      const backend = new FeedBackend()
+      await backend.renameFeed(feedId, newTitle)
+      await queryClient.invalidateQueries({ queryKey: ['folders'] })
+      toast.message('Flux renommé')
+    } catch (_err) {
+      queryClient.setQueryData(['folders'], prev)
+      toast.error('Erreur lors du renommage du flux')
+    }
+  }
+
+  const handleSubFeedDeleteConfirmed = async (feedId: string) => {
+    const prev = queryClient.getQueryData<any>(['folders'])
+    try {
+      queryClient.setQueryData(['folders'], (old: any) => {
+        if (!old) return old
+        return old.map((folder: any) => ({
+          ...folder,
+          items: folder.items?.filter((sub: any) => sub.url !== `/feed/${feedId}`) || []
+        }))
+      })
+      const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+      const backend = new FeedBackend()
+      await backend.deleteFeed(feedId)
+      await queryClient.invalidateQueries({ queryKey: ['folders'] })
+      toast.message('Flux supprimé')
+    } catch (_err) {
+      queryClient.setQueryData(['folders'], prev)
+      toast.error('Erreur lors de la suppression du flux')
+    }
+  }
+
+  return (
+    <>
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton asChild isActive={isSubActive} className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent">
+        <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }} className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1">
+          <div className="flex-1 flex items-center gap-2">
+            {getSubItemIcon(subItem as NavItem, parentItem)}
+            <Link to={subItem.url} className="flex-1">{subItem.title}</Link>
+          </div>
+          {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+          <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+            {hovered || menuOpen ? (
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent focus:outline-none" aria-label="Plus d'actions" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}>
+                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToRename({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }}>Renommer</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToDelete({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }} variant="destructive">Supprimer</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
+        </div>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
+    <RenameDialog
+      open={!!subFeedToRename}
+      onOpenChange={(open) => { if (!open) setSubFeedToRename(null) }}
+      title="Renommer le flux"
+      initialValue={subFeedToRename?.title ?? ''}
+      onConfirm={async (value) => {
+        if (!subFeedToRename) return
+        await handleSubFeedRenameConfirmed(subFeedToRename.id, value)
+        setSubFeedToRename(null)
+      }}
+  />
+    <ConfirmDialog
+      open={!!subFeedToDelete}
+      onOpenChange={(open) => { if (!open) setSubFeedToDelete(null) }}
+      title="Supprimer le flux ?"
+      desc={`Voulez-vous vraiment supprimer le flux ${subFeedToDelete?.title ?? ''} ? Cette action est irréversible.`}
+      handleConfirm={async () => {
+        if (!subFeedToDelete) return
+        await handleSubFeedDeleteConfirmed(subFeedToDelete.id)
+        setSubFeedToDelete(null)
+      }}
+      confirmText="Supprimer"
+      cancelBtnText="Annuler"
+      destructive
+    />
+    </>
   )
 }
 

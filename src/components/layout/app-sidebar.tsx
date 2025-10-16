@@ -1,3 +1,5 @@
+"use client"
+
 import { FeedFilter, FeedType } from '@/backends/types'
 import { IconListDetails, IconNews, IconStar } from '@tabler/icons-react'
 import {
