@@ -30,11 +30,11 @@ import {
 } from '@/components/ui/sidebar'
 
 import { Badge } from '../ui/badge'
-import { IconNews } from '@tabler/icons-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { IconNews } from '@tabler/icons-react'
 import { RenameDialog } from '@/components/rename-dialog'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 const NavBadge = ({ children }: { children: React.ReactNode }) => (
   <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-sidebar-accent/10 text-sidebar-accent-foreground border-sidebar-accent/20 shadow-sm'>
