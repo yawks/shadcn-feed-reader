@@ -67,8 +67,9 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
       return; // Skip if any article in the group has already been processed
     }
 
-    const mainArticle = group[0];
-    const mainArticleTitleWords = new Set(mainArticle.title.toLowerCase().split(' '));
+  // Choisir comme mainArticle celui qui a une miniature si possible
+  const mainArticle = group.find(a => a.thumbnailUrl && a.thumbnailUrl.trim() !== '') || group[0];
+  const mainArticleTitleWords = new Set(mainArticle.title.toLowerCase().split(' '));
 
     const similarArticles = group.filter(article => {
       if (article.id === mainArticle.id) return true;

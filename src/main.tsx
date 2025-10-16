@@ -1,3 +1,23 @@
+// Force reload when a new service worker is available (PWA auto-update)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(reg => {
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                window.location.reload();
+              }
+            };
+          }
+        };
+      });
+    });
+  });
+}
+
 import './index.css'
 
 import {

@@ -10,6 +10,8 @@ interface ItemsListProps {
   readonly items: Readonly<ProcessedFeedItem[]>;
   readonly selectedFeedArticle: FeedItem | null;
   readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
+  readonly expandedGroups: Record<string, boolean>;
+  readonly setExpandedGroups: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }
 
 function getTitleColor(isSelected: boolean, isUnread: boolean): string {
@@ -91,7 +93,10 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
   );
 }
 
-export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }: ItemsListProps) {
+
+
+
+export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle, expandedGroups, setExpandedGroups }: ItemsListProps) {
   const backend = new FeedBackend();
 
   const handleSelectArticle = (item: FeedItem) => {
@@ -100,6 +105,20 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
       backend.setFeedArticleRead(item.id.toString());
       item.read = true; // Optimistic update
     }
+  };
+
+  const handleToggleExpand = (groupId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  };
+
+  const handleExpand = (groupId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: true,
+    }));
   };
 
   return (
@@ -111,13 +130,16 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle }
               const isGroupSelected = selectedFeedArticle ?
                 item.articles.some(a => a.id === selectedFeedArticle.id) || item.mainArticle.id === selectedFeedArticle.id
                 : false;
-
+              const isExpanded = !!expandedGroups[item.id];
               return (
                 <StackedArticleCard
                   key={item.id}
                   group={item}
                   isSelected={isGroupSelected}
                   onSelect={handleSelectArticle}
+                  isExpanded={isExpanded}
+                  onToggleExpand={() => handleToggleExpand(item.id)}
+                  onExpand={() => handleExpand(item.id)}
                 />
               );
             } else {

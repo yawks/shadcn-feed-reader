@@ -16,10 +16,12 @@ interface FilterItemsProps {
     readonly setSelectedFeedArticle: (item: FeedItem | null) => void;
     readonly onScrollEnd: () => void;
     readonly isFetchingNextPage?: boolean;
+    readonly expandedGroups: Record<string, boolean>;
+    readonly setExpandedGroups: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }
 
 export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
-    function FilterItemList({ items, selectedFeedArticle, setSelectedFeedArticle, onScrollEnd, isFetchingNextPage }, ref) {
+    function FilterItemList({ items, selectedFeedArticle, setSelectedFeedArticle, onScrollEnd, isFetchingNextPage, expandedGroups, setExpandedGroups }, ref) {
         const scrollRef = useRef<HTMLDivElement>(null);
         const isInternalScrollChange = useRef(false);
 
@@ -108,6 +110,8 @@ export const FilterItemList = forwardRef<FilterItemListRef, FilterItemsProps>(
                     items={items}
                     selectedFeedArticle={selectedFeedArticle}
                     setSelectedFeedArticle={setSelectedFeedArticle}
+                    expandedGroups={expandedGroups}
+                    setExpandedGroups={setExpandedGroups}
                 />
                 <div className="w-full py-2 min-h-[60px]">
                     {isFetchingNextPage && <ItemsListLoader />}

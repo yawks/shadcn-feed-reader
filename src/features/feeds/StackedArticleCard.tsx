@@ -2,34 +2,38 @@ import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
 import { GroupedFeedItem } from '@/utils/grouping';
 import { timeSinceShort } from '@/lib/utils';
-import { useState } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface StackedArticleCardProps {
   group: GroupedFeedItem;
-  // These props will be needed for consistency with ItemsList
   isSelected: boolean;
   onSelect: (item: FeedItem) => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onExpand: () => void;
 }
 
-export function StackedArticleCard({ group, isSelected, onSelect }: StackedArticleCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, onToggleExpand, onExpand }: StackedArticleCardProps) {
   const { mainArticle, articles, sources } = group;
+  const isMobile = useIsMobile();
 
   const handleCardClick = () => {
-    // If not selected, first select it (which shows it in the right panel on desktop)
-    // and expand it.
     if (!isSelected) {
-      onSelect(mainArticle);
-      setIsExpanded(true);
+      if (!isMobile) {
+        onSelect(mainArticle);
+      }
+      onExpand();
     } else {
-      // If already selected, toggle expansion
-      setIsExpanded(!isExpanded);
+      onToggleExpand();
     }
   };
 
   return (
     <div className="relative">
-      <button
+      {/* Card clickable area (collapsed view) */}
+      <div
+        role="button"
+        tabIndex={0}
         className={`
           group relative w-full text-left rounded-lg p-3 transition-all duration-200 ease-in-out
           hover:bg-accent/60 hover:shadow-sm hover:scale-[1.02]
@@ -40,14 +44,17 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
           }
         `}
         onClick={handleCardClick}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handleCardClick();
+          }
+        }}
+        style={{ cursor: 'pointer' }}
       >
         <div className="space-y-2 pb-4">
           <div className="flex gap-3">
             <div className="flex-shrink-0">
-              <div className={`
-                w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
-                ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}
-              `}>
+              <div className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}> 
                 <img
                   src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
                   alt={mainArticle.title}
@@ -62,11 +69,7 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
               </div>
             </div>
             <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
-              <h3 className={`
-                font-medium leading-tight line-clamp-4
-                ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'}
-                group-hover:text-foreground transition-colors duration-200
-              `}>
+              <h3 className={`font-medium leading-tight line-clamp-4 ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'} group-hover:text-foreground transition-colors duration-200`}>
                 {mainArticle.title}
               </h3>
             </div>
@@ -96,25 +99,67 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
         {isSelected && (
           <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-primary/5 to-transparent pointer-events-none"></div>
         )}
-        {/* Expanded View */}
-        <div className={`
-          transition-all ease-in-out duration-500 overflow-hidden
-          ${isExpanded ? 'max-h-96 border-t border-border/40 pt-3' : 'max-h-0'}
-        `}>
-          <div className="space-y-2">
-            {articles.map(article => (
+      </div>
+      {/* Expanded View (outside clickable area, avoids nested button) */}
+      {isExpanded && (
+        <div className="transition-all ease-in-out duration-500 overflow-hidden max-h-96 border-t border-border/40 pt-3">
+          <div className="space-y-3">
+            {isMobile && (
               <button
-                key={article.id}
+                key={mainArticle.id}
                 className="w-full text-left p-2 rounded-md hover:bg-accent/80 transition-colors duration-200"
-                onClick={() => onSelect(article)}
+                onClick={e => {
+                  e.stopPropagation();
+                  onSelect(mainArticle);
+                }}
               >
                 {/* Header: miniature + titre */}
                 <div className="flex flex-row items-center gap-2">
                   <div className="flex-shrink-0">
-                    <div className={`
-                      w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
-                      ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}
-                    `}>
+                    <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}> 
+                      <img
+                        src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
+                        alt={mainArticle.title}
+                        className="w-full h-full object-cover"
+                        onError={e => {
+                          const target = e.currentTarget;
+                          if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
+                            target.src = '/public/images/feed_icon.png';
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <h4 className={`text-xs leading-tight line-clamp-2 flex-1 ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'}`}>{mainArticle.title}</h4>
+                </div>
+                {/* Footer: favicon + nom + timestamp sur toute la largeur */}
+                <div className="flex items-center gap-1 text-muted-foreground/80 mt-1 w-full">
+                  {mainArticle.feed?.faviconUrl && (
+                    <FeedFavicon
+                      src={mainArticle.feed.faviconUrl}
+                      alt={mainArticle.feed.title}
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                    />
+                  )}
+                  <span className="text-xs truncate">{mainArticle.feed?.title}</span>
+                  <span className="flex-1" />
+                  <time className="text-xs whitespace-nowrap flex-shrink-0">{timeSinceShort(mainArticle.pubDate?.getTime() ?? 0)}</time>
+                </div>
+              </button>
+            )}
+            {articles.map(article => (
+              <button
+                key={article.id}
+                className="w-full text-left p-2 rounded-md hover:bg-accent/80 transition-colors duration-200"
+                onClick={e => {
+                  e.stopPropagation();
+                  onSelect(article);
+                }}
+              >
+                {/* Header: miniature + titre */}
+                <div className="flex flex-row items-center gap-2">
+                  <div className="flex-shrink-0">
+                    <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}`}> 
                       <img
                         src={article.thumbnailUrl || '/public/images/feed_icon.png'}
                         alt={article.title}
@@ -128,15 +173,10 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
                       />
                     </div>
                   </div>
-                  <h4 className={`
-                    text-xs leading-tight line-clamp-2 flex-1
-                    ${!article.read ? 'font-medium' : 'text-muted-foreground'}
-                  `}>
-                    {article.title}
-                  </h4>
+                  <h4 className={`text-xs leading-tight line-clamp-2 flex-1 ${!article.read ? 'font-medium' : 'text-muted-foreground'}`}>{article.title}</h4>
                 </div>
                 {/* Footer: favicon + nom + timestamp sur toute la largeur */}
-                <div className="flex items-center gap-1 text-muted-foreground/80 mt-1 w-full mt-2">
+                <div className="flex items-center gap-1 text-muted-foreground/80 mt-1 w-full">
                   {article.feed?.faviconUrl && (
                     <FeedFavicon
                       src={article.feed.faviconUrl}
@@ -144,19 +184,15 @@ export function StackedArticleCard({ group, isSelected, onSelect }: StackedArtic
                       className="w-3 h-3 rounded-sm flex-shrink-0"
                     />
                   )}
-                  <span className="text-xs truncate">
-                    {article.feed?.title}
-                  </span>
+                  <span className="text-xs truncate">{article.feed?.title}</span>
                   <span className="flex-1" />
-                  <time className="text-xs whitespace-nowrap flex-shrink-0">
-                    {timeSinceShort(article.pubDate?.getTime() ?? 0)}
-                  </time>
+                  <time className="text-xs whitespace-nowrap flex-shrink-0">{timeSinceShort(article.pubDate?.getTime() ?? 0)}</time>
                 </div>
               </button>
             ))}
           </div>
         </div>
-      </button>
+      )}
     </div>
   );
 }
