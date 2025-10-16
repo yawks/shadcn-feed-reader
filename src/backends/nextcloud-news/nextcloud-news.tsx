@@ -21,6 +21,40 @@ export default class FeedBackend implements Backend {
     }
   }
 
+  async renameFeed(feedId: string, feedTitle: string): Promise<void> {
+    try {
+      const url = this.url + `/index.php/apps/news/api/v1-2/feeds/${feedId}/rename`;
+      const baseOptions = this._getOptions('PUT');
+      const options: RequestInit = {
+        ...baseOptions,
+        body: JSON.stringify({ feedTitle }),
+        headers: new Headers(baseOptions.headers),
+      };
+      (options.headers as Headers).set('Content-Type', 'application/json');
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error('Erreur lors du renommage du flux');
+    } catch (error) {
+      throw new Error('Erreur API renameFeed: ' + error);
+    }
+  }
+
+  async deleteFeed(feedId: string): Promise<void> {
+    const url = this.url + `/index.php/apps/news/api/v1-2/feeds/${feedId}`;
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': 'Basic ' + btoa(this.login + ':' + this.password),
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Erreur API deleteFeed: ' + response.statusText);
+      }
+    } catch (error) {
+      throw new Error('Erreur API deleteFeed: ' + error);
+    }
+  }
+
   async deleteFolder(folderId: string): Promise<void> {
     const url = this.url + `/index.php/apps/news/api/v1-2/folders/${folderId}`;
     try {

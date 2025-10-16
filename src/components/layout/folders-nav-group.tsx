@@ -1,3 +1,5 @@
+"use client"
+
 import { IconFolder, IconNews } from "@tabler/icons-react";
 
 import FeedBackend from "@/backends/nextcloud-news/nextcloud-news";

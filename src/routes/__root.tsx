@@ -20,7 +20,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       <>
         <NavigationProgress />
         <Outlet />
-        <Toaster duration={50000} />
+        <Toaster duration={5000} closeButton />
         {import.meta.env.MODE === 'development' && (
           <>
             <ReactQueryDevtools buttonPosition='bottom-left' />
