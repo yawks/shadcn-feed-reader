@@ -1,5 +1,6 @@
 import { FeedItem, FeedType } from '@/backends/types'
 import { FilterItemList, FilterItemListRef } from './FilterItemList'
+import { ProcessedFeedItem, groupArticles, isGroupedFeedItem } from '@/utils/grouping'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 
@@ -21,9 +22,23 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 import { useSearch } from '@/context/search-context'
-import { groupArticles } from '@/utils/grouping'
 
 export default function Feeds() {
+  // State to persist expanded state of StackedArticleCard groups
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  // ...existing code...
+
+
+
+  // ...existing code...
+
+
+  // ...existing code...
+
+
+
+
   const params = useParams({ strict: false });
   const location = useLocation();
   const navigate = useNavigate();
@@ -88,19 +103,19 @@ export default function Feeds() {
 
   const [selectedFeedArticle, setSelectedFeedArticle] = useState<FeedItem | null>(null);
 
-  // Function to handle article selection (desktop and mobile)
+  // Function to handle article selection (desktop et mobile)
   const handleArticleSelection = (article: FeedItem | null) => {
     setSelectedFeedArticle(article)
 
-    if (isMobile && article) {
-      // Save the scroll position before navigating
-      const currentScroll = filterItemListRef.current?.getScrollTop() || 0
-      setScrollPosition(currentScroll)
-
-      // Navigate to article with articleId in search params
+    if (article) {
+      // Sur mobile, sauvegarde la position de scroll
+      if (isMobile) {
+        const currentScroll = filterItemListRef.current?.getScrollTop() || 0
+        setScrollPosition(currentScroll)
+      }
+      // Met à jour l'URL avec l'article sélectionné
       const searchParams = new URLSearchParams(location.search)
       searchParams.set('articleId', article.id.toString())
-
       navigate({
         to: location.pathname,
         search: Object.fromEntries(searchParams.entries())
@@ -153,7 +168,21 @@ export default function Feeds() {
     });
     return Array.from(uniqueUrls.values());
   }, [isSearchMode, searchResults, data]);
-  const processedItems = useMemo(() => groupArticles(items), [items]);
+  const processedItems = useMemo(() => {
+    // Group articles as before
+    const grouped = groupArticles(items);
+    // Sort by date ascending (oldest first)
+    return grouped.slice().sort((a: ProcessedFeedItem, b: ProcessedFeedItem) => {
+      const getDate = (item: ProcessedFeedItem) => {
+        if (isGroupedFeedItem(item)) {
+          return item.mainArticle.pubDate ? new Date(item.mainArticle.pubDate).getTime() : 0;
+        } else {
+          return item.pubDate ? new Date(item.pubDate).getTime() : 0;
+        }
+      };
+      return getDate(b) - getDate(a);
+    });
+  }, [items]);
 
   // Effect to restore scroll position when returning to list (mobile only)
   useEffect(() => {
@@ -181,9 +210,20 @@ export default function Feeds() {
     }
   }, [showArticleOnMobile, isMobile, scrollPosition, items.length])
 
+
   // Find the article selected based on the articleId in the URL
   const selectedArticleFromUrl = articleId ?
     items.find(item => item.id.toString() === articleId.toString()) : null
+
+  // Synchronise la sélection dans la liste avec l'article de l'URL (back/refresh)
+  useEffect(() => {
+    if (selectedArticleFromUrl && selectedFeedArticle?.id !== selectedArticleFromUrl.id) {
+      setSelectedFeedArticle(selectedArticleFromUrl)
+    }
+    if (!articleId && selectedFeedArticle) {
+      setSelectedFeedArticle(null)
+    }
+  }, [articleId, selectedArticleFromUrl, selectedFeedArticle])
 
   // Use article from URL on mobile
   const currentSelectedArticle = selectedArticleFromUrl || selectedFeedArticle
@@ -205,11 +245,10 @@ export default function Feeds() {
             <p className="text-red-500">Error loading articles: {error.message}</p>
           </div>
         </Main>
+
       </>
     );
   }
-
-  // Call fetchNextPage when we want to load more
   const loadMore = () => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   };
@@ -283,6 +322,8 @@ export default function Feeds() {
                       setSelectedFeedArticle={handleArticleSelection}
                       onScrollEnd={loadMore}
                       isFetchingNextPage={isFetchingNextPage}
+                      expandedGroups={expandedGroups}
+                      setExpandedGroups={setExpandedGroups}
                     />
                   )}
                 </div>
@@ -343,9 +384,11 @@ export default function Feeds() {
                   <FilterItemList
                     items={processedItems}
                     selectedFeedArticle={currentSelectedArticle}
-                    setSelectedFeedArticle={setSelectedFeedArticle}
+                    setSelectedFeedArticle={handleArticleSelection}
                     onScrollEnd={loadMore}
                     isFetchingNextPage={isFetchingNextPage}
+                    expandedGroups={expandedGroups}
+                    setExpandedGroups={setExpandedGroups}
                   />
                 )}
               </div>

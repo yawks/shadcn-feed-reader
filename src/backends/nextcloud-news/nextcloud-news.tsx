@@ -4,6 +4,39 @@ import { NNFeed, NNFeeds, NNFolder, NNFolders, NNItem, NNItems, NNSearchResult }
 import { api } from '@/utils/request';
 
 export default class FeedBackend implements Backend {
+  async renameFolder(folderId: string, name: string): Promise<void> {
+    try {
+      const url = this.url + `/index.php/apps/news/api/v1-2/folders/${folderId}`;
+      const baseOptions = this._getOptions('PUT');
+      const options: RequestInit = {
+        ...baseOptions,
+        body: JSON.stringify({ name }),
+        headers: new Headers(baseOptions.headers),
+      };
+      (options.headers as Headers).set('Content-Type', 'application/json');
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error('Erreur lors du renommage du dossier');
+    } catch (error) {
+      throw new Error('Erreur API renameFolder: ' + error);
+    }
+  }
+
+  async deleteFolder(folderId: string): Promise<void> {
+    const url = this.url + `/index.php/apps/news/api/v1-2/folders/${folderId}`;
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': 'Basic ' + btoa(this.login + ':' + this.password),
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Erreur API deleteFolder: ' + response.statusText);
+      }
+    } catch (error) {
+      throw new Error('Erreur API deleteFolder: ' + error);
+    }
+  }
   url: string
   login: string
   password: string
@@ -51,34 +84,47 @@ export default class FeedBackend implements Backend {
   }
 
   async _addFeedsToFolders(foldersById: { [id: string]: FeedFolder }): Promise<FeedFolder[]> {
+    // Start from all known folders so that empty folders are preserved
     const feedsInFolders: { [folderId: string]: FeedFolder } = {};
+    Object.keys(foldersById).forEach((fid) => {
+      feedsInFolders[fid] = {
+        id: foldersById[fid].id,
+        name: foldersById[fid].name,
+        unreadCount: foldersById[fid].unreadCount ?? 0,
+        feeds: foldersById[fid].feeds ?? [],
+      };
+    });
+
     try {
       const feedsQuery = await api.get<NNFeeds>(this.url + '/index.php/apps/news/api/v1-2/feeds', this._getOptions());
       feedsQuery.feeds.forEach((feed: NNFeed) => {
-        if (!(feed.folderId in feedsInFolders)) {
-          feedsInFolders[feed.folderId] = {
-            id: String(feed.folderId),
-            name: foldersById[feed.folderId].name,
+        const folderId = String(feed.folderId);
+        if (!(folderId in feedsInFolders)) {
+          // If API returns a feed for an unknown folder, create an entry
+          feedsInFolders[folderId] = {
+            id: folderId,
+            name: foldersById[folderId]?.name ?? 'Unknown',
             unreadCount: 0,
             feeds: [],
-          }
+          };
         }
 
-        const newFeed = {
+        const newFeed: Feed = {
           id: String(feed.id),
           title: feed.title,
           unreadCount: feed.unreadCount,
           faviconUrl: feed.faviconLink,
-          folderId: String(feed.folderId),
-        } as Feed;
-        feedsInFolders[feed.folderId].feeds.push(newFeed);
-        feedsInFolders[feed.folderId].unreadCount += feed.unreadCount;
+          folderId: folderId,
+        };
+
+        feedsInFolders[folderId].feeds.push(newFeed);
+        feedsInFolders[folderId].unreadCount = (feedsInFolders[folderId].unreadCount || 0) + feed.unreadCount;
       });
-    }
-    catch (error) {
+    } catch (error) {
       throw new Error('Network response was not ok' + error)
     }
 
+    // Return all folders, including those without feeds
     return Object.values(feedsInFolders);
 
   }
@@ -196,7 +242,10 @@ function getItemImageURL(item: NNItem): string {
     if ((image == "" || image == null) && item.body != null) {
       const m = REX.exec(item.body);
       if (m) {
-        image = m[1];
+        // Decode HTML entities in the image URL
+        const txt = document.createElement('textarea');
+        txt.innerHTML = m[1];
+        image = txt.value;
       }
     }
   }
