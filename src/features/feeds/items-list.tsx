@@ -29,7 +29,7 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
       <button
         className={`
           group relative w-full text-left rounded-lg p-3 transition-all duration-200 ease-in-out
-          hover:bg-accent/60 hover:shadow-sm hover:scale-[1.02]
+          hover:bg-accent/60 hover:shadow-sm
           focus:outline-none
           ${isSelected
             ? 'bg-primary/10 border border-primary/20 shadow-md'
@@ -124,7 +124,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle, 
   return (
     <div className="flex w-full flex-col border-r border-border/40">
       <div className="h-full overflow-y-auto">
-        <div className="space-y-1 py-1">
+        <div className="space-y-1 py-1 mr-0.5">
           {items.map((item: ProcessedFeedItem) => {
             if (isGroupedFeedItem(item)) {
               const isGroupSelected = selectedFeedArticle ?
