@@ -129,11 +129,12 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
     <>
     <SidebarMenuItem onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}>
       <SidebarMenuButton 
+        asChild
         tooltip={item.title} 
         isActive={isActive}
         className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-sidebar-accent data-[active=true]:border-sidebar-accent/20"
       >
-        <Link 
+          <Link 
           to={('url' in item ? item.url : ".") ?? "."} 
           onClick={() => {
             _setOpenMobile(false)
@@ -188,7 +189,7 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
             </div>
           )}
         </Link>
-      </SidebarMenuButton>
+  </SidebarMenuButton>
   </SidebarMenuItem>
   {/* Rename dialog for feeds */}
     <RenameDialog
@@ -337,20 +338,23 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
     >
       <SidebarMenuItem
         className="relative"
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton 
+            asChild
             tooltip={item.title} 
             isActive={isActive}
             className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-sidebar-accent data-[active=true]:border-sidebar-accent/20"
           >
-            <div className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1">
+            <div
+              className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+              onTouchStart={onTouchStart}
+              onTouchEnd={onTouchEnd}
+              onTouchCancel={onTouchEnd}
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
+            >
               <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {hovered || menuOpen ? (
                   <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -496,25 +500,30 @@ function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, pa
       <SidebarMenuSubButton asChild isActive={isSubActive} className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent">
         <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }} className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1">
           <div className="flex-1 flex items-center gap-2">
-            {getSubItemIcon(subItem as NavItem, parentItem)}
+            <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+              {hovered || menuOpen ? (
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
+                      aria-label="Plus d'actions"
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToRename({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }}>Renommer</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToDelete({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }} variant="destructive">Supprimer</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                getSubItemIcon(subItem as NavItem, parentItem)
+              )}
+            </div>
             <Link to={subItem.url} className="flex-1">{subItem.title}</Link>
           </div>
           {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-          <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-            {hovered || menuOpen ? (
-              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent focus:outline-none" aria-label="Plus d'actions" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}>
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToRename({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }}>Renommer</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToDelete({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }} variant="destructive">Supprimer</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
         </div>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
@@ -581,8 +590,9 @@ const SidebarMenuCollapsedDropdown = ({
   return (
     <SidebarMenuItem>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild>
           <SidebarMenuButton
+            asChild
             tooltip={item.title}
             isActive={checkIsActive(href, item)}
           >
