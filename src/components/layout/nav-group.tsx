@@ -36,6 +36,19 @@ import { RenameDialog } from '@/components/rename-dialog'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 
+// Local looser type for the folders cache shape. The runtime items are not strictly
+// matching the NavItem union used elsewhere, so use a permissive but typed shape
+// to avoid `any` while keeping reasonable type-safety.
+type FolderCacheItem = {
+  title?: string
+  url?: string
+  id?: string | number
+  badge?: string
+  items?: Array<{ title: string; url?: string; badge?: string }>
+  [k: string]: unknown
+}
+// alias intentionally removed; use FolderCacheItem[] directly where needed
+
 const NavBadge = ({ children }: { children: React.ReactNode }) => (
   <Badge className='rounded-full px-2 py-0.5 text-xs font-medium bg-sidebar-accent/10 text-sidebar-accent-foreground border-sidebar-accent/20 shadow-sm'>
     {children}
@@ -76,16 +89,19 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
     const itemUrl = (item as { url?: string }).url
     const feedId = (itemUrl as string)?.split('/').pop()
     if (!feedId) return
-    const prev = queryClient.getQueryData<any>(['folders'])
-    // optimistic update: update any subitem with url `/feed/${feedId}`
-    try {
-      queryClient.setQueryData(['folders'], (old: any) => {
-        if (!old) return old
-        return old.map((folder: any) => ({
-          ...folder,
-          items: folder.items?.map((sub: any) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub) || []
-        }))
-      })
+  const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
+      // optimistic update: update any subitem with url `/feed/${feedId}`
+      try {
+  queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
+          if (!old) return old
+          return old.map((folder) => {
+            if (!('items' in folder)) return folder
+            return {
+              ...folder,
+              items: folder.items?.map((sub) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub) ?? []
+            }
+          })
+        })
 
       const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
       const backend = new FeedBackend()
@@ -104,15 +120,18 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
   const [feedToRename, setFeedToRename] = useState<{ id: string; title: string } | null>(null)
 
   const handleFeedDeleteConfirmed = async (feedId: string) => {
-    const prev = queryClient.getQueryData<any>(['folders'])
+  const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
     try {
       // optimistic: remove the feed from folders cache
-      queryClient.setQueryData(['folders'], (old: any) => {
+  queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
         if (!old) return old
-        return old.map((folder: any) => ({
-          ...folder,
-          items: folder.items?.filter((sub: any) => sub.url !== `/feed/${feedId}`) || []
-        }))
+        return old.map((folder) => {
+          if (!('items' in folder)) return folder
+          return {
+            ...folder,
+            items: folder.items?.filter((sub) => sub.url !== `/feed/${feedId}`) ?? []
+          }
+        })
       })
 
       const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
@@ -222,8 +241,13 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
   )
 }
 
+// Helper to extract feedId from a subitem url string like `/feed/123`
+function extractFeedIdFromUrl(url?: string) {
+  return url ? url.split('/').pop() ?? null : null;
+}
+
 // SidebarMenuCollapsible component for folders with context menu and inline rename
-function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: string }) {
+function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCollapsible; href: string, onDragStateChange?: (v: boolean) => void }) {
   const { setOpenMobile: _setOpenMobile } = useSidebar()
   const [, _setSelectedFolderOrFeed] = useState<NavItem | null>(null)
   const queryClient = useQueryClient()
@@ -231,6 +255,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(item.title)
+  const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [hovered, setHovered] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -337,7 +362,90 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
       className='group/collapsible'
     >
       <SidebarMenuItem
-        className="relative"
+        className={`relative transition-colors ${isDragOver ? 'bg-accent/50 ring-2 ring-accent' : ''}`}
+        onDragOver={(e) => { 
+          e.preventDefault(); 
+          e.dataTransfer.dropEffect = 'move'; 
+          setIsDragOver(true);
+          console.log('📁 DRAGOVER FOLDER') // Debug log
+        }}
+        onDragLeave={(e) => {
+          // Only hide if we're leaving the entire folder area
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDragOver(false);
+            console.log('📁 DRAGLEAVE FOLDER') // Debug log
+          }
+        }}
+        onDrop={async (e) => {
+          e.preventDefault()
+          setIsDragOver(false)
+          console.log('📁 FOLDER DROP EVENT (SidebarMenuItem)') // Debug log
+          const feedId = e.dataTransfer.getData('application/x-feed-id')
+          console.log('📁 Feed ID from drop:', feedId) // Debug log
+          if (!feedId) return
+          // Determine folderId from this item's url
+          const itemUrl = (item as { url?: string }).url
+          const folderId = itemUrl ? (itemUrl as string).split('/').pop() ?? null : null
+          const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
+          try {
+            // optimistic move: remove from any folder and add to this folder
+            queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
+              if (!old) return old
+              
+              // First, find the feed being moved and its unreadCount
+              let movedFeed: { title: string; url: string; badge?: string } | null = null
+              let feedUnreadCount = 0
+              
+              // Remove from previous folders and capture feed data
+              const without = old.map((f) => {
+                if (!f.items) return f
+                const feedToMove = f.items.find((s) => s.url === `/feed/${feedId}`)
+                if (feedToMove && feedToMove.url) {
+                  movedFeed = { ...feedToMove, url: feedToMove.url }
+                  // Parse badge as unread count
+                  feedUnreadCount = feedToMove.badge ? parseInt(feedToMove.badge) || 0 : 0
+                  
+                  // Update folder's badge (subtract moved feed's unread count)
+                  const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+                  const newFolderUnread = Math.max(0, currentFolderUnread - feedUnreadCount)
+                  
+                  return { 
+                    ...f, 
+                    items: f.items.filter((s) => s.url !== `/feed/${feedId}`),
+                    badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
+                  }
+                }
+                return f
+              })
+              
+              // Add to target folder and update its badge
+              return without.map((f) => {
+                if (!f.items) return f
+                const id = f.id ?? f.url
+                if ((f.url ?? '').endsWith(`/folder/${folderId}`) || String(id) === String(folderId)) {
+                  // Update target folder's badge (add moved feed's unread count)
+                  const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+                  const newFolderUnread = currentFolderUnread + feedUnreadCount
+                  
+                  return { 
+                    ...f, 
+                    items: [...f.items, movedFeed || { url: `/feed/${feedId}`, title: 'Moved Feed' }],
+                    badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
+                  }
+                }
+                return f
+              })
+            })
+            // call backend
+            const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+            const backend = new FeedBackend()
+            await backend.moveFeed(feedId, folderId)
+          } catch (error) {
+            // revert on error
+            queryClient.setQueryData(['folders'], prev)
+            console.error('Failed to move feed:', error)
+          }
+        }}
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton 
@@ -423,7 +531,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
         <CollapsibleContent className='CollapsibleContent'>
           <SidebarMenuSub className="space-y-1 px-2">
             {item.items?.map((subItem) => (
-              <SidebarMenuSubRow key={subItem.title} subItem={subItem} parentItem={item} href={href} />
+              <SidebarMenuSubRow key={subItem.title} subItem={subItem} parentItem={item} href={href} onDragStateChange={onDragStateChange} />
             )) || []}
           </SidebarMenuSub>
         </CollapsibleContent>
@@ -433,7 +541,7 @@ function SidebarMenuCollapsible({ item, href }: { item: NavCollapsible; href: st
 }
 
 // Sub-row component: render a subitem (feed) with its own 3-dots menu and mobile long-press
-function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, parentItem: NavCollapsible, href: string }) {
+function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { subItem: NavLink, parentItem: NavCollapsible, href: string, onDragStateChange?: (v: boolean) => void }) {
   const isSubActive = checkIsActive(href, subItem as NavItem)
   const queryClient = useQueryClient()
   const [hovered, setHovered] = useState(false)
@@ -448,19 +556,40 @@ function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, pa
   const onTouchEnd = () => { if (touchTimer.current) { window.clearTimeout(touchTimer.current); touchTimer.current = null } }
   React.useEffect(() => () => { if (touchTimer.current) window.clearTimeout(touchTimer.current) }, [])
 
-  // rename handled via dialog state (see below)
+  // Drag & Drop handlers
+  const dragDataKey = 'application/x-feed-id'
+  const handleDragStart = (e: React.DragEvent) => {
+    const feedId = extractFeedIdFromUrl(subItem.url)
+    if (!feedId) return
+    console.log('🟢 DRAGSTART:', feedId, subItem.url) // Debug log
+    e.dataTransfer.setData(dragDataKey, feedId)
+    // Add a dragging class for visual feedback
+    e.dataTransfer.effectAllowed = 'move'
+    // mobile fallback: set a flag on body for styles
+    try { document.body.setAttribute('data-dragging-feed', feedId) } catch (_e) { /* ignore */ }
+    if (onDragStateChange) onDragStateChange(true)
+  }
+
+  const handleDragEnd = (_e: React.DragEvent) => {
+    console.log('🔴 DRAGEND') // Debug log
+    try { document.body.removeAttribute('data-dragging-feed') } catch (_e) { /* ignore */ }
+    if (onDragStateChange) onDragStateChange(false)
+  }  // rename handled via dialog state (see below)
   const [subFeedToDelete, setSubFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [subFeedToRename, setSubFeedToRename] = useState<{ id: string; title: string } | null>(null)
 
   const handleSubFeedRenameConfirmed = async (feedId: string, newTitle: string) => {
-    const prev = queryClient.getQueryData<any>(['folders'])
+  const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
     try {
-      queryClient.setQueryData(['folders'], (old: any) => {
+      queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
         if (!old) return old
-        return old.map((folder: any) => ({
-          ...folder,
-          items: folder.items?.map((sub: any) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub) || []
-        }))
+        return old.map((folder) => {
+          if (!folder.items) return folder
+          return {
+            ...folder,
+            items: folder.items.map((sub) => sub.url === `/feed/${feedId}` ? { ...sub, title: newTitle } : sub)
+          }
+        })
       })
       const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
       const backend = new FeedBackend()
@@ -474,14 +603,17 @@ function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, pa
   }
 
   const handleSubFeedDeleteConfirmed = async (feedId: string) => {
-    const prev = queryClient.getQueryData<any>(['folders'])
+    const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
     try {
-      queryClient.setQueryData(['folders'], (old: any) => {
+      queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
         if (!old) return old
-        return old.map((folder: any) => ({
-          ...folder,
-          items: folder.items?.filter((sub: any) => sub.url !== `/feed/${feedId}`) || []
-        }))
+        return old.map((folder) => {
+          if (!folder.items) return folder
+          return {
+            ...folder,
+            items: folder.items.filter((sub) => sub.url !== `/feed/${feedId}`)
+          }
+        })
       })
       const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
       const backend = new FeedBackend()
@@ -498,31 +630,20 @@ function SidebarMenuSubRow({ subItem, parentItem, href }: { subItem: NavLink, pa
     <>
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={isSubActive} className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent">
-        <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }} className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1">
-          <div className="flex-1 flex items-center gap-2">
-            <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-              {hovered || menuOpen ? (
-                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
-                      aria-label="Plus d'actions"
-                      onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
-                    >
-                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToRename({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }}>Renommer</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setSubFeedToDelete({ id: (subItem.url ?? '').split('/').pop() ?? '', title: subItem.title }); }} variant="destructive">Supprimer</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                getSubItemIcon(subItem as NavItem, parentItem)
-              )}
-            </div>
-            <Link to={subItem.url} className="flex-1">{subItem.title}</Link>
-          </div>
+        <div
+          draggable
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 cursor-move"
+        >
+          {getSubItemIcon(subItem as NavItem, parentItem)}
+          <Link to={subItem.url} className="flex-1 pointer-events-none">{subItem.title}</Link>
           {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
         </div>
       </SidebarMenuSubButton>
@@ -636,7 +757,7 @@ function checkIsActive(href: string, item: NavItem) {
   const isActive = (
     href === item.url || // /endpint?search=param
     href.split('?')[0] === item.url || // endpoint
-    !!item?.items?.filter((i) => i.url === href).length // if child nav is active
+    !!(item.items && item.items.filter((i) => i.url === href).length) // if child nav is active
   )
   return isActive;
 }
@@ -644,10 +765,46 @@ function checkIsActive(href: string, item: NavItem) {
 export function NavGroup({ title, items }: Readonly<NavGroupType>) {
   const { state } = useSidebar();
   const href = useLocation({ select: (location) => location.href });
+  const queryClient = useQueryClient()
+  // Root drop handlers
+  const handleRootDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+  const handleRootDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    const feedId = e.dataTransfer.getData('application/x-feed-id')
+    if (!feedId) return
+  const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
+    try {
+      queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
+        if (!old) return old
+        return old.map((f) => {
+          if (!f.items) return f
+          return { ...f, items: f.items.filter((s) => s.url !== `/feed/${feedId}`) }
+        })
+      })
+      const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+      const backend = new FeedBackend()
+      await backend.moveFeed(feedId, null)
+      await queryClient.invalidateQueries({ queryKey: ['folders'] })
+      toast.message('Flux déplacé vers la racine')
+    } catch (_err) {
+      queryClient.setQueryData(['folders'], prev)
+      toast.error('Erreur lors du déplacement du flux')
+    }
+  }
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
       <SidebarMenu>
+        {/* Root pseudo-folder drop target */}
+        <div
+          onDragOver={handleRootDragOver}
+          onDrop={handleRootDrop}
+          className='px-3 py-2 rounded-lg hover:bg-accent/50 cursor-pointer text-sm text-muted-foreground'
+          role='button'
+          title='Drop here to move feed to root'
+        >
+          Root
+        </div>
         {items.map((item, index) => {
           let key;
           if (item.title) {
