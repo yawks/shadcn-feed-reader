@@ -38,6 +38,23 @@ export default class FeedBackend implements Backend {
     }
   }
 
+  async moveFeed(feedId: string, folderId: string | null): Promise<void> {
+    try {
+      const url = this.url + `/index.php/apps/news/api/v1-2/feeds/${feedId}/move`;
+      const baseOptions = this._getOptions('PUT');
+      const options: RequestInit = {
+        ...baseOptions,
+        body: JSON.stringify({ folderId }),
+        headers: new Headers(baseOptions.headers),
+      };
+      (options.headers as Headers).set('Content-Type', 'application/json');
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error('Erreur lors du déplacement du flux');
+    } catch (error) {
+      throw new Error('Erreur API moveFeed: ' + error);
+    }
+  }
+
   async deleteFeed(feedId: string): Promise<void> {
     const url = this.url + `/index.php/apps/news/api/v1-2/feeds/${feedId}`;
     try {

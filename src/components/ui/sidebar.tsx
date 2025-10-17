@@ -128,6 +128,8 @@ function SidebarProvider({
   return (
     <SidebarContext.Provider value={contextValue}>
       <TooltipProvider delayDuration={0}>
+        {/* Debug: global drag event tracing to help diagnose DnD issues. Removed in production. */}
+        <DebugSidebarDnd />
         <div
           data-slot='sidebar-wrapper'
           style={
@@ -148,6 +150,37 @@ function SidebarProvider({
       </TooltipProvider>
     </SidebarContext.Provider>
   )
+}
+
+function DebugSidebarDnd() {
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    if ((window as any).__sidebar_dnd_debug) return
+    ;(window as any).__sidebar_dnd_debug = true
+    const events = ['dragstart', 'dragend', 'dragenter', 'dragover', 'dragleave', 'drop']
+    const handlers: Array<{ ev: string; fn: EventListenerOrEventListenerObject }> = []
+    events.forEach((ev) => {
+      const fn = (e: Event) => {
+        try {
+          // Log basic event and a short description of the target for diagnosis
+          const t = e.target as Element | null
+          const snippet = t && 'outerHTML' in t ? (t.outerHTML || '').slice(0, 200) : String(t)
+          // use console.debug so it can be filtered in DevTools
+          // eslint-disable-next-line no-console
+          console.debug('[SIDEBAR-DND]', ev, snippet)
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.debug('[SIDEBAR-DND]', ev)
+        }
+      }
+      document.addEventListener(ev, fn, { capture: true })
+      handlers.push({ ev, fn })
+    })
+    return () => {
+      handlers.forEach(({ ev, fn }) => document.removeEventListener(ev, fn as EventListener))
+    }
+  }, [])
+  return null
 }
 
 function Sidebar({
