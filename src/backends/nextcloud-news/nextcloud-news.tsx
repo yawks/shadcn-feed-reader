@@ -15,9 +15,9 @@ export default class FeedBackend implements Backend {
       };
       (options.headers as Headers).set('Content-Type', 'application/json');
       const res = await fetch(url, options);
-      if (!res.ok) throw new Error('Erreur lors du renommage du dossier');
+      if (!res.ok) throw new Error('Error while renaming folder');
     } catch (error) {
-      throw new Error('Erreur API renameFolder: ' + error);
+      throw new Error('Error API renameFolder: ' + error);
     }
   }
 
@@ -32,9 +32,9 @@ export default class FeedBackend implements Backend {
       };
       (options.headers as Headers).set('Content-Type', 'application/json');
       const res = await fetch(url, options);
-      if (!res.ok) throw new Error('Erreur lors du renommage du flux');
+      if (!res.ok) throw new Error('Error while renaming feed: ' + res.statusText);
     } catch (error) {
-      throw new Error('Erreur API renameFeed: ' + error);
+      throw new Error('Error API renameFeed: ' + error);
     }
   }
 
@@ -49,9 +49,9 @@ export default class FeedBackend implements Backend {
       };
       (options.headers as Headers).set('Content-Type', 'application/json');
       const res = await fetch(url, options);
-      if (!res.ok) throw new Error('Erreur lors du déplacement du flux');
+      if (!res.ok) throw new Error('Error while moving feed');
     } catch (error) {
-      throw new Error('Erreur API moveFeed: ' + error);
+      throw new Error('Error API moveFeed: ' + error);
     }
   }
 
@@ -65,10 +65,10 @@ export default class FeedBackend implements Backend {
         },
       });
       if (!response.ok) {
-        throw new Error('Erreur API deleteFeed: ' + response.statusText);
+        throw new Error('Error API deleteFeed: ' + response.statusText);
       }
     } catch (error) {
-      throw new Error('Erreur API deleteFeed: ' + error);
+      throw new Error('Error API deleteFeed: ' + error);
     }
   }
 
@@ -82,10 +82,10 @@ export default class FeedBackend implements Backend {
         },
       });
       if (!response.ok) {
-        throw new Error('Erreur API deleteFolder: ' + response.statusText);
+        throw new Error('Error API deleteFolder: ' + response.statusText);
       }
     } catch (error) {
-      throw new Error('Erreur API deleteFolder: ' + error);
+      throw new Error('Error API deleteFolder: ' + error);
     }
   }
   url: string
