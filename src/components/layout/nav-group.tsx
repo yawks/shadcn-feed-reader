@@ -357,6 +357,9 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
     </div>
   );
 
+  const itemUrl = (item as { url?: string }).url
+  const folderIdAttr = itemUrl ? (itemUrl as string).split('/').pop() ?? String(item.id ?? '') : String(item.id ?? '')
+
   return (
     <Collapsible
       asChild
@@ -364,10 +367,12 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
       className='group/collapsible'
     >
       <SidebarMenuItem
+        data-folder-id={folderIdAttr}
         className={`relative transition-colors ${isDragOver ? 'bg-accent/50 ring-2 ring-accent' : ''}`}
         onDragOver={(e) => { 
           e.preventDefault(); 
-          e.dataTransfer.dropEffect = 'move'; 
+          // dataTransfer may not exist on synthetic events but this handler runs for native drag
+          try { (e as unknown as DragEvent).dataTransfer!.dropEffect = 'move' } catch (_e) {}
           setIsDragOver(true);
         }}
         onDragLeave={(e) => {
@@ -377,10 +382,15 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
           }
         }}
         onDrop={async (e) => {
+          console.log('📂 DROP on folder:', item.title)
           e.preventDefault()
           setIsDragOver(false)
-          const feedId = e.dataTransfer.getData('application/x-feed-id')
-          if (!feedId) return
+          const feedId = (e as unknown as DragEvent).dataTransfer?.getData('application/x-feed-id')
+          console.log('📦 Received feedId from drop:', feedId)
+          if (!feedId) {
+            console.warn('❌ No feedId in drop event')
+            return
+          }
           // Determine folderId from this item's url
           const itemUrl = (item as { url?: string }).url
           const folderId = itemUrl ? (itemUrl as string).split('/').pop() ?? null : null
@@ -538,7 +548,7 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
         <CollapsibleContent className='CollapsibleContent'>
           <SidebarMenuSub className="space-y-1 px-2">
             {item.items?.map((subItem) => (
-              <SidebarMenuSubRow key={subItem.title} subItem={subItem} parentItem={item} href={href} onDragStateChange={onDragStateChange} />
+              <SidebarMenuSubRow key={`${subItem.url}-${subItem.title}`} subItem={subItem} parentItem={item} href={href} onDragStateChange={onDragStateChange} />
             )) || []}
           </SidebarMenuSub>
         </CollapsibleContent>
@@ -565,20 +575,218 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
 
   // Drag & Drop handlers
   const dragDataKey = 'application/x-feed-id'
+  const mouseDownPos = useRef<{ x: number; y: number } | null>(null)
+  const [isDraggingThisItem, setIsDraggingThisItem] = useState(false)
+  const [isDragEnabled, setIsDragEnabled] = useState(false)
+  const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const linkRef = useRef<HTMLAnchorElement>(null)
+  
+  const handleMouseDown = (e: React.MouseEvent) => {
+    console.log('⬇️ Mouse down on:', subItem.title)
+    // Enregistrer la position initiale de la souris
+    mouseDownPos.current = { x: e.clientX, y: e.clientY }
+    
+    // Activer le drag après 300ms (clic prolongé)
+    if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current)
+    dragTimeoutRef.current = setTimeout(() => {
+      setIsDragEnabled(true)
+      console.log('⏱️ Drag enabled after delay - starting manual drag')
+      try { startManualDrag() } catch (_e) { console.warn('Failed to start manual drag', _e) }
+    }, 300)
+  }
+  
+  const handleMouseUp = () => {
+    console.log('⬆️ Mouse up')
+    // Annuler le timeout si l'utilisateur relâche rapidement (clic simple)
+    if (dragTimeoutRef.current) {
+      clearTimeout(dragTimeoutRef.current)
+      dragTimeoutRef.current = null
+    }
+    setIsDragEnabled(false)
+  }
+
+  // Manual drag variables
+  const manualGhostRef = useRef<HTMLElement | null>(null)
+  const manualMouseMoveHandler = useRef<((ev: MouseEvent) => void) | null>(null)
+  const manualMouseUpHandler = useRef<((ev: MouseEvent) => void) | null>(null)
+
+  const startManualDrag = () => {
+    if (isDraggingThisItem) return
+    setIsDraggingThisItem(true)
+    // create ghost
+    const el = linkRef.current?.closest('[data-slot=sidebar-menu-sub-item]') as HTMLElement | null
+    if (!el) return
+    const clone = el.cloneNode(true) as HTMLElement
+    clone.style.position = 'fixed'
+    clone.style.pointerEvents = 'none'
+    clone.style.left = '0px'
+    clone.style.top = '0px'
+    clone.style.transform = 'translate(-9999px, -9999px)'
+    clone.style.opacity = '0.95'
+    clone.style.zIndex = '9999'
+    document.body.appendChild(clone)
+    manualGhostRef.current = clone
+
+    manualMouseMoveHandler.current = (ev: MouseEvent) => {
+      if (!manualGhostRef.current) return
+      manualGhostRef.current.style.transform = `translate(${ev.clientX + 8}px, ${ev.clientY + 8}px)`
+    }
+    manualMouseUpHandler.current = async (ev: MouseEvent) => {
+      // detect drop target
+      const target = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
+      let folderId: string | null = null
+      if (target) {
+        const folderEl = target.closest('[data-folder-id]') as HTMLElement | null
+        if (folderEl) folderId = folderEl.getAttribute('data-folder-id')
+      }
+      // cleanup ghost
+      try { if (manualGhostRef.current) document.body.removeChild(manualGhostRef.current) } catch (_e) {}
+      manualGhostRef.current = null
+      if (manualMouseMoveHandler.current) document.removeEventListener('mousemove', manualMouseMoveHandler.current)
+      if (manualMouseUpHandler.current) document.removeEventListener('mouseup', manualMouseUpHandler.current)
+      manualMouseMoveHandler.current = null
+      manualMouseUpHandler.current = null
+      setIsDraggingThisItem(false)
+      setIsDragEnabled(false)
+
+      // perform move if we dropped on a folder or root (folderId null -> root)
+      const feedId = extractFeedIdFromUrl(subItem.url)
+      if (!feedId) return
+      const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
+      try {
+        queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
+          if (!old) return old
+          // remove from previous
+          let movedFeed: { title: string; url: string; badge?: string } | null = null
+          let feedUnreadCount = 0
+          const without = old.map((f) => {
+            if (!f.items) return f
+            const feedToMove = f.items.find((s) => s.url === `/feed/${feedId}`)
+            if (feedToMove && feedToMove.url) {
+              movedFeed = { ...feedToMove, url: feedToMove.url }
+              feedUnreadCount = feedToMove.badge ? parseInt(feedToMove.badge) || 0 : 0
+              const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+              const newFolderUnread = Math.max(0, currentFolderUnread - feedUnreadCount)
+              return { ...f, items: f.items.filter((s) => s.url !== `/feed/${feedId}`), badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined }
+            }
+            return f
+          })
+          if (!folderId) {
+            // moved to root: just return without (already removed)
+            return without
+          }
+          return without.map((f) => {
+            if (!f.items) return f
+            const id = f.id ?? f.url
+            if ((f.url ?? '').endsWith(`/folder/${folderId}`) || String(id) === String(folderId)) {
+              const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+              const newFolderUnread = currentFolderUnread + feedUnreadCount
+              return { ...f, items: [...f.items, movedFeed || { url: `/feed/${feedId}`, title: 'Moved Feed' }], badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined }
+            }
+            return f
+          })
+        })
+        const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+        const backend = new FeedBackend()
+        await backend.moveFeed(feedId, folderId ?? null)
+        await queryClient.invalidateQueries({ queryKey: ['folders'] })
+        toast.message(folderId ? 'Feed moved' : 'Feed moved to root')
+      } catch (_err) {
+        queryClient.setQueryData(['folders'], prev)
+        toast.error('Error moving feed')
+      }
+    }
+
+    if (onDragStateChange) onDragStateChange(true)
+    if (manualMouseMoveHandler.current) document.addEventListener('mousemove', manualMouseMoveHandler.current)
+    if (manualMouseUpHandler.current) document.addEventListener('mouseup', manualMouseUpHandler.current)
+  }
+  
   const handleDragStart = (e: React.DragEvent) => {
+    console.log('🎯 DRAG START triggered for:', subItem.title)
+    e.stopPropagation() // Empêcher la propagation vers le Link
+    setIsDraggingThisItem(true)
+    // Assurer que le Link est désactivé (sécurité)
+    if (linkRef.current) linkRef.current.style.pointerEvents = 'none'
     const feedId = extractFeedIdFromUrl(subItem.url)
-    if (!feedId) return
+    console.log('📝 Extracted feedId:', feedId, 'from url:', subItem.url)
+    if (!feedId) {
+      console.warn('❌ No feedId found, aborting drag')
+      e.preventDefault()
+      return
+    }
     e.dataTransfer.setData(dragDataKey, feedId)
+    console.log('✅ Data set in dataTransfer:', feedId)
     // Add a dragging class for visual feedback
     e.dataTransfer.effectAllowed = 'move'
+    
+    // Créer une image de drag visible
+    const dragElement = e.currentTarget as HTMLElement
+    const clone = dragElement.cloneNode(true) as HTMLElement
+    clone.style.position = 'absolute'
+    clone.style.top = '-1000px'
+    document.body.appendChild(clone)
+    // Use small offset so cursor aligns nicely
+    e.dataTransfer.setDragImage(clone, 8, 8)
+    console.log('🖼️ Drag image created')
+    // Keep the clone for a short time to ensure browser uses it
+    setTimeout(() => {
+      try { document.body.removeChild(clone) } catch (_e) { /* ignore */ }
+    }, 200)
+    
     // mobile fallback: set a flag on body for styles
     try { document.body.setAttribute('data-dragging-feed', feedId) } catch (_e) { /* ignore */ }
-    if (onDragStateChange) onDragStateChange(true)
+    if (onDragStateChange) {
+      console.log('🔄 Calling onDragStateChange(true)')
+      onDragStateChange(true)
+    } else {
+      console.warn('⚠️ No onDragStateChange callback provided')
+    }
   }
 
   const handleDragEnd = () => {
+    console.log('🏁 DRAG END triggered')
+    mouseDownPos.current = null
+    setIsDraggingThisItem(false)
+    setIsDragEnabled(false)
+    
+    // Nettoyer le timeout s'il existe encore
+    if (dragTimeoutRef.current) {
+      clearTimeout(dragTimeoutRef.current)
+      dragTimeoutRef.current = null
+    }
+    
     try { document.body.removeAttribute('data-dragging-feed') } catch (_e) { /* ignore */ }
-    if (onDragStateChange) onDragStateChange(false)
+    // Réactiver le Link après la fin du drag
+    if (linkRef.current) {
+      linkRef.current.style.pointerEvents = 'auto'
+      console.log('🔓 Re-enabled link pointer events (drag end)')
+    }
+    if (onDragStateChange) {
+      console.log('🔄 Calling onDragStateChange(false)')
+      onDragStateChange(false)
+    }
+  }
+  
+  const handleLinkClick = (e: React.MouseEvent) => {
+    console.log('🖱️ Link clicked, isDraggingThisItem:', isDraggingThisItem)
+    // Si on vient de finir un drag, empêcher la navigation
+    if (isDraggingThisItem) {
+      console.log('⛔ Preventing navigation after drag')
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    // Si la souris a bougé significativement depuis mouseDown, c'était probablement un drag
+    if (mouseDownPos.current) {
+      const dx = Math.abs(e.clientX - mouseDownPos.current.x)
+      const dy = Math.abs(e.clientY - mouseDownPos.current.y)
+      if (dx > 5 || dy > 5) {
+        console.log('⛔ Preventing navigation - mouse moved during click')
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
   }  // rename handled via dialog state (see below)
   const [subFeedToDelete, setSubFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [subFeedToRename, setSubFeedToRename] = useState<{ id: string; title: string } | null>(null)
@@ -633,9 +841,18 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
 
   return (
     <>
-    <SidebarMenuSubItem>
+    <SidebarMenuSubItem
+      draggable={false}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className={isDragEnabled ? "cursor-grabbing" : "cursor-pointer"}
+    >
       <SidebarMenuSubButton asChild isActive={isSubActive} className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent">
-        <div
+        <Link
+          ref={linkRef}
+          to={subItem.url}
+          onClick={handleLinkClick}
           className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1"
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
@@ -677,17 +894,9 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Link
-            to={subItem.url}
-            draggable
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            className="flex items-center gap-2 flex-1 cursor-pointer active:cursor-move"
-          >
-            <span className="flex-1">{subItem.title}</span>
-            {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-          </Link>
-        </div>
+          <span className="flex-1">{subItem.title}</span>
+          {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+        </Link>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
     <RenameDialog
@@ -808,12 +1017,33 @@ export function NavGroup({ title, items }: Readonly<NavGroupType>) {
   const { state } = useSidebar();
   const href = useLocation({ select: (location) => location.href });
   const queryClient = useQueryClient()
+  const [isDragging, setIsDragging] = useState(false)
+  const [isRootHovered, setIsRootHovered] = useState(false)
+  
   // Root drop handlers
-  const handleRootDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+  const handleRootDragOver = (e: React.DragEvent) => { 
+    console.log('🏠 ROOT drag over')
+    e.preventDefault(); 
+    e.dataTransfer.dropEffect = 'move'
+    setIsRootHovered(true)
+  }
+  
+  const handleRootDragLeave = () => {
+    console.log('🏠 ROOT drag leave')
+    setIsRootHovered(false)
+  }
+  
   const handleRootDrop = async (e: React.DragEvent) => {
+    console.log('🏠 ROOT DROP triggered')
     e.preventDefault()
+    setIsRootHovered(false)
+    setIsDragging(false)
     const feedId = e.dataTransfer.getData('application/x-feed-id')
-    if (!feedId) return
+    console.log('📦 Received feedId on root drop:', feedId)
+    if (!feedId) {
+      console.warn('❌ No feedId in root drop event')
+      return
+    }
   const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
     try {
       queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
@@ -833,20 +1063,32 @@ export function NavGroup({ title, items }: Readonly<NavGroupType>) {
       toast.error('Error moving feed')
     }
   }
+  
+  const handleDragStateChange = (dragging: boolean) => {
+    console.log('🔔 NavGroup received drag state change:', dragging)
+    setIsDragging(dragging)
+  }
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
       <SidebarMenu>
-        {/* Root pseudo-folder drop target */}
-        <div
-          onDragOver={handleRootDragOver}
-          onDrop={handleRootDrop}
-          className='px-3 py-2 rounded-lg hover:bg-accent/50 cursor-pointer text-sm text-muted-foreground'
-          role='button'
-          title='Drop here to move feed to root'
-        >
-          Root
-        </div>
+        {/* Root pseudo-folder drop target - only visible during drag */}
+        {isDragging && (
+          <div
+            onDragOver={handleRootDragOver}
+            onDragLeave={handleRootDragLeave}
+            onDrop={handleRootDrop}
+            className={`px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
+              isRootHovered 
+                ? 'bg-accent ring-2 ring-accent text-accent-foreground' 
+                : 'bg-accent/20 text-muted-foreground'
+            }`}
+            role='button'
+            title='Drop here to move feed to root'
+          >
+            📁 Root Folder
+          </div>
+        )}
         {items.map((item, index) => {
           let key;
           if (item.title) {
@@ -861,7 +1103,7 @@ export function NavGroup({ title, items }: Readonly<NavGroupType>) {
             return <SidebarMenuCollapsedDropdown key={key} item={item as NavCollapsible} href={href} />;
           }
           // Use the new SidebarMenuCollapsible for folders
-          return <SidebarMenuCollapsible key={key} item={item as NavCollapsible} href={href} />;
+          return <SidebarMenuCollapsible key={key} item={item as NavCollapsible} href={href} onDragStateChange={handleDragStateChange} />;
         })}
       </SidebarMenu>
     </SidebarGroup>
