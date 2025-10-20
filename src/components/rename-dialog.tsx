@@ -17,7 +17,7 @@ interface RenameDialogProps {
   className?: string
 }
 
-export function RenameDialog({ open, onOpenChange, title, initialValue = '', onConfirm, confirmLabel = 'Renommer', className }: RenameDialogProps) {
+export function RenameDialog({ open, onOpenChange, title, initialValue = '', onConfirm, confirmLabel = 'Rename', className }: RenameDialogProps) {
   const [value, setValue] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement | null>(null)
 

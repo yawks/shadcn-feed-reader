@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import type { NavCollapsible, NavGroup as NavGroupType, NavItem, NavLink } from './types'
 import React, { useRef, useState } from 'react'
 import {
@@ -32,6 +32,7 @@ import {
 import { Badge } from '../ui/badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { IconNews } from '@tabler/icons-react'
+import { Input } from '@/components/ui/input'
 import { RenameDialog } from '@/components/rename-dialog'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -108,11 +109,11 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
       await backend.renameFeed(feedId, newTitle)
       // ensure fresh data
       await queryClient.invalidateQueries({ queryKey: ['folders'] })
-      toast.message('Flux renommé')
+      toast.message('Feed renamed')
     } catch (_err) {
       // rollback
       queryClient.setQueryData(['folders'], prev)
-      toast.error('Erreur lors du renommage du flux')
+      toast.error('Error renaming feed')
     }
   }
 
@@ -138,10 +139,10 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
       const backend = new FeedBackend()
       await backend.deleteFeed(feedId)
       await queryClient.invalidateQueries({ queryKey: ['folders'] })
-      toast.message('Flux supprimé')
+      toast.message('Feed removed')
     } catch (_err) {
       queryClient.setQueryData(['folders'], prev)
-      toast.error('Erreur lors de la suppression du flux')
+      toast.error('Error removing feed')
     }
   }
   return (
@@ -159,43 +160,43 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
             _setOpenMobile(false)
             _setSelectedFolderOrFeed(item)
           }} 
-          className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1 cursor-pointer"
         >
           <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-            {hovered || menuOpen ? (
-              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
-                    aria-label="Plus d'actions"
-                    onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
-                  >
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
+                  aria-label="Plus d'actions"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+                >
+                  {hovered || menuOpen ? (
                     <MoreVertical className="w-4 h-4 text-muted-foreground transition-colors duration-200 hover:text-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                  <DropdownMenuItem onSelect={() => { 
-                    setMenuOpen(false);
-                    if (feedId) setFeedToRename({ id: feedId, title: item.title })
-                  }}>
-                    Renommer
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => { setMenuOpen(false); if (feedId) setFeedToDelete({ id: feedId, title: item.title }) }} variant="destructive">
-                    Supprimer
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
-                item.iconUrl ? (
-                  <img 
-                    src={item.iconUrl} 
-                    alt={item.title} 
-                    className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
-                  />
-                ) : null
-              )
-            )}
+                  ) : (
+                    item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
+                      item.iconUrl ? (
+                        <img 
+                          src={item.iconUrl} 
+                          alt={item.title} 
+                          className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
+                        />
+                      ) : null
+                    )
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                <DropdownMenuItem onSelect={() => { 
+                  setMenuOpen(false);
+                  if (feedId) setFeedToRename({ id: feedId, title: item.title })
+                }}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { setMenuOpen(false); if (feedId) setFeedToDelete({ id: feedId, title: item.title }) }} variant="destructive">
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <span className={`font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
             isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
@@ -214,7 +215,7 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
     <RenameDialog
       open={!!feedToRename}
       onOpenChange={(open) => { if (!open) setFeedToRename(null) }}
-      title="Renommer le flux"
+      title="Rename the feed"
       initialValue={feedToRename?.title ?? ''}
       onConfirm={async (value) => {
         if (!feedToRename) return
@@ -226,15 +227,15 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
     <ConfirmDialog
       open={!!feedToDelete}
       onOpenChange={(open) => { if (!open) setFeedToDelete(null) }}
-      title="Supprimer le flux ?"
-      desc={`Voulez-vous vraiment supprimer le flux ${feedToDelete?.title ?? ''} ? Cette action est irréversible.`}
+      title="Remove the feed?"
+      desc={`Are you sure you want to remove the feed ${feedToDelete?.title ?? ''}? This action is irreversible.`}
       handleConfirm={async () => {
         if (!feedToDelete) return
         await handleFeedDeleteConfirmed(feedToDelete.id)
         setFeedToDelete(null)
       }}
-      confirmText="Supprimer"
-      cancelBtnText="Annuler"
+      confirmText="Remove"
+      cancelBtnText="Cancel"
       destructive
     />
     </>
@@ -250,6 +251,7 @@ function extractFeedIdFromUrl(url?: string) {
 function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCollapsible; href: string, onDragStateChange?: (v: boolean) => void }) {
   const { setOpenMobile: _setOpenMobile } = useSidebar()
   const [, _setSelectedFolderOrFeed] = useState<NavItem | null>(null)
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isActive = checkIsActive(href, item)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -306,7 +308,7 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
         }
       } catch (_error) {
         // Report user-facing error
-        alert('Erreur lors du renommage du dossier')
+        alert('Error while renaming folder')
       }
     } else {
       // Skip rename: empty value or same name
@@ -337,7 +339,7 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
       await queryClient.invalidateQueries({ queryKey: ['folders'] });
       setShowDeleteConfirm(false);
     } catch (_error) {
-      alert('Erreur lors de la suppression du dossier');
+      alert('Error while deleting folder: ' + _error);
     }
   };
 
@@ -345,11 +347,11 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
   const deleteConfirmPopin = showDeleteConfirm && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-background rounded-lg shadow-lg p-6 min-w-[300px]">
-        <div className="mb-4 font-semibold text-lg">Supprimer le dossier ?</div>
-        <div className="mb-6 text-muted-foreground">Cette action est irréversible. Voulez-vous vraiment supprimer le dossier <span className="font-bold">{item.title}</span> ?</div>
+        <div className="mb-4 font-semibold text-lg">Remove the folder?</div>
+        <div className="mb-6 text-muted-foreground">This action is irreversible. Do you really want to delete the folder <span className="font-bold">{item.title}</span>?</div>
         <div className="flex gap-2 justify-end">
-          <button className="px-4 py-2 rounded bg-muted text-foreground" onClick={() => setShowDeleteConfirm(false)}>Annuler</button>
-          <button className="px-4 py-2 rounded bg-destructive text-destructive-foreground" onClick={handleDelete}>Supprimer</button>
+          <button className="px-4 py-2 rounded bg-muted text-foreground" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+          <button className="px-4 py-2 rounded bg-destructive text-destructive-foreground" onClick={handleDelete}>Delete</button>
         </div>
       </div>
     </div>
@@ -367,21 +369,17 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
           e.preventDefault(); 
           e.dataTransfer.dropEffect = 'move'; 
           setIsDragOver(true);
-          console.log('📁 DRAGOVER FOLDER') // Debug log
         }}
         onDragLeave={(e) => {
           // Only hide if we're leaving the entire folder area
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
             setIsDragOver(false);
-            console.log('📁 DRAGLEAVE FOLDER') // Debug log
           }
         }}
         onDrop={async (e) => {
           e.preventDefault()
           setIsDragOver(false)
-          console.log('📁 FOLDER DROP EVENT (SidebarMenuItem)') // Debug log
           const feedId = e.dataTransfer.getData('application/x-feed-id')
-          console.log('📁 Feed ID from drop:', feedId) // Debug log
           if (!feedId) return
           // Determine folderId from this item's url
           const itemUrl = (item as { url?: string }).url
@@ -440,94 +438,103 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
             const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
             const backend = new FeedBackend()
             await backend.moveFeed(feedId, folderId)
-          } catch (error) {
+          } catch (_error) {
             // revert on error
             queryClient.setQueryData(['folders'], prev)
-            console.error('Failed to move feed:', error)
           }
         }}
       >
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton 
-            asChild
-            tooltip={item.title} 
-            isActive={isActive}
-            className="group transition-all duration-200 hover:bg-accent/80 data-[active=true]:bg-sidebar-accent data-[active=true]:border-sidebar-accent/20"
+        <div className="flex items-center gap-0">
+          <div
+            className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1 cursor-pointer hover:bg-accent/80"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchEnd}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true) }}
+            onClick={() => {
+              _setOpenMobile(false);
+              _setSelectedFolderOrFeed(item);
+              const url = (item as { url?: string }).url;
+              if (url) navigate({ to: url });
+            }}
           >
-            <div
-              className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 flex-1"
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
-              onTouchStart={onTouchStart}
-              onTouchEnd={onTouchEnd}
-              onTouchCancel={onTouchEnd}
-              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
-            >
-              <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                {hovered || menuOpen ? (
-                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
-                        aria-label="Plus d'actions"
-                        onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
-                      >
-                        <MoreVertical className="w-4 h-4 text-muted-foreground transition-colors duration-200 hover:text-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                      <DropdownMenuItem onSelect={() => { 
-                        setMenuOpen(false); 
-                        setTimeout(() => {
-                          setIsRenaming(true);
-                        }, 150);
-                      }}>
-                        Renommer
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => {
-                        setMenuOpen(false);
-                        setTimeout(() => {
-                          setShowDeleteConfirm(true);
-                        }, 150);
-                      }} variant="destructive">
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <IconNews className="w-4 h-4 text-muted-foreground" />
-                )}
-                {deleteConfirmPopin}
-              </div>
-              {isRenaming ? (
-                <input
-                  ref={inputRef}
-                  className="font-medium flex-1 bg-transparent border-b border-accent outline-none px-1 text-foreground"
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                                            onBlur={() => { handleRename() }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleRename()
-                    if (e.key === 'Escape') { setIsRenaming(false); setRenameValue(item.title) }
-                  }}
-                  style={{ minWidth: 0 }}
-                />
+            <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+              {hovered || menuOpen ? (
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
+                      aria-label="Plus d'actions"
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground transition-colors duration-200 hover:text-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setIsRenaming(true) }}>
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { setMenuOpen(false); setShowDeleteConfirm(true) }} variant="destructive">
+                      Remove
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
-                <span className={`font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
-                  isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
-                }`}>
-                  {item.title}
-                </span>
+                item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
+                  item.iconUrl ? (
+                    <img 
+                      src={item.iconUrl} 
+                      alt={item.title} 
+                      className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
+                    />
+                  ) : null
+                )
               )}
-              {item.badge && (
-                <div className="flex-shrink-0">
-                  <NavBadge>{item.badge}</NavBadge>
-                </div>
-              )}
-              <ChevronRight className='ml-2 h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 text-muted-foreground group-hover:text-foreground' />
             </div>
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
+            {isRenaming ? (
+              <Input
+                ref={inputRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') handleRename()
+                  if (e.key === 'Escape') { setIsRenaming(false); setRenameValue(item.title) }
+                }}
+                onBlur={handleRename}
+                className="h-6 text-sm font-medium flex-1 max-w-[150px] transition-all duration-200 focus:ring-2 focus:ring-sidebar-accent"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className={`font-medium flex-1 transition-colors duration-200 ${item.classes ?? ''} ${
+                  isActive ? 'text-sidebar-accent-foreground' : 'text-foreground group-hover:text-foreground'
+                }`}
+              >
+                {item.title}
+              </span>
+            )}
+            {item.badge && !isRenaming && (
+              <div className="flex-shrink-0">
+                <NavBadge>{item.badge}</NavBadge>
+              </div>
+            )}
+          </div>
+          <CollapsibleTrigger asChild>
+            <button 
+              className='px-2 py-2 hover:bg-accent/50 rounded transition-colors cursor-pointer'
+              aria-label="Toggle folder"
+            >
+              <ChevronRight 
+                className='h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 text-muted-foreground hover:text-foreground' 
+              />
+            </button>
+          </CollapsibleTrigger>
+        </div>
+        {deleteConfirmPopin}
         <CollapsibleContent className='CollapsibleContent'>
           <SidebarMenuSub className="space-y-1 px-2">
             {item.items?.map((subItem) => (
@@ -541,7 +548,7 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
 }
 
 // Sub-row component: render a subitem (feed) with its own 3-dots menu and mobile long-press
-function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { subItem: NavLink, parentItem: NavCollapsible, href: string, onDragStateChange?: (v: boolean) => void }) {
+function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { subItem: NavLink, parentItem: NavCollapsible, href: string, onDragStateChange?: (_v: boolean) => void }) {
   const isSubActive = checkIsActive(href, subItem as NavItem)
   const queryClient = useQueryClient()
   const [hovered, setHovered] = useState(false)
@@ -561,7 +568,6 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
   const handleDragStart = (e: React.DragEvent) => {
     const feedId = extractFeedIdFromUrl(subItem.url)
     if (!feedId) return
-    console.log('🟢 DRAGSTART:', feedId, subItem.url) // Debug log
     e.dataTransfer.setData(dragDataKey, feedId)
     // Add a dragging class for visual feedback
     e.dataTransfer.effectAllowed = 'move'
@@ -570,8 +576,7 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
     if (onDragStateChange) onDragStateChange(true)
   }
 
-  const handleDragEnd = (_e: React.DragEvent) => {
-    console.log('🔴 DRAGEND') // Debug log
+  const handleDragEnd = () => {
     try { document.body.removeAttribute('data-dragging-feed') } catch (_e) { /* ignore */ }
     if (onDragStateChange) onDragStateChange(false)
   }  // rename handled via dialog state (see below)
@@ -595,10 +600,10 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
       const backend = new FeedBackend()
       await backend.renameFeed(feedId, newTitle)
       await queryClient.invalidateQueries({ queryKey: ['folders'] })
-      toast.message('Flux renommé')
+      toast.message('Feed renamed')
     } catch (_err) {
       queryClient.setQueryData(['folders'], prev)
-      toast.error('Erreur lors du renommage du flux')
+      toast.error('Error renaming feed')
     }
   }
 
@@ -619,10 +624,10 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
       const backend = new FeedBackend()
       await backend.deleteFeed(feedId)
       await queryClient.invalidateQueries({ queryKey: ['folders'] })
-      toast.message('Flux supprimé')
+      toast.message('Feed removed')
     } catch (_err) {
       queryClient.setQueryData(['folders'], prev)
-      toast.error('Erreur lors de la suppression du flux')
+      toast.error('Error removing feed')
     }
   }
 
@@ -631,27 +636,64 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={isSubActive} className="group transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-sidebar-accent data-[active=true]:border-l-2 data-[active=true]:border-sidebar-accent">
         <div
-          draggable
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1"
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           onTouchCancel={onTouchEnd}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(true); setHovered(true); }}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 cursor-move"
         >
-          {getSubItemIcon(subItem as NavItem, parentItem)}
-          <Link to={subItem.url} className="flex-1 pointer-events-none">{subItem.title}</Link>
-          {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+          <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent focus:outline-none"
+                  aria-label="Plus d'actions"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v) }}
+                >
+                  {hovered || menuOpen ? (
+                    <MoreVertical className="w-4 h-4 text-muted-foreground transition-colors duration-200 hover:text-foreground" />
+                  ) : (
+                    getSubItemIcon(subItem as NavItem, parentItem)
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
+                <DropdownMenuItem onSelect={() => { 
+                  setMenuOpen(false);
+                  const feedId = extractFeedIdFromUrl(subItem.url);
+                  if (feedId) setSubFeedToRename({ id: feedId, title: subItem.title })
+                }}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { 
+                  setMenuOpen(false);
+                  const feedId = extractFeedIdFromUrl(subItem.url);
+                  if (feedId) setSubFeedToDelete({ id: feedId, title: subItem.title })
+                }} variant="destructive">
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <Link
+            to={subItem.url}
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            className="flex items-center gap-2 flex-1 cursor-pointer active:cursor-move"
+          >
+            <span className="flex-1">{subItem.title}</span>
+            {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+          </Link>
         </div>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
     <RenameDialog
       open={!!subFeedToRename}
       onOpenChange={(open) => { if (!open) setSubFeedToRename(null) }}
-      title="Renommer le flux"
+      title="Rename the feed"
       initialValue={subFeedToRename?.title ?? ''}
       onConfirm={async (value) => {
         if (!subFeedToRename) return
@@ -662,15 +704,15 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
     <ConfirmDialog
       open={!!subFeedToDelete}
       onOpenChange={(open) => { if (!open) setSubFeedToDelete(null) }}
-      title="Supprimer le flux ?"
-      desc={`Voulez-vous vraiment supprimer le flux ${subFeedToDelete?.title ?? ''} ? Cette action est irréversible.`}
+      title="Delete the feed ?"
+      desc={`Do you really want to delete the feed ${subFeedToDelete?.title ?? ''} ? This action is irreversible.`}
       handleConfirm={async () => {
         if (!subFeedToDelete) return
         await handleSubFeedDeleteConfirmed(subFeedToDelete.id)
         setSubFeedToDelete(null)
       }}
-      confirmText="Supprimer"
-      cancelBtnText="Annuler"
+      confirmText="Remove"
+      cancelBtnText="Cancel"
       destructive
     />
     </>
@@ -785,10 +827,10 @@ export function NavGroup({ title, items }: Readonly<NavGroupType>) {
       const backend = new FeedBackend()
       await backend.moveFeed(feedId, null)
       await queryClient.invalidateQueries({ queryKey: ['folders'] })
-      toast.message('Flux déplacé vers la racine')
+      toast.message('Feed moved to root')
     } catch (_err) {
       queryClient.setQueryData(['folders'], prev)
-      toast.error('Erreur lors du déplacement du flux')
+      toast.error('Error moving feed')
     }
   }
   return (
