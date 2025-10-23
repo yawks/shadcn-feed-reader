@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
+import { useEffect, useRef, useState } from "react"
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -79,11 +79,11 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     setIsLoading(false)
                 }
             } else if (isIframeView) {
-                try {
-                    const hasTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__?.invoke
-                    if (hasTauri && proxyPort) {
-                        await safeInvoke('set_proxy_url', { url: item.url })
+                    try {
+                    if (proxyPort) {
                         const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
+                        // eslint-disable-next-line no-console
+                        console.debug('FeedArticle: using proxied iframe URL', proxyUrl)
                         if (iframeRef.current) iframeRef.current.src = proxyUrl
                     } else {
                         if (iframeRef.current) iframeRef.current.src = item.url
@@ -110,17 +110,26 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         const handleLoad = () => {
             setIsLoading(false)
             if (iframe.contentWindow) {
-                // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
+                // Determine the actual origin of the loaded iframe content and use it as targetOrigin.
+                // Prefer the iframe src (works correctly when content is proxied through localhost),
+                // otherwise fall back to the article URL origin. Never pass the literal string 'null' to postMessage;
+                // fall back to '*' if we can't determine a valid origin.
                 let targetOrigin = '*'
                 try {
-                    if (item?.url) {
+                    if (iframe.src && iframe.src !== 'about:blank') {
+                        const s = new URL(iframe.src, window.location.href)
+                        if (s.origin && s.origin !== 'null') targetOrigin = s.origin
+                    } else if (item?.url) {
                         const u = new URL(item.url)
-                        targetOrigin = u.origin
+                        if (u.origin && u.origin !== 'null') targetOrigin = u.origin
                     }
-                } catch (e) {
-                    // If URL parsing fails, fall back to '*'
+                } catch (_) {
                     targetOrigin = '*'
                 }
+
+                // Debug: log the chosen path and origin (removed / gated in production if needed)
+                // eslint-disable-next-line no-console
+                console.debug('FeedArticle.postMessage: iframe.src=', iframe.src, 'computedTargetOrigin=', targetOrigin)
 
                 iframe.contentWindow.postMessage(
                     {
