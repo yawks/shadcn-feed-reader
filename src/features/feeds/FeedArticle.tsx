@@ -1,24 +1,27 @@
-<<<<<<< HEAD
+import React, { useEffect, useRef, useState } from "react"
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
-import { useEffect, useRef, useState } from "react"
-=======
-import { useEffect, useState } from "react"
->>>>>>> a7fa57d (fix article display using rust website extraction)
 
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { invoke } from "@tauri-apps/api/core"
-<<<<<<< HEAD
+import { invoke as tauriInvoke } from "@tauri-apps/api/core"
 import { useTheme } from "@/context/theme-context"
-=======
->>>>>>> a7fa57d (fix article display using rust website extraction)
 
 const FALLBACK_SIGNAL = "READABILITY_FAILED_FALLBACK"
 
-interface FeedArticleProps {
-    readonly item: FeedItem
-    readonly isMobile?: boolean
+type FeedArticleProps = {
+    item: FeedItem
+    isMobile?: boolean
+}
+
+const safeInvoke = async (cmd: string, args?: Record<string, unknown>) => {
+    const hasTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__?.invoke
+    if (!hasTauri) {
+        throw new Error('Tauri runtime not available')
+    }
+    // Use tauri core invoke under the hood
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (tauriInvoke as any)(cmd, args)
 }
 
 export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
@@ -35,12 +38,11 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const isIframeView = viewMode === "original" || viewMode === "dark"
 
     useEffect(() => {
-        invoke("start_proxy")
-            .then(port => setProxyPort(port as number))
-            .catch(err => {
-                console.error("Failed to start proxy:", err)
-                setError("Failed to start proxy server.")
-            })
+        // Start the proxy (Tauri) if available; ignore errors in browser dev
+        // try to start the tauri proxy; ignore if not available in dev
+        safeInvoke("start_proxy")
+            .then((port) => setProxyPort(Number(port)))
+            .catch((err) => console.debug("start_proxy not available or failed (dev):", err))
     }, [])
 
     useEffect(() => {
@@ -53,36 +55,43 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
 
             if (viewMode === "readability") {
                 try {
-                    const content: string = await invoke("fetch_article", { url: item.url })
+                    const content: string = await safeInvoke("fetch_article", { url: item.url })
                     if (content === FALLBACK_SIGNAL) {
                         setViewMode("original")
                     } else {
                         setArticleContent(content)
                     }
                 } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err))
+                    // Browser fallback: attempt to fetch the page HTML directly if invoke isn't available
+                    try {
+                        const res = await fetch(item.url, { method: 'GET', mode: 'cors' })
+                        if (!res.ok) {
+                            setViewMode('original')
+                        } else {
+                            const text = await res.text()
+                            setArticleContent(text)
+                        }
+                    } catch (fetchErr) {
+                        console.info('Direct fetch failed (CORS or network), falling back to original view', fetchErr)
+                        setViewMode('original')
+                    }
                 } finally {
                     setIsLoading(false)
                 }
-<<<<<<< HEAD
-            } else if (isIframeView && proxyPort) {
+            } else if (isIframeView) {
                 try {
-                    await invoke("set_proxy_url", { url: item.url });
-                    // Use the /proxy endpoint to fetch the complete page
-                    const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`;
-                    if (iframeRef.current) {
-                        iframeRef.current.src = proxyUrl;
+                    const hasTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__?.invoke
+                    if (hasTauri && proxyPort) {
+                        await safeInvoke('set_proxy_url', { url: item.url })
+                        const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
+                        if (iframeRef.current) iframeRef.current.src = proxyUrl
+                    } else {
+                        if (iframeRef.current) iframeRef.current.src = item.url
                     }
                 } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err));
-                    setIsLoading(false);
-=======
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError(String(err));
->>>>>>> a7fa57d (fix article display using rust website extraction)
+                    setError(err instanceof Error ? err.message : String(err))
+                } finally {
+                    setIsLoading(false)
                 }
             }
         }
@@ -101,15 +110,30 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         const handleLoad = () => {
             setIsLoading(false)
             if (iframe.contentWindow) {
-                iframe.contentWindow.postMessage({
-                    action: 'SET_DARK_MODE',
-                    enabled: viewMode === 'dark',
-                    theme: {
-                        brightness: 100,
-                        contrast: 90,
-                        sepia: 10,
+                // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
+                let targetOrigin = '*'
+                try {
+                    if (item?.url) {
+                        const u = new URL(item.url)
+                        targetOrigin = u.origin
                     }
-                }, '*');
+                } catch (e) {
+                    // If URL parsing fails, fall back to '*'
+                    targetOrigin = '*'
+                }
+
+                iframe.contentWindow.postMessage(
+                    {
+                        action: 'SET_DARK_MODE',
+                        enabled: viewMode === 'dark',
+                        theme: {
+                            brightness: 100,
+                            contrast: 90,
+                            sepia: 10,
+                        },
+                    },
+                    targetOrigin,
+                )
             }
         }
 
@@ -136,19 +160,14 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         >
             <div className="mb-1 flex h-full flex-none flex-col rounded-t-md bg-secondary shadow-lg">
                 <div className="flex items-center justify-between p-2">
-                    <ArticleToolbar
-                        viewMode={viewMode}
-                        onViewModeChange={handleViewModeChange}
-                    />
+                    <ArticleToolbar viewMode={viewMode} onViewModeChange={handleViewModeChange} />
                 </div>
                 <div className="relative h-full w-full overflow-auto">
                     {isLoading && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
                             <div className="flex flex-col items-center space-y-4">
                                 <Skeleton className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                <p className="text-sm text-muted-foreground">
-                                    Loading article...
-                                </p>
+                                <p className="text-sm text-muted-foreground">Loading article...</p>
                             </div>
                         </div>
                     )}
@@ -160,20 +179,15 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     {!error &&
                         (isIframeView ? (
                             <iframe
-                                key={item.url} // Force re-mount on item change
+                                key={item.url}
                                 ref={iframeRef}
-                                className={cn("h-full w-full", {
-                                    invisible: isLoading,
-                                })}
+                                className={cn("h-full w-full", { invisible: isLoading })}
                                 src="about:blank"
                                 title="Feed article"
                                 sandbox="allow-scripts allow-same-origin"
                             />
                         ) : (
-                            <div
-                                className="prose dark:prose-invert w-full p-4"
-                                dangerouslySetInnerHTML={{ __html: articleContent }}
-                            />
+                            <div className="prose dark:prose-invert w-full p-4" dangerouslySetInnerHTML={{ __html: articleContent }} />
                         ))}
                 </div>
             </div>
