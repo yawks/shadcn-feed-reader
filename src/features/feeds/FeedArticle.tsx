@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 
 import { FeedItem } from "@/backends/types"
