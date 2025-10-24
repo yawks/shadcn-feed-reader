@@ -13,6 +13,7 @@ export type ProcessedFeedItem = FeedItem | GroupedFeedItem;
 
 // 1. Keyword Extraction
 export function extractKeywords(title: string): string[] {
+  if (!title) return [];
   const words = title.split(' ');
   // Filter for capitalized words that are not at the start of the sentence
   // and are longer than 2 characters.
@@ -69,10 +70,12 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
 
   // Choisir comme mainArticle celui qui a une miniature si possible
   const mainArticle = group.find(a => a.thumbnailUrl && a.thumbnailUrl.trim() !== '') || group[0];
+  if (!mainArticle?.title) return;
   const mainArticleTitleWords = new Set(mainArticle.title.toLowerCase().split(' '));
 
     const similarArticles = group.filter(article => {
       if (article.id === mainArticle.id) return true;
+      if (!article?.title) return false;
       const otherArticleTitleWords = new Set(article.title.toLowerCase().split(' '));
       const similarity = jaccardSimilarity(mainArticleTitleWords, otherArticleTitleWords);
       return similarity >= similarityThreshold;

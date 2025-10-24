@@ -139,8 +139,6 @@ async fn fetch_article(url: String) -> Result<String, String> {
         return Err("Content appears to be binary or corrupted.".into());
     }
 
-<<<<<<< HEAD
-=======
     // Check if we got a minimal HTML document (likely from JavaScript-heavy sites)
     let html_normalized = html.trim().replace('\n', "").replace('\r', "");
     
@@ -164,7 +162,6 @@ async fn fetch_article(url: String) -> Result<String, String> {
         return Ok(FALLBACK_SIGNAL.to_string());
     }
 
->>>>>>> a7fa57d (fix article display using rust website extraction)
     let mut content_cursor = Cursor::new(html.as_bytes());
     match readability::extractor::extract(&mut content_cursor, &url_obj) {
         Ok(product) => {

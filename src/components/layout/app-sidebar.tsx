@@ -17,6 +17,7 @@ import {
 import { Button } from '../ui/button'
 import { FoldersLoader } from './loaders/folders-loader'
 import { FoldersNavGroup } from './folders-nav-group'
+import { SubscribeButton } from '../subscribe-button'
 import { Suspense } from 'react'
 import { useFeedQuery } from '@/context/use-feed-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -121,7 +122,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
         
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t p-4">
+        <SubscribeButton />
       </SidebarFooter>
     </Sidebar >
   )
