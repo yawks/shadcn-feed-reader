@@ -5,9 +5,9 @@
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
-  "productName": "shadcn-admin-tauri",
+  "productName": "Shadcn Feed Reader",
   "version": "1.3.0",
-  "identifier": "com.tauri.shadcn.admin",
+  "identifier": "net.yawks.shadcn.feedreader",
   "bundle": {
     "active": true,
     "icon": [
@@ -27,7 +27,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "Shadcn Admin",
+        "title": "Shadcn Feed Reader",
         "width": 800,
         "height": 600
       }

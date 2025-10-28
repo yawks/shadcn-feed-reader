@@ -1,12 +1,12 @@
 import { IconBook, IconEye, IconMoon } from "@tabler/icons-react"
-
-import { Button } from "@/components/ui/button"
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
+
+import { Button } from "@/components/ui/button"
 
 export type ArticleViewMode = "original" | "readability" | "dark"
 
@@ -38,7 +38,7 @@ export function ArticleToolbar({
     ] as const
 
     return (
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2" style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
             <TooltipProvider>
                 {buttons.map(({ mode, Icon, tooltip }) => (
                     <Tooltip key={mode}>

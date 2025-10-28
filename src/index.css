@@ -19,8 +19,8 @@
   --primary-foreground: oklch(0.984 0.003 247.858);
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
+  --muted: 34 34 34;
+  --muted-foreground: oklch(0.854 0.046 257.417);
   --accent: oklch(0.968 0.007 247.896);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
@@ -54,8 +54,8 @@
   --primary-foreground: oklch(0.208 0.042 265.755);
   --secondary: oklch(0.279 0.041 260.031);
   --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
+  --muted: 34 34 34;
+  --muted-foreground: oklch(0.854 0.04 256.788);
   --accent: oklch(0.488 0.243 264.376);
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
@@ -121,6 +121,25 @@
   }
   body {
     @apply bg-background text-foreground min-h-svh w-full;
+  }
+  
+  /* Safe area support for Capacitor/mobile */
+  @supports (padding: max(0px)) {
+    body {
+      padding-top: max(0px, env(safe-area-inset-top));
+      padding-left: max(0px, env(safe-area-inset-left));
+      padding-right: max(0px, env(safe-area-inset-right));
+    }
+    
+    /* Apply bottom padding to main content areas */
+    main, [role="main"], .fixed-main {
+      padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
+    }
+    
+    /* Apply to bottom navigation elements */
+    nav:last-child, footer, [role="navigation"]:last-child {
+      padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
+    }
   }
 
   button:not(:disabled),
@@ -215,4 +234,184 @@
 
 .feed-item-summary {
   font-size: calc(var(--font-size-item) * 0.875) !important;
+}
+
+/* Article reader view styles */
+.article-content {
+  line-height: 1.75;
+  color: var(--foreground);
+}
+
+.article-content h1 {
+  font-size: 2.25em;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: 0.8888889em;
+  line-height: 1.1111111;
+}
+
+.article-content h2 {
+  font-size: 1.875em;
+  font-weight: 700;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.3333333;
+}
+
+.article-content h3 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+  line-height: 1.6;
+}
+
+.article-content h4 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+}
+
+.article-content p {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.article-content a {
+  color: #3b82f6;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.dark .article-content a {
+  color: #60a5fa;
+}
+
+.article-content strong {
+  font-weight: 600;
+}
+
+.article-content em {
+  font-style: italic;
+}
+
+.article-content ul,
+.article-content ol {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.article-content ul {
+  list-style-type: disc;
+}
+
+.article-content ol {
+  list-style-type: decimal;
+}
+
+.article-content li {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.article-content img {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  border-radius: 0.5rem;
+  max-width: 100%;
+  height: auto;
+}
+
+.article-content blockquote {
+  font-weight: 500;
+  font-style: italic;
+  border-left: 0.25rem solid var(--border);
+  padding-left: 1em;
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+}
+
+.article-content code {
+  font-size: 0.875em;
+  font-weight: 600;
+  background-color: rgb(var(--muted));
+  color: var(--foreground);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+}
+
+.article-content pre {
+  background-color: rgb(var(--muted));
+  color: var(--foreground);
+  padding: 1em;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-top: 1.7142857em;
+  margin-bottom: 1.7142857em;
+}
+
+.article-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.article-content table {
+  width: 100%;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  border-collapse: collapse;
+}
+
+.article-content th,
+.article-content td {
+  border: 1px solid var(--border);
+  padding: 0.5em 1em;
+  text-align: left;
+}
+
+.article-content th {
+  font-weight: 600;
+  background-color: rgb(var(--muted));
+  color: var(--foreground);
+}
+
+.article-content hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 3em;
+  margin-bottom: 3em;
+}
+
+.article-content iframe,
+.article-content video {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+
+/* Prevent injected article HTML from using fixed/absolute/sticky positioning
+   that would overlap the app chrome (bottom navigation). We force static
+   positioning for children of .article-content so reader view can't be
+   obscured by site toolbars or sticky elements. */
+.article-content * {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+/* Hide common site nav/footer elements that tend to stick */
+.article-content header,
+.article-content footer,
+.article-content nav,
+.article-content .site-footer,
+.article-content .site-header {
+  display: block !important;
 }

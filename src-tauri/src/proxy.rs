@@ -25,22 +25,138 @@ async fn log_requests(uri: Uri, req: axum::http::Request<Body>, next: Next) -> R
 const DARK_READER_JS: &str = include_str!("../../node_modules/darkreader/darkreader.js");
 
 // The listener script that will be injected to handle communication.
+// It injects DarkReader (for dark mode control) and a small renderer helper
+// that posts the fully rendered HTML back to the parent window via postMessage.
+// The parent can then run Readability on that HTML (which includes JS-rendered content).
 const LISTENER_SCRIPT: &str = r#"
 <script>
     // Injected Dark Reader library
     {{DARK_READER_JS}}
 
-    // Listener for messages from the parent window
-    window.addEventListener('message', (event) => {
-        const { action, enabled, theme } = event.data;
-        if (action === 'SET_DARK_MODE') {
-            if (enabled) {
-                DarkReader.enable(theme);
-            } else {
-                DarkReader.disable();
+    (function(){
+        // Check if we can access parent (same-origin check)
+        let canAccessParent = false;
+        try {
+            // This will throw if cross-origin
+            if (window.parent && window.parent !== window) {
+                void window.parent.location.href;
+                canAccessParent = true;
+            }
+        } catch (e) {
+            // Cross-origin, can't access parent
+            canAccessParent = false;
+        }
+
+        // Only set up communication if we can access parent
+        if (!canAccessParent) {
+            return;
+        }
+
+        // Dark mode control from parent
+        window.addEventListener('message', (event) => {
+            try {
+                const { action, enabled, theme } = event.data || {};
+                if (action === 'SET_DARK_MODE') {
+                    if (enabled) {
+                        DarkReader.enable(theme);
+                    } else {
+                        DarkReader.disable();
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
+        });
+
+        // Helper to scroll through the page to trigger lazy-loaded content
+        function scrollToRevealContent() {
+            return new Promise((resolve) => {
+                let scrolls = 0;
+                const maxScrolls = 15;
+                const scrollDelay = 200;
+                
+                function doScroll() {
+                    scrolls++;
+                    const currentHeight = document.documentElement.scrollHeight;
+                    const viewportHeight = window.innerHeight;
+                    const scrollPosition = window.scrollY + viewportHeight;
+                    
+                    // Scroll down by viewport height
+                    window.scrollTo(0, scrollPosition);
+                    
+                    // Check if we've reached the bottom or max scrolls
+                    if (scrollPosition >= currentHeight || scrolls >= maxScrolls) {
+                        // Scroll back to top when done
+                        window.scrollTo(0, 0);
+                        resolve();
+                    } else {
+                        setTimeout(doScroll, scrollDelay);
+                    }
+                }
+                
+                doScroll();
+            });
+        }
+
+        // Helper to send the rendered HTML back to the parent window.
+        function sendRenderedHTML() {
+            if (!canAccessParent) return;
+            
+            try {
+                const html = document.documentElement.outerHTML;
+                // send as a message; parent should verify origin/source
+                window.parent.postMessage({ type: 'RENDERED_HTML', html: html }, '*');
+            } catch (e) {
+                // ignore
             }
         }
-    });
+
+        // When the page finishes loading, scroll through it to reveal lazy content, then send.
+        window.addEventListener('load', function() {
+            if (!canAccessParent) return;
+            
+            // Allow initial page scripts to run
+            setTimeout(async function() {
+                try {
+                    await scrollToRevealContent();
+                    // Give a moment for any final lazy-loaded content to settle
+                    setTimeout(sendRenderedHTML, 800);
+                } catch (e) {
+                    // If scrolling fails, send anyway
+                    sendRenderedHTML();
+                }
+            }, 500);
+        });
+
+        // Also observe DOM mutations and send after a short quiet period.
+        try {
+            let renderTimer = null;
+            const mo = new MutationObserver(() => {
+                if (renderTimer) clearTimeout(renderTimer);
+                renderTimer = setTimeout(sendRenderedHTML, 800);
+            });
+            mo.observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
+        } catch (e) {
+            // ignore if MutationObserver not available
+        }
+
+        // Allow parent to request an immediate snapshot
+        window.addEventListener('message', (event) => {
+            if (!canAccessParent) return;
+            
+            try {
+                const { action } = event.data || {};
+                if (action === 'REQUEST_RENDERED') {
+                    // Scroll first, then send
+                    scrollToRevealContent().then(() => {
+                        setTimeout(sendRenderedHTML, 500);
+                    }).catch(() => {
+                        sendRenderedHTML();
+                    });
+                }
+            } catch (e) {}
+        });
+    })();
 </script>
 "#;
 

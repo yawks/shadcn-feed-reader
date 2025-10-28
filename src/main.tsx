@@ -25,6 +25,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
+import { Capacitor } from '@capacitor/core'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 
 import { AxiosError } from 'axios'
@@ -39,6 +40,16 @@ import { routeTree } from './routeTree.gen'
 import { toast } from 'sonner'
 import { useAuth } from './utils/auth'
 import { useAuthStore } from '@/stores/authStore'
+
+// Capacitor diagnostic log
+/* eslint-disable no-console */
+console.log('[DIAGNOSTIC] App starting...')
+console.log('[DIAGNOSTIC] window.Capacitor:', (window as any)?.Capacitor)
+console.log('[DIAGNOSTIC] window.Capacitor.Plugins:', (window as any)?.Capacitor?.Plugins)
+console.log('[DIAGNOSTIC] RawHtml plugin:', (window as any)?.Capacitor?.Plugins?.RawHtml)
+/* eslint-enable no-console */
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,4 +144,53 @@ if (!rootElement.innerHTML) {
       </QueryClientProvider>
     </StrictMode>
   )
+}
+
+// Android hardware back button handling (Capacitor)
+// Prefer the Capacitor App plugin and register the listener only on Android.
+try {
+  if (Capacitor.getPlatform && Capacitor.getPlatform() === 'android') {
+    const AppPlugin = (Capacitor as any).Plugins?.App
+    if (AppPlugin && typeof AppPlugin.addListener === 'function') {
+      // Diagnostic: confirm listener registration on device
+      // eslint-disable-next-line no-console
+      console.log('[DIAGNOSTIC] Registering backButton listener (Android)')
+      AppPlugin.addListener('backButton', () => {
+        // eslint-disable-next-line no-console
+        console.log('[DIAGNOSTIC] backButton event fired', {
+          href: window.location.href,
+          historyLength: window.history?.length,
+        })
+        try {
+          // Prefer SPA/web history back first
+          if (window.history && window.history.length > 1) {
+            // eslint-disable-next-line no-console
+            console.log('[DIAGNOSTIC] going back in web history')
+            window.history.back()
+            return
+          }
+
+          // No web history: exit the app
+          if (typeof AppPlugin.exitApp === 'function') {
+            AppPlugin.exitApp()
+            return
+          }
+
+          // Final fallback
+          if ((navigator as any).app && typeof (navigator as any).app.exitApp === 'function') {
+            ;(navigator as any).app.exitApp()
+            return
+          }
+
+          window.close()
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('backButton handler error', err)
+        }
+      })
+    }
+  }
+} catch (e) {
+  // eslint-disable-next-line no-console
+  console.warn('failed to register Capacitor backButton listener', e)
 }

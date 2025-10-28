@@ -231,7 +231,7 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className='flex h-full w-full flex-col'>{children}</div>
+          <div className='flex h-full w-full flex-col pb-[env(safe-area-inset-bottom)]'>{children}</div>
         </SheetContent>
       </Sheet>
     )
@@ -277,7 +277,7 @@ function Sidebar({
         <div
           data-sidebar='sidebar'
           data-slot='sidebar-inner'
-          className='bg-sidebar flex h-full w-full flex-col group-data-[variant=floating]:shadow-sm'
+          className='bg-sidebar flex h-full w-full flex-col group-data-[variant=floating]:shadow-sm pb-[env(safe-area-inset-bottom)]'
         >
           {children}
         </div>
