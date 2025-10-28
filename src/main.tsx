@@ -25,10 +25,10 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
-import { Capacitor } from '@capacitor/core'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 
 import { AxiosError } from 'axios'
+import { Capacitor } from '@capacitor/core'
 import { FontProvider } from './context/font-context'
 import { FontSizeProvider } from './context/font-size-context'
 import ReactDOM from 'react-dom/client'
