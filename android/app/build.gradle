@@ -2,10 +2,10 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-    namespace "com.yourorg.feedreader"
+    namespace "net.yawks.feedreader"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.yourorg.feedreader"
+        applicationId "net.yawks.feedreader"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -42,6 +42,7 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     
+    implementation project(':raw-html-plugin')
     // Kotlin standard library
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
     // OkHttp for RawHtmlPlugin

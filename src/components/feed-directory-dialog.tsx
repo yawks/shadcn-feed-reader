@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import type { FeedFolder } from '@/backends/types'
 import { Input } from '@/components/ui/input'
-import { invoke } from '@tauri-apps/api/core'
+import { safeInvoke } from '@/lib/safe-invoke'
 import { toast } from 'sonner'
 import { useFeedDirectory } from '@/hooks/use-feed-directory'
 import { useQueryClient } from '@tanstack/react-query'
@@ -179,14 +179,14 @@ function DirectoryContent() {
     let mounted = true
 
     const subs = data.categories.flatMap((c) => c.subcategories)
-    const tasks = subs.map((sub) => {
+        const tasks = subs.map((sub) => {
       return async () => {
         if (!sub.xmlUrl) return
         const key = sub.xmlUrl ?? sub.name
         // don't refetch if we already have a value
         if (counts[key] !== undefined) return
         try {
-          const raw = await invoke<string>('fetch_raw_html', { url: sub.xmlUrl })
+          const raw = await safeInvoke('fetch_raw_html', { url: sub.xmlUrl })
           const feeds = parseFeedsFromXmlString(raw)
           if (!mounted) return
           setCounts((p) => ({ ...p, [key]: feeds.length }))

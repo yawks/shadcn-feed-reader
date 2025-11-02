@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.yourorg.feedreader',
+  appId: 'net.yawks.feedreader',
   appName: 'FeedReader',
   webDir: 'dist',
   android: {

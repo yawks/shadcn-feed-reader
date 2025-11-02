@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
 import { fetchRawHtml } from "@/lib/raw-html"
-import { invoke as tauriInvoke } from "@tauri-apps/api/core"
+import { safeInvoke } from '@/lib/safe-invoke'
 import { useTheme } from "@/context/theme-context"
 
 type FeedArticleProps = {
@@ -14,11 +14,6 @@ type FeedArticleProps = {
     isMobile?: boolean
 }
 
-const safeInvoke = async (cmd: string, args?: Record<string, unknown>) => {
-    // Use tauri core invoke under the hood
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (tauriInvoke as any)(cmd, args)
-}
 
 export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const { theme } = useTheme()
@@ -59,36 +54,50 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             if (!item.url) return
             resetState()
             try {
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] handleReadabilityView START for url:', item.url)
+                
                 // Fetch raw HTML and extract article content using Readability
                 let html: string
                 try {
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Calling fetchRawHtml...')
                     html = await fetchRawHtml(item.url)
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] fetchRawHtml SUCCESS, html length:', html.length)
                 } catch (_invokeErr) {
-                    // Fallback to direct fetch if Tauri is not available (browser/dev)
-                    const res = await fetch(item.url, { method: 'GET', mode: 'cors' })
-                    if (!res.ok) {
-                        setViewMode('original')
-                        setIsLoading(false)
-                        return
-                    }
-                    html = await res.text()
+                    // eslint-disable-next-line no-console
+                    console.error('[FeedArticle] fetchRawHtml FAILED:', _invokeErr)
+                    const msg = _invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr)
+                    setError(`Failed to fetch article: ${msg}`)
+                    setIsLoading(false)
+                    return
                 }
 
                 let summary = ''
                 try {
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Calling extractArticle...')
                     const article = extractArticle(html, { url: item.url })
                     summary = article?.content || ''
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] extractArticle SUCCESS, summary length:', summary.length)
                 } catch (_parseErr) {
-                    setViewMode('original')
+                    // Parsing failed — keep the view mode so user can retry, but surface an error
+                    const msg = _parseErr instanceof Error ? _parseErr.message : String(_parseErr)
+                    // eslint-disable-next-line no-console
+                    console.error('[FeedArticle] extractArticle FAILED:', msg)
+                    setError(`Readability parse failed: ${msg}`)
                     setIsLoading(false)
                     return
                 }
                 setArticleContent(summary)
                 // eslint-disable-next-line no-console
-                console.debug('[DIAG] FeedArticle: extracted articleContent length=', summary?.length)
+                console.log('[FeedArticle] setArticleContent done, creating blob HTML...')
 
                 // Create a blob HTML document with the extracted content and safe-area padding
                 // This creates an isolated scroll context (like original mode) that respects insets
+                const isDark = theme === 'dark'
                 const blobHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -103,8 +112,8 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         }
         html, body {
             height: 100%;
-            background-color: rgb(34, 34, 34);
-            color: rgb(229, 229, 229);
+            background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'};
+            color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'};
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             font-size: 16px;
             line-height: 1.6;
@@ -143,11 +152,23 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
 `
                 const blob = new Blob([blobHtml], { type: 'text/html' })
                 const blobUrl = URL.createObjectURL(blob)
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Blob created, URL:', blobUrl)
                 setIframeUrl(blobUrl)
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Iframe URL set, readability view complete')
             } catch (_err) {
-                setViewMode('original')
+                const msg = _err instanceof Error ? _err.message : String(_err)
+                // Don't silently switch to original; surface the error so user can retry.
+                // eslint-disable-next-line no-console
+                console.error('[FeedArticle] handleReadabilityView FAILED:', msg)
+                // eslint-disable-next-line no-console
+                console.error('[FeedArticle] Full error:', _err)
+                setError(`Readability fetch failed: ${msg}`)
             } finally {
                 setIsLoading(false)
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] handleReadabilityView END')
             }
         }
 
@@ -155,12 +176,34 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             if (!item.url) return
             resetState()
             try {
+                // Try proxy first if available (Tauri desktop)
                 if (proxyPort) {
                     await safeInvoke('set_proxy_url', { url: item.url })
                     const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
                     setIframeUrl(proxyUrl)
                 } else {
-                    setIframeUrl(item.url)
+                    // On mobile/Capacitor: fetch via plugin and create blob to avoid CORS
+                    try {
+                        const html = await fetchRawHtml(item.url)
+                        const blobHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <base href="${item.url}" />
+</head>
+<body>
+${html}
+</body>
+</html>`
+                        const blob = new Blob([blobHtml], { type: 'text/html' })
+                        const blobUrl = URL.createObjectURL(blob)
+                        setIframeUrl(blobUrl)
+                    } catch (_fetchErr) {
+                        // Fallback to direct URL (will likely fail with CORS)
+                        setIframeUrl(item.url)
+                    }
                 }
             } catch (_err) {
                 setError(_err instanceof Error ? _err.message : String(_err))
@@ -169,12 +212,129 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             }
         }
 
+        const handleDarkView = async () => {
+            if (!item.url) return
+            resetState()
+            try {
+                // Dark mode = Readability with forced dark theme
+                // Fetch raw HTML and extract article content using Readability
+                let html: string
+                try {
+                    html = await fetchRawHtml(item.url)
+                } catch (_invokeErr) {
+                    setError(_invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr))
+                    setIsLoading(false)
+                    return
+                }
+
+                let summary = ''
+                try {
+                    const article = extractArticle(html, { url: item.url })
+                    summary = article?.content || ''
+                } catch (_parseErr) {
+                    const msg = _parseErr instanceof Error ? _parseErr.message : String(_parseErr)
+                    setError(`Readability parse failed: ${msg}`)
+                    setIsLoading(false)
+                    return
+                }
+                setArticleContent(summary)
+
+                // Create blob HTML with FORCED dark theme (ignoring global theme)
+                const blobHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            background-color: rgb(0, 0, 0);
+            color: rgb(255, 255, 255);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+            overflow-x: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        body {
+            padding: 16px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+        a {
+            color: rgb(96, 165, 250);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1rem 0;
+        }
+        p {
+            margin-bottom: 1rem;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: rgb(243, 244, 246);
+        }
+        pre {
+            background-color: rgb(55, 65, 81);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        code {
+            background-color: rgb(55, 65, 81);
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        blockquote {
+            border-left: 4px solid rgb(107, 114, 128);
+            padding-left: 1rem;
+            margin: 1rem 0;
+            font-style: italic;
+            color: rgb(156, 163, 175);
+        }
+    </style>
+</head>
+<body>
+    <div class="article-content">
+        ${summary}
+    </div>
+</body>
+</html>`
+                
+                const blob = new Blob([blobHtml], { type: 'text/html' })
+                const blobUrl = URL.createObjectURL(blob)
+                setIframeUrl(blobUrl)
+            } catch (_err) {
+                const msg = _err instanceof Error ? _err.message : String(_err)
+                setError(`Dark view fetch failed: ${msg}`)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
         if (viewMode === "readability") {
             handleReadabilityView()
-        } else {
+        } else if (viewMode === "original") {
             handleOriginalView()
+        } else if (viewMode === 'dark') {
+            handleDarkView()
         }
-    }, [item.url, viewMode, proxyPort])
+    }, [item.url, viewMode, proxyPort, theme]) // theme to update readability colors
 
     useEffect(() => {
         const iframe = iframeRef.current
@@ -355,6 +515,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     }, [])
 
     const handleViewModeChange = (mode: ArticleViewMode) => {
+        // Dark mode = original view with DarkReader
         setViewMode(mode)
     }
 
@@ -384,8 +545,21 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                         </div>
                     )}
                     {error && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
-                            <p className="text-sm text-red-500">{error}</p>
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 p-4">
+                            <div className="flex flex-col items-center space-y-3 text-center">
+                                <p className="text-sm text-red-500">{error}</p>
+                                <div className="flex space-x-2">
+                                    <button className="px-3 py-1 rounded bg-primary text-primary-foreground" onClick={() => {
+                                        // Clear error and retry by toggling viewMode to force the effect
+                                        setError(null)
+                                        setIsLoading(true)
+                                        // trigger the effect by toggling viewMode away and back
+                                        setViewMode((v) => (v === 'readability' ? 'original' : 'readability'))
+                                        setTimeout(() => setViewMode('readability'), 50)
+                                    }}>Réessayer</button>
+                                    <button className="px-3 py-1 rounded border" onClick={() => setViewMode('original')}>Voir original</button>
+                                </div>
+                            </div>
                         </div>
                     )}
                     {!error && (

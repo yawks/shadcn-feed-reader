@@ -5,7 +5,7 @@
 import type { Feed, FeedCategory, FeedDirectoryData, FeedSubcategory } from '@/types/feed-directory'
 import { useEffect, useState } from 'react'
 
-import { invoke } from '@tauri-apps/api/core'
+import { safeInvoke } from '@/lib/safe-invoke'
 
 const FEED_DIRECTORY_URL = 'https://atlasflux.saynete.net/base_xml'
 
@@ -98,8 +98,9 @@ export function useFeedDirectory(): UseFeedDirectoryResult {
       setIsLoading(true)
       setError(null)
       
-      // Use Tauri's fetch_raw_html command
-      const response = await invoke<string>('fetch_raw_html', {
+      // Use Tauri's fetch_raw_html command when available, otherwise fall back
+      // to a network fetch implemented by safeInvoke.
+      const response = await safeInvoke('fetch_raw_html', {
         url: FEED_DIRECTORY_URL,
       })
       
@@ -143,7 +144,7 @@ export function useFeedList(xmlUrl: string | null) {
         setIsLoading(true)
         setError(null)
         
-        const response = await invoke<string>('fetch_raw_html', {
+        const response = await safeInvoke('fetch_raw_html', {
           url: xmlUrl,
         })
         

@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">FeedReader</string>
     <string name="title_activity_main">FeedReader</string>
-    <string name="package_name">com.yourorg.feedreader</string>
-    <string name="custom_url_scheme">com.yourorg.feedreader</string>
+    <string name="package_name">net.yawks.feedreader</string>
+    <string name="custom_url_scheme">net.yawks.feedreader</string>
 </resources>

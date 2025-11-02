@@ -1,4 +1,4 @@
-package com.yourorg.feedreader
+package net.yawks.feedreader
 
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin

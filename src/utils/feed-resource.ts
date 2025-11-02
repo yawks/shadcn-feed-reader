@@ -1,6 +1,6 @@
 import type { Feed } from '@/types/feed-directory'
 import { createResource } from './resource'
-import { invoke } from '@tauri-apps/api/core'
+import { safeInvoke } from '@/lib/safe-invoke'
 
 function parseFeedsFromXml(xmlString: string): Feed[] {
   const parser = new DOMParser()
@@ -31,7 +31,7 @@ function parseFeedsFromXml(xmlString: string): Feed[] {
 
 export function createFeedListResource(xmlUrl: string) {
   return createResource<Feed[]>(async () => {
-    const raw = await invoke<string>('fetch_raw_html', { url: xmlUrl })
+    const raw = await safeInvoke('fetch_raw_html', { url: xmlUrl })
     const feeds = parseFeedsFromXml(raw)
     return feeds
   })

@@ -66,8 +66,8 @@ adb logcat | grep "Capacitor"
 
 ### Si le plugin n'est toujours pas détecté après Gradle sync
 1. Vérifier que `RawHtmlPlugin.kt` est bien dans le bon package :
-   - Chemin : `android/app/src/main/java/com/yourorg/feedreader/RawHtmlPlugin.kt`
-   - Package dans le fichier : `package com.yourorg.feedreader`
+   - Chemin : `android/app/src/main/java/net/yawks/feedreader/RawHtmlPlugin.kt`
+   - Package dans le fichier : `package net.yawks.feedreader`
 
 2. Vérifier que les dépendances sont dans `app/build.gradle` :
    ```gradle
@@ -139,7 +139,7 @@ cd android
 adb devices
 
 # Désinstaller l'app
-adb uninstall com.yourorg.feedreader
+adb uninstall net.yawks.feedreader
 
 # Installer un APK
 adb install -r path/to/app.apk
