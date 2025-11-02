@@ -371,7 +371,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         >
             <div className="mb-1 flex h-full flex-none flex-col rounded-t-md bg-secondary shadow-lg" style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
                 <div className="flex items-center justify-between p-2 h-12">
-                    <ArticleToolbar viewMode={viewMode} onViewModeChange={handleViewModeChange} />
+                    <ArticleToolbar viewMode={viewMode} onViewModeChange={handleViewModeChange} articleUrl={item.url} />
                 </div>
                 {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
                 <div data-article-container className="relative h-full w-full">

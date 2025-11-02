@@ -196,6 +196,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(proxy_state)
         .invoke_handler(tauri::generate_handler![
             fetch_article,

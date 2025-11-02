@@ -1,0 +1,25 @@
+// android/app/libs/raw-html-plugin/build.gradle
+apply plugin: 'com.android.library'
+
+android {
+    namespace "net.yawks.feedreader.plugin.rawhtml"
+    compileSdkVersion rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+    }
+
+    // Use Java 8
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // Capacitor Android
+    implementation project(':capacitor-android')
+    // OkHttp for network requests
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}

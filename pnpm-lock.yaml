@@ -101,6 +101,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.8.4
         version: 2.8.4
+      '@tauri-apps/plugin-shell':
+        specifier: ^2.3.3
+        version: 2.3.3
       axios:
         specifier: ^1.8.4
         version: 1.8.4
@@ -2313,6 +2316,9 @@ packages:
     resolution: {integrity: sha512-ejUZBzuQRcjFV+v/gdj/DcbyX/6T4unZQjMSBZwLzP/CymEjKcc2+Fc8xTORThebHDUvqoXMdsCZt8r+hyN15g==}
     engines: {node: '>= 10'}
     hasBin: true
+
+  '@tauri-apps/plugin-shell@2.3.3':
+    resolution: {integrity: sha512-Xod+pRcFxmOWFWEnqH5yZcA7qwAMuaaDkMR1Sply+F8VfBj++CGnj2xf5UoialmjZ2Cvd8qrvSCbU+7GgNVsKQ==}
 
   '@trivago/prettier-plugin-sort-imports@5.2.2':
     resolution: {integrity: sha512-fYDQA9e6yTNmA13TLVSA+WMQRc5Bn/c0EUBditUHNfMMxN7M82c38b1kEggVE3pLpZ0FwkwJkUEKMiOi52JXFA==}
@@ -6870,6 +6876,10 @@ snapshots:
       '@tauri-apps/cli-win32-arm64-msvc': 2.8.4
       '@tauri-apps/cli-win32-ia32-msvc': 2.8.4
       '@tauri-apps/cli-win32-x64-msvc': 2.8.4
+
+  '@tauri-apps/plugin-shell@2.3.3':
+    dependencies:
+      '@tauri-apps/api': 2.8.0
 
   '@trivago/prettier-plugin-sort-imports@5.2.2(prettier@3.5.3)':
     dependencies:

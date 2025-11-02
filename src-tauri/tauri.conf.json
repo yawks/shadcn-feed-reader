@@ -20,8 +20,18 @@
   },
   "app": {
     "security": {
-  "csp": null,
-  "dangerousDisableAssetCspModification": true
+      "csp": null,
+      "dangerousDisableAssetCspModification": true,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Capability for the main window",
+          "windows": ["main"],
+          "permissions": [
+            "shell:allow-open"
+          ]
+        }
+      ]
     },
     "windows": [
       {
@@ -29,8 +39,14 @@
         "resizable": true,
         "title": "Shadcn Feed Reader",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "label": "main"
       }
     ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
   }
 }
