@@ -1,6 +1,6 @@
 import type { Feed } from '@/types/feed-directory'
 import { createResource } from './resource'
-import { safeInvoke } from '@/lib/safe-invoke'
+import { fetchRawHtml } from '@/lib/raw-html'
 
 function parseFeedsFromXml(xmlString: string): Feed[] {
   const parser = new DOMParser()
@@ -31,7 +31,7 @@ function parseFeedsFromXml(xmlString: string): Feed[] {
 
 export function createFeedListResource(xmlUrl: string) {
   return createResource<Feed[]>(async () => {
-    const raw = await safeInvoke('fetch_raw_html', { url: xmlUrl })
+    const raw = await fetchRawHtml(xmlUrl)
     const feeds = parseFeedsFromXml(raw)
     return feeds
   })

@@ -5,7 +5,7 @@
 import type { Feed, FeedCategory, FeedDirectoryData, FeedSubcategory } from '@/types/feed-directory'
 import { useEffect, useState } from 'react'
 
-import { safeInvoke } from '@/lib/safe-invoke'
+import { fetchRawHtml } from '@/lib/raw-html'
 
 const FEED_DIRECTORY_URL = 'https://atlasflux.saynete.net/base_xml'
 
@@ -95,21 +95,31 @@ export function useFeedDirectory(): UseFeedDirectoryResult {
   
   const fetchDirectory = async () => {
     try {
+      console.log('[useFeedDirectory] ===== START FETCH =====')
+      console.log('[useFeedDirectory] URL:', FEED_DIRECTORY_URL)
       setIsLoading(true)
       setError(null)
       
-      // Use Tauri's fetch_raw_html command when available, otherwise fall back
-      // to a network fetch implemented by safeInvoke.
-      const response = await safeInvoke('fetch_raw_html', {
-        url: FEED_DIRECTORY_URL,
-      })
+      // Use fetchRawHtml which prioritizes Capacitor plugin (Android/iOS),
+      // then Tauri, then falls back to regular fetch.
+      console.log('[useFeedDirectory] Calling fetchRawHtml...')
+      const response = await fetchRawHtml(FEED_DIRECTORY_URL)
+      console.log('[useFeedDirectory] ✓ fetchRawHtml SUCCESS, response length:', response?.length || 0)
       
+      console.log('[useFeedDirectory] Parsing HTML...')
       const parsedData = parseXmlToFeedDirectory(response)
+      console.log('[useFeedDirectory] ✓ Parsed', parsedData.categories.length, 'categories')
       setData(parsedData)
+      console.log('[useFeedDirectory] ✓ Data set successfully')
     } catch (err) {
+      console.error('[useFeedDirectory] ✗ ERROR:', err)
+      console.error('[useFeedDirectory] ✗ Error type:', typeof err)
+      console.error('[useFeedDirectory] ✗ Error message:', err instanceof Error ? err.message : String(err))
+      console.error('[useFeedDirectory] ✗ Error stack:', err instanceof Error ? err.stack : 'N/A')
       setError(err instanceof Error ? err : new Error('Failed to fetch feed directory'))
     } finally {
       setIsLoading(false)
+      console.log('[useFeedDirectory] ===== END FETCH =====')
     }
   }
   
@@ -144,9 +154,7 @@ export function useFeedList(xmlUrl: string | null) {
         setIsLoading(true)
         setError(null)
         
-        const response = await safeInvoke('fetch_raw_html', {
-          url: xmlUrl,
-        })
+        const response = await fetchRawHtml(xmlUrl)
         
         const parser = new DOMParser()
         const doc = parser.parseFromString(response, 'text/xml')

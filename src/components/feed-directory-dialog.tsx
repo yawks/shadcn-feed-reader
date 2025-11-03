@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import type { FeedFolder } from '@/backends/types'
 import { Input } from '@/components/ui/input'
-import { safeInvoke } from '@/lib/safe-invoke'
+import { fetchRawHtml } from '@/lib/raw-html'
 import { toast } from 'sonner'
 import { useFeedDirectory } from '@/hooks/use-feed-directory'
 import { useQueryClient } from '@tanstack/react-query'
@@ -186,7 +186,7 @@ function DirectoryContent() {
         // don't refetch if we already have a value
         if (counts[key] !== undefined) return
         try {
-          const raw = await safeInvoke('fetch_raw_html', { url: sub.xmlUrl })
+          const raw = await fetchRawHtml(sub.xmlUrl)
           const feeds = parseFeedsFromXmlString(raw)
           if (!mounted) return
           setCounts((p) => ({ ...p, [key]: feeds.length }))
