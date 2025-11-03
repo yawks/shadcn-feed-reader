@@ -4,6 +4,7 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -12,6 +13,7 @@ import okhttp3.Response;
 /**
  * Simple Capacitor plugin to fetch raw HTML server-side (bypassing CORS).
  */
+@CapacitorPlugin(name = "RawHtml")
 public class RawHtmlPlugin extends Plugin {
 
     private OkHttpClient client = new OkHttpClient();

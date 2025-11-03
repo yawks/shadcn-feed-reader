@@ -176,34 +176,25 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             if (!item.url) return
             resetState()
             try {
-                // Try proxy first if available (Tauri desktop)
+                // Try Tauri desktop proxy first
                 if (proxyPort) {
                     await safeInvoke('set_proxy_url', { url: item.url })
                     const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
                     setIframeUrl(proxyUrl)
                 } else {
-                    // On mobile/Capacitor: fetch via plugin and create blob to avoid CORS
-                    try {
-                        const html = await fetchRawHtml(item.url)
-                        const blobHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <base href="${item.url}" />
-</head>
-<body>
-${html}
-</body>
-</html>`
-                        const blob = new Blob([blobHtml], { type: 'text/html' })
-                        const blobUrl = URL.createObjectURL(blob)
-                        setIframeUrl(blobUrl)
-                    } catch (_fetchErr) {
-                        // Fallback to direct URL (will likely fail with CORS)
-                        setIframeUrl(item.url)
+                    // On Android/Capacitor: use the Java proxy server
+                    const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
+                    const port = await startProxyServer()
+                    
+                    if (!port) {
+                        setError('Failed to start proxy server. Use the "Source" button to open in browser.')
+                        setIsLoading(false)
+                        return
                     }
+                    
+                    await setProxyUrl(item.url)
+                    const proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
+                    setIframeUrl(proxyUrl)
                 }
             } catch (_err) {
                 setError(_err instanceof Error ? _err.message : String(_err))
@@ -216,30 +207,30 @@ ${html}
             if (!item.url) return
             resetState()
             try {
-                // Dark mode = Readability with forced dark theme
-                // Fetch raw HTML and extract article content using Readability
-                let html: string
-                try {
-                    html = await fetchRawHtml(item.url)
-                } catch (_invokeErr) {
-                    setError(_invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr))
-                    setIsLoading(false)
-                    return
+                // Dark mode = Original HTML with CSS dark filter applied
+                let port: number | null = null
+                
+                // Try Tauri desktop proxy first
+                if (proxyPort) {
+                    await safeInvoke('set_proxy_url', { url: item.url })
+                    port = proxyPort
+                } else {
+                    // On Android/Capacitor: use the Java proxy server
+                    const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
+                    port = await startProxyServer()
+                    
+                    if (!port) {
+                        setError('Failed to start proxy server. Use the "Source" button to open in browser.')
+                        setIsLoading(false)
+                        return
+                    }
+                    
+                    await setProxyUrl(item.url)
                 }
-
-                let summary = ''
-                try {
-                    const article = extractArticle(html, { url: item.url })
-                    summary = article?.content || ''
-                } catch (_parseErr) {
-                    const msg = _parseErr instanceof Error ? _parseErr.message : String(_parseErr)
-                    setError(`Readability parse failed: ${msg}`)
-                    setIsLoading(false)
-                    return
-                }
-                setArticleContent(summary)
-
-                // Create blob HTML with FORCED dark theme (ignoring global theme)
+                
+                const proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
+                
+                // Create blob HTML with dark CSS filter (proxy handles URL rewriting)
                 const blobHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -247,72 +238,26 @@ ${html}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html, body {
-            height: 100%;
-            background-color: rgb(0, 0, 0);
-            color: rgb(255, 255, 255);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            overflow-x: hidden;
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        /* Dark mode filter - inverts colors and adjusts for readability */
+        html {
+            background-color: rgb(0, 0, 0) !important;
         }
         body {
-            padding: 16px;
-            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            filter: invert(1) hue-rotate(180deg);
+            background-color: rgb(255, 255, 255) !important;
         }
-        a {
-            color: rgb(96, 165, 250);
-            text-decoration: none;
+        /* Preserve images and videos in their original colors */
+        img, video, iframe, [style*="background-image"] {
+            filter: invert(1) hue-rotate(180deg);
         }
-        a:hover {
-            text-decoration: underline;
-        }
-        img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 1rem 0;
-        }
-        p {
-            margin-bottom: 1rem;
-        }
-        h1, h2, h3, h4, h5, h6 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-            color: rgb(243, 244, 246);
-        }
-        pre {
-            background-color: rgb(55, 65, 81);
-            padding: 1rem;
-            border-radius: 0.375rem;
-            overflow-x: auto;
-            margin: 1rem 0;
-        }
-        code {
-            background-color: rgb(55, 65, 81);
-            padding: 0.125rem 0.25rem;
-            border-radius: 0.25rem;
-            font-family: 'Courier New', Courier, monospace;
-        }
-        blockquote {
-            border-left: 4px solid rgb(107, 114, 128);
-            padding-left: 1rem;
-            margin: 1rem 0;
-            font-style: italic;
-            color: rgb(156, 163, 175);
+        /* Add bottom padding for safe area */
+        body {
+            padding-bottom: max(6rem, env(safe-area-inset-bottom, 1rem)) !important;
         }
     </style>
 </head>
 <body>
-    <div class="article-content">
-        ${summary}
-    </div>
+    <iframe src="${proxyUrl}" style="border:none; width:100%; height:100vh;"></iframe>
 </body>
 </html>`
                 

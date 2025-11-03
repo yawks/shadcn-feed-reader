@@ -85,3 +85,42 @@ export async function fetchRawHtml(url: string): Promise<string> {
 }
 
 export default fetchRawHtml
+
+/**
+ * Start the proxy server (Android/Capacitor only)
+ * Returns the port number the proxy is listening on
+ */
+export async function startProxyServer(): Promise<number | null> {
+    try {
+        const win = window as any
+        const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
+        if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.startProxyServer === 'function') {
+            console.log('[startProxyServer] Starting Capacitor proxy server...')
+            const res = await Plugins.RawHtml.startProxyServer()
+            console.log('[startProxyServer] SUCCESS, port:', res?.port)
+            return res?.port || null
+        }
+        console.log('[startProxyServer] Capacitor plugin not available')
+        return null
+    } catch (e) {
+        console.error('[startProxyServer] ERROR:', e)
+        return null
+    }
+}
+
+/**
+ * Set the base URL for the proxy (Android/Capacitor only)
+ */
+export async function setProxyUrl(url: string): Promise<void> {
+    try {
+        const win = window as any
+        const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
+        if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.setProxyUrl === 'function') {
+            console.log('[setProxyUrl] Setting proxy URL:', url)
+            await Plugins.RawHtml.setProxyUrl({ url })
+            console.log('[setProxyUrl] SUCCESS')
+        }
+    } catch (e) {
+        console.error('[setProxyUrl] ERROR:', e)
+    }
+}

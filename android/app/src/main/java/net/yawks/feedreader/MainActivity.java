@@ -3,6 +3,7 @@ package net.yawks.feedreader;
 import android.os.Bundle;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
+import net.yawks.feedreader.plugin.rawhtml.RawHtmlPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override

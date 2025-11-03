@@ -49,6 +49,8 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     // Kotlin Coroutines for RawHtmlPlugin
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // NanoHTTPD for local proxy server
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
 apply from: 'capacitor.build.gradle'
