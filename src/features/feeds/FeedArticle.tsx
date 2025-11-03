@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
 import { safeInvoke } from '@/lib/safe-invoke'
+import { useFontSize } from '@/context/font-size-context'
 import { useTheme } from "@/context/theme-context"
 
 type FeedArticleProps = {
@@ -18,6 +19,7 @@ type FeedArticleProps = {
 
 export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const { theme } = useTheme()
+    const { fontSize } = useFontSize()
 
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
@@ -110,6 +112,22 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 // Create a blob HTML document with the extracted content and safe-area padding
                 // This creates an isolated scroll context (like original mode) that respects insets
                 const isDark = theme === 'dark'
+                const quoteLeftColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+                const bgBlockquote = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+                const subtitleColor = isDark ? 'rgba(255,255,255,0.7)' : '#374151'; // muted
+                const subtitleBorderColor = isDark ? 'rgba(255,255,255,0.04)' : '#e5e7eb';
+                const hrColor = isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb';
+                const linkColor = isDark ? 'rgb(96, 165, 250)' : '#0099CC';
+                // Map app font size key to CSS value (keep in sync with font-size-context)
+                const fontSizeMap: Record<string, string> = {
+                    xs: '0.75rem',
+                    sm: '0.875rem',
+                    base: '1rem',
+                    lg: '1.125rem',
+                    xl: '1.25rem',
+                }
+                const effectiveFontSize = fontSizeMap[fontSize] || '1rem'
+
                 const blobHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -117,44 +135,32 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html, body {
-            height: 100%;
-            background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'};
-            color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'};
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            /* Use safe-area-inset-bottom for bottom spacing */
-            padding: 0;
-        }
-        body {
-            padding: 1rem;
-            min-height: 100vh;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-        a {
-            color: rgb(96, 165, 250);
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        /* Add spacing to ensure last line of content is visible */
-        body::after {
-            content: '';
-            display: block;
-            height: max(6rem, env(safe-area-inset-bottom, 1rem));
-        }
+        /* Base reset */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${effectiveFontSize}; line-height: 1.6; }
+    body { padding: 1rem; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'}; color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'}; }
+
+        /* Imported reader styles (adapted) */
+        h1, h2 { font-weight: 300; line-height: 130%; }
+        h1 { font-size: 170%; margin-bottom: 0.1em; }
+        h2 { font-size: 140%; }
+        h1 span, h2 span { padding-right: 10px; }
+        a { color: ${linkColor}; }
+        h1 a { color: inherit; text-decoration: none; }
+        img { height: auto; margin-right: 15px; margin-top: 5px; vertical-align: middle; max-width: 100%; }
+        pre { white-space: pre-wrap; direction: ltr; }
+        blockquote { border-left: thick solid ${quoteLeftColor}; background-color: ${bgBlockquote}; margin: 0.5em 0; padding: 0.5em; }
+        p { margin: 0.8em 0; }
+        p.subtitle { color: ${subtitleColor}; border-top:1px ${subtitleBorderColor}; border-bottom:1px ${subtitleBorderColor}; padding-top:2px; padding-bottom:2px; font-weight:600; }
+        ul, ol { margin: 0 0 0.8em 0.6em; padding: 0 0 0 1em; }
+        ul li, ol li { margin: 0 0 0.8em 0; padding: 0; }
+        hr { border: 1px solid ${hrColor}; background-color: ${hrColor}; }
+        strong { font-weight: 400; }
+        figure { margin: 0; }
+        figure img { width: 100% !important; float: none; }
+
+        /* Ensure last line visible on mobile safe areas */
+        body::after { content: ''; display: block; height: max(6rem, env(safe-area-inset-bottom, 1rem)); }
     </style>
 </head>
 <body>
@@ -291,7 +297,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         } else if (viewMode === 'dark') {
             handleDarkView()
         }
-    }, [item.url, viewMode, proxyPort, theme]) // theme to update readability colors
+    }, [item.url, viewMode, proxyPort, theme, fontSize]) // theme and fontSize to update readability colors
 
     useEffect(() => {
         const iframe = iframeRef.current
