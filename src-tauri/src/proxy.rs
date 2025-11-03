@@ -183,6 +183,7 @@ pub async fn start_proxy_server(state: ProxyState) -> u16 {
 // Handler for proxying external resources via /proxy?url=...
 async fn proxy_resource_handler(
     Query(params): Query<HashMap<String, String>>,
+    State(state): State<ProxyState>,
     req: Request<Body>,
 ) -> Result<Response, StatusCode> {
     let target_url_str = params.get("url").ok_or_else(|| {
@@ -206,6 +207,18 @@ async fn proxy_resource_handler(
         StatusCode::BAD_REQUEST
     })?;
 
+    // Extract domain for auth lookup
+    let domain = format!("{}://{}", 
+        target_url.scheme(), 
+        target_url.host_str().unwrap_or("localhost")
+    );
+    
+    // Check for auth credentials for this domain
+    let auth_credentials = {
+        let creds = state.auth_credentials.lock().unwrap();
+        creds.get(&domain).cloned()
+    };
+
     let (parts, body) = req.into_parts();
     let body_bytes = to_bytes(body, usize::MAX)
         .await
@@ -221,8 +234,15 @@ async fn proxy_resource_handler(
         .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    let client_req = client
-        .request(parts.method, target_url.clone())
+    let mut client_req_builder = client.request(parts.method, target_url.clone());
+    
+    // Add HTTP Basic Auth if credentials are available
+    if let Some((username, password)) = auth_credentials {
+        println!("Adding HTTP Basic Auth for: {}", domain);
+        client_req_builder = client_req_builder.basic_auth(username, Some(password));
+    }
+    
+    let client_req = client_req_builder
         .header(
             header::USER_AGENT,
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -245,6 +265,36 @@ async fn proxy_resource_handler(
         })?;
 
     println!("Proxy resource handler - response status: {} for URL: {}", response.status(), target_url);
+    
+    // Check for 401 Unauthorized
+    if response.status() == StatusCode::UNAUTHORIZED {
+        println!("401 Unauthorized in resource handler - auth required for: {}", domain);
+        // Return HTML page with script that requests auth via postMessage
+        let domain_escaped = domain.replace('\'', "\\'");
+        let auth_html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script>
+window.parent.postMessage({{
+  type: 'PROXY_AUTH_REQUIRED',
+  domain: '{}'
+}}, '*');
+</script>
+<p style="font-family: system-ui; text-align: center; padding: 2rem;">
+Authentication required for {}
+</p>
+</body>
+</html>"#,
+            domain_escaped, domain
+        );
+        return Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(Body::from(auth_html))
+            .unwrap());
+    }
 
     let mut builder = Response::builder().status(response.status());
     
@@ -290,7 +340,7 @@ async fn proxy_handler(
         query_params.insert("url".to_string(), resource_url);
         
         // Call the resource handler directly
-        return proxy_resource_handler(Query(query_params), req).await;
+        return proxy_resource_handler(Query(query_params), State(state), req).await;
     }
     
     let target_url = base_url.join(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -299,6 +349,18 @@ async fn proxy_handler(
     let proxy_port = {
         let port_guard = state.port.lock().unwrap();
         port_guard.unwrap_or(3000)
+    };
+
+    // Extract domain for auth lookup
+    let domain = format!("{}://{}", 
+        target_url.scheme(), 
+        target_url.host_str().unwrap_or("localhost")
+    );
+    
+    // Check for auth credentials for this domain
+    let auth_credentials = {
+        let creds = state.auth_credentials.lock().unwrap();
+        creds.get(&domain).cloned()
     };
 
     let (parts, body) = req.into_parts();
@@ -321,9 +383,15 @@ async fn proxy_handler(
     
     // Copy headers but exclude problematic ones
     for (name, value) in parts.headers.iter() {
-        if name != header::HOST && name != header::CONNECTION {
+        if name != header::HOST && name != header::CONNECTION && name != header::AUTHORIZATION {
             client_req_builder = client_req_builder.header(name, value);
         }
+    }
+    
+    // Add HTTP Basic Auth if credentials are available
+    if let Some((username, password)) = auth_credentials {
+        println!("Adding HTTP Basic Auth for: {}", domain);
+        client_req_builder = client_req_builder.basic_auth(username, Some(password));
     }
     
     let client_req = client_req_builder
@@ -345,6 +413,36 @@ async fn proxy_handler(
         .execute(client_req)
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    
+    // Check for 401 Unauthorized
+    if response.status() == StatusCode::UNAUTHORIZED {
+        println!("401 Unauthorized - auth required for: {}", domain);
+        // Return HTML page with script that requests auth via postMessage
+        let domain_escaped = domain.replace('\'', "\\'");
+        let auth_html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script>
+window.parent.postMessage({{
+  type: 'PROXY_AUTH_REQUIRED',
+  domain: '{}'
+}}, '*');
+</script>
+<p style="font-family: system-ui; text-align: center; padding: 2rem;">
+Authentication required for {}
+</p>
+</body>
+</html>"#,
+            domain_escaped, domain
+        );
+        return Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(Body::from(auth_html))
+            .unwrap());
+    }
 
     let content_type = response
         .headers()

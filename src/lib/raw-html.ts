@@ -8,6 +8,13 @@
 
 import { safeInvoke } from '@/lib/safe-invoke'
 
+export class AuthRequiredError extends Error {
+    constructor(public domain: string) {
+        super(`Authentication required for ${domain}`)
+        this.name = 'AuthRequiredError'
+    }
+}
+
 /* eslint-disable no-console */
 export async function fetchRawHtml(url: string): Promise<string> {
     console.log('[fetchRawHtml] ===== START ===== url:', url)
@@ -34,10 +41,19 @@ export async function fetchRawHtml(url: string): Promise<string> {
                 console.log('[fetchRawHtml] ✓ Capacitor plugin SUCCESS, response:', res)
                 console.log('[fetchRawHtml] ✓ HTML length:', res?.html?.length || 0)
                 return (res && res.html) ? String(res.html) : ''
-            } catch (pluginError) {
+            } catch (pluginError: any) {
                 console.error('[fetchRawHtml] ✗ Capacitor plugin call FAILED:', pluginError)
                 console.error('[fetchRawHtml] ✗ Error name:', pluginError instanceof Error ? pluginError.name : typeof pluginError)
                 console.error('[fetchRawHtml] ✗ Error message:', pluginError instanceof Error ? pluginError.message : String(pluginError))
+                
+                // Check if it's an auth required error
+                if (pluginError?.message?.includes('AUTH_REQUIRED') || pluginError?.code === 'AUTH_REQUIRED') {
+                    // Extract domain from error data or URL
+                    const domain = pluginError?.data?.domain || new URL(url).origin
+                    console.log('[fetchRawHtml] ✗ Auth required for domain:', domain)
+                    throw new AuthRequiredError(domain)
+                }
+                
                 throw pluginError
             }
         } else {
@@ -62,6 +78,15 @@ export async function fetchRawHtml(url: string): Promise<string> {
     } catch (e) {
         console.log('[fetchRawHtml] ✗ Tauri invoke FAILED:', e)
         console.log('[fetchRawHtml] ✗ Error message:', e instanceof Error ? e.message : String(e))
+        
+        // Check if it's an auth required error
+        const errorMsg = e instanceof Error ? e.message : String(e)
+        if (errorMsg.includes('AUTH_REQUIRED:')) {
+            // Extract domain from error message (format: "AUTH_REQUIRED:https://example.com")
+            const domain = errorMsg.split('AUTH_REQUIRED:')[1]?.trim() || new URL(url).origin
+            console.log('[fetchRawHtml] ✗ Auth required for domain:', domain)
+            throw new AuthRequiredError(domain)
+        }
     }
 
     // 3) Fallback to regular fetch (will trigger CORS errors for most sites)
@@ -122,5 +147,39 @@ export async function setProxyUrl(url: string): Promise<void> {
         }
     } catch (e) {
         console.error('[setProxyUrl] ERROR:', e)
+    }
+}
+
+/**
+ * Set HTTP Basic Auth credentials for a domain (Android/Capacitor only)
+ */
+export async function setProxyAuth(domain: string, username: string, password: string): Promise<void> {
+    try {
+        const win = window as any
+        const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
+        if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.setProxyAuth === 'function') {
+            console.log('[setProxyAuth] Setting auth for domain:', domain)
+            await Plugins.RawHtml.setProxyAuth({ domain, username, password })
+            console.log('[setProxyAuth] SUCCESS')
+        }
+    } catch (e) {
+        console.error('[setProxyAuth] ERROR:', e)
+    }
+}
+
+/**
+ * Clear HTTP Basic Auth credentials for a domain (Android/Capacitor only)
+ */
+export async function clearProxyAuth(domain: string): Promise<void> {
+    try {
+        const win = window as any
+        const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
+        if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.clearProxyAuth === 'function') {
+            console.log('[clearProxyAuth] Clearing auth for domain:', domain)
+            await Plugins.RawHtml.clearProxyAuth({ domain })
+            console.log('[clearProxyAuth] SUCCESS')
+        }
+    } catch (e) {
+        console.error('[clearProxyAuth] ERROR:', e)
     }
 }

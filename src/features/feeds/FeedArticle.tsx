@@ -1,11 +1,12 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { useEffect, useRef, useState } from "react"
 
+import { AuthDialog } from "@/components/auth-dialog"
 import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
-import { fetchRawHtml } from "@/lib/raw-html"
+import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
 import { safeInvoke } from '@/lib/safe-invoke'
 import { useTheme } from "@/context/theme-context"
 
@@ -23,6 +24,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [error, setError] = useState<string | null>(null)
     const [viewMode, setViewMode] = useState<ArticleViewMode>("readability")
     const [proxyPort, setProxyPort] = useState<number | null>(null)
+    const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -65,9 +67,19 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     html = await fetchRawHtml(item.url)
                     // eslint-disable-next-line no-console
                     console.log('[FeedArticle] fetchRawHtml SUCCESS, html length:', html.length)
-                } catch (_invokeErr) {
+                } catch (_invokeErr: unknown) {
                     // eslint-disable-next-line no-console
                     console.error('[FeedArticle] fetchRawHtml FAILED:', _invokeErr)
+                    
+                    // Check if it's an auth required error
+                    if (_invokeErr instanceof AuthRequiredError) {
+                        // eslint-disable-next-line no-console
+                        console.log('[FeedArticle] Auth required for domain:', _invokeErr.domain)
+                        setAuthDialog({ domain: _invokeErr.domain })
+                        setIsLoading(false)
+                        return
+                    }
+                    
                     const msg = _invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr)
                     setError(`Failed to fetch article: ${msg}`)
                     setIsLoading(false)
@@ -403,6 +415,74 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         }
     }, [viewMode, articleContent])
 
+    // Listen for auth requests from proxy via postMessage
+    useEffect(() => {
+        const handleMessage = async (event: MessageEvent) => {
+            if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
+                const { domain } = event.data
+                setAuthDialog({ domain })
+            }
+        }
+
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
+    }, [])
+
+    // Handle auth dialog submission
+    const handleAuthSubmit = async (username: string, password: string) => {
+        if (!authDialog) return
+        
+        const { domain } = authDialog
+        
+        // Set auth for Tauri (desktop)
+        try {
+            await safeInvoke('set_proxy_auth', { domain, username, password })
+        } catch (_e) {
+            // Try Capacitor (Android)
+            try {
+                const win = window as any
+                const Plugins = win?.Capacitor?.Plugins
+                if (Plugins?.RawHtml?.setProxyAuth) {
+                    await Plugins.RawHtml.setProxyAuth({ domain, username, password })
+                }
+            } catch (_e2) {
+                // Ignore
+            }
+        }
+        
+        setAuthDialog(null)
+        
+        // Reload the current view to retry with auth
+        if (viewMode === 'readability') {
+            // Trigger a re-render by changing view mode temporarily
+            // This will cause the useEffect to re-run and retry fetchRawHtml with auth
+            setViewMode('original')
+            setTimeout(() => setViewMode('readability'), 10)
+        } else if (viewMode === 'original') {
+            // Force reload iframe
+            if (iframeRef.current) {
+                const currentSrc = iframeRef.current.src
+                iframeRef.current.src = 'about:blank'
+                setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = currentSrc
+                }, 100)
+            }
+        } else if (viewMode === 'dark') {
+            // Reload dark view
+            if (iframeRef.current) {
+                const currentSrc = iframeRef.current.src
+                iframeRef.current.src = 'about:blank'
+                setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = currentSrc
+                }, 100)
+            }
+        }
+    }
+
+    const handleAuthCancel = () => {
+        setAuthDialog(null)
+    }
+
     // Ensure iframe viewport doesn't extend under native system UI by reducing
     // iframe height according to the native bottom inset (or CSS env() fallback).
     useEffect(() => {
@@ -522,6 +602,16 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     )}
                 </div>
             </div>
+            
+            {/* Auth Dialog */}
+            {authDialog && (
+                <AuthDialog
+                    open={true}
+                    domain={authDialog.domain}
+                    onSubmit={handleAuthSubmit}
+                    onCancel={handleAuthCancel}
+                />
+            )}
         </div>
     )
 }

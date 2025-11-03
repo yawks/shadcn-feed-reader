@@ -13,15 +13,20 @@ import java.net.ServerSocket;
 import java.net.URLDecoder;
 
 import fi.iki.elonen.NanoHTTPD;
+import okhttp3.Credentials;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Capacitor plugin with local HTTP proxy server (like Tauri desktop).
  * Provides:
  * - fetchRawHtml: fetch HTML server-side (bypass CORS)
  * - startProxyServer: starts local HTTP proxy that rewrites URLs
+ * - setProxyAuth: set HTTP Basic Auth credentials for a domain
  */
 @CapacitorPlugin(name = "RawHtml")
 public class RawHtmlPlugin extends Plugin {
@@ -29,6 +34,7 @@ public class RawHtmlPlugin extends Plugin {
     private static final String TAG = "RawHtmlPlugin";
     private OkHttpClient client = new OkHttpClient();
     private ProxyServer proxyServer;
+    private Map<String, String> authCredentials = new HashMap<>();
     private String currentBaseUrl = "";
 
     @PluginMethod
@@ -40,8 +46,44 @@ public class RawHtmlPlugin extends Plugin {
         }
 
         try {
-            Request req = new Request.Builder().url(url).get().build();
+            // Extract domain for auth lookup
+            String domain = null;
+            try {
+                java.net.URL urlObj = new java.net.URL(url);
+                domain = urlObj.getProtocol() + "://" + urlObj.getHost();
+                if (urlObj.getPort() != -1) {
+                    domain += ":" + urlObj.getPort();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing URL for domain in fetchRawHtml", e);
+            }
+            
+            // Build request with optional auth
+            Request.Builder reqBuilder = new Request.Builder().url(url);
+            
+            // Add Authorization header if we have credentials for this domain
+            if (domain != null) {
+                String auth = getAuthForDomain(domain);
+                if (auth != null) {
+                    reqBuilder.addHeader("Authorization", auth);
+                    Log.d(TAG, "Adding auth for domain in fetchRawHtml: " + domain);
+                }
+            }
+            
+            Request req = reqBuilder.get().build();
             Response res = client.newCall(req).execute();
+            
+            // Check for 401 Unauthorized
+            if (res.code() == 401) {
+                Log.d(TAG, "401 in fetchRawHtml - auth required for: " + domain);
+                // Return special error that will trigger auth dialog
+                JSObject ret = new JSObject();
+                ret.put("error", "auth_required");
+                ret.put("domain", domain);
+                call.reject("AUTH_REQUIRED", "401", ret);
+                return;
+            }
+            
             if (!res.isSuccessful()) {
                 call.reject("HTTP error: " + res.code());
                 return;
@@ -91,8 +133,42 @@ public class RawHtmlPlugin extends Plugin {
         call.resolve();
     }
 
+    @PluginMethod
+    public void setProxyAuth(PluginCall call) {
+        String domain = call.getString("domain");
+        String username = call.getString("username");
+        String password = call.getString("password");
+        
+        if (domain == null || username == null || password == null) {
+            call.reject("Missing domain, username or password");
+            return;
+        }
+        
+        String credentials = Credentials.basic(username, password);
+        authCredentials.put(domain, credentials);
+        Log.d(TAG, "Set auth credentials for domain: " + domain);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void clearProxyAuth(PluginCall call) {
+        String domain = call.getString("domain");
+        if (domain == null) {
+            call.reject("Missing domain");
+            return;
+        }
+        
+        authCredentials.remove(domain);
+        Log.d(TAG, "Cleared auth credentials for domain: " + domain);
+        call.resolve();
+    }
+
     public String getCurrentBaseUrl() {
         return currentBaseUrl;
+    }
+
+    public String getAuthForDomain(String domain) {
+        return authCredentials.get(domain);
     }
 
     private int findAvailablePort() throws IOException {
@@ -129,14 +205,52 @@ public class RawHtmlPlugin extends Plugin {
                         
                         Log.d(TAG, "Proxying: " + targetUrl);
                         
-                        // Fetch the resource
-                        Request req = new Request.Builder()
-                            .url(targetUrl)
-                            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
-                            .get()
-                            .build();
+                        // Extract domain from URL for auth lookup
+                        String domain = null;
+                        try {
+                            java.net.URL url = new java.net.URL(targetUrl);
+                            domain = url.getProtocol() + "://" + url.getHost();
+                            if (url.getPort() != -1) {
+                                domain += ":" + url.getPort();
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing URL for domain", e);
+                        }
                         
+                        // Build request with optional auth
+                        Request.Builder reqBuilder = new Request.Builder()
+                            .url(targetUrl)
+                            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+                        
+                        // Add Authorization header if we have credentials for this domain
+                        if (domain != null) {
+                            String auth = plugin.getAuthForDomain(domain);
+                            if (auth != null) {
+                                reqBuilder.addHeader("Authorization", auth);
+                                Log.d(TAG, "Adding auth for domain: " + domain);
+                            }
+                        }
+                        
+                        Request req = reqBuilder.get().build();
                         okhttp3.Response res = client.newCall(req).execute();
+                        
+                        // Check for 401 Unauthorized
+                        if (res.code() == 401) {
+                            Log.d(TAG, "401 Unauthorized - auth required for: " + domain);
+                            // Return HTML page with script that requests auth via postMessage
+                            String authHtml = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>" +
+                                "<script>" +
+                                "window.parent.postMessage({" +
+                                "  type: 'PROXY_AUTH_REQUIRED'," +
+                                "  domain: '" + domain.replace("'", "\\'") + "'" +
+                                "}, '*');" +
+                                "</script>" +
+                                "<p style='font-family: system-ui; text-align: center; padding: 2rem;'>" +
+                                "Authentication required for " + domain + "</p>" +
+                                "</body></html>";
+                            return newFixedLengthResponse(Response.Status.OK, 
+                                "text/html; charset=utf-8", authHtml);
+                        }
                         
                         if (!res.isSuccessful()) {
                             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, 
