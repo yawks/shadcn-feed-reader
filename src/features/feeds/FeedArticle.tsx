@@ -1,4 +1,5 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
+import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
 import { useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
@@ -6,7 +7,6 @@ import { FeedItem } from "@/backends/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
-import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
 import { safeInvoke } from '@/lib/safe-invoke'
 import { useTheme } from "@/context/theme-context"
 
