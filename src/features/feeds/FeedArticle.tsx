@@ -1,8 +1,8 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
 import { extractDomain, getStoredAuth, storeAuth } from '@/lib/auth-storage'
-import { getArticleViewMode, setArticleViewMode } from '@/lib/article-view-storage'
-import { useEffect, useRef, useState } from "react"
+import { getArticleViewMode, getArticleViewModeSync, setArticleViewMode } from '@/lib/article-view-storage'
+import { memo, useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
 import { FeedItem } from "@/backends/types"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
 import { safeInvoke } from '@/lib/safe-invoke'
 import { useFontSize } from '@/context/font-size-context'
+import { useOrientation } from '@/hooks/use-orientation'
 import { useTheme } from "@/context/theme-context"
 
 type FeedArticleProps = {
@@ -18,9 +19,10 @@ type FeedArticleProps = {
     isMobile?: boolean
 }
 
-export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
+function FeedArticleComponent({ item, isMobile = false }: FeedArticleProps) {
     const { theme } = useTheme()
     const { fontSize } = useFontSize()
+    const isLandscape = useOrientation()
 
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
@@ -32,7 +34,23 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [isDarkMode, setIsDarkMode] = useState(false) // Track if injected HTML is in dark mode
     
     // Initialize viewMode from storage (per feed), default to "readability"
-    const [viewMode, setViewMode] = useState<ArticleViewMode>('readability')
+    // Use a state to track if viewMode is loaded (to avoid loading article before mode is known)
+    const [viewMode, setViewMode] = useState<ArticleViewMode>(() => {
+        // Try to load synchronously from storage on initial render
+        // For Capacitor, this will return 'readability' and we'll load async in useEffect
+        const feedId = item.feed?.id || 'default'
+        return getArticleViewModeSync(feedId)
+    })
+    const [viewModeLoaded, setViewModeLoaded] = useState<boolean>(() => {
+        // On web, we can load synchronously, so it's already loaded
+        // On Capacitor, we need to load async, so it's not loaded yet
+        if (typeof window !== 'undefined') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const win = window as any
+            return win.Capacitor?.getPlatform?.() !== 'android'
+        }
+        return true
+    })
     
     const [proxyPort, setProxyPort] = useState<number | null>(null)
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
@@ -43,25 +61,43 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     // Now all view modes use iframe for isolated scroll context
     const isIframeView = true
 
-    // Load view mode from storage when feed or article changes
-    // Uses Capacitor Preferences API on Android, localStorage elsewhere
+    // Load view mode from storage when feed or article changes (for Capacitor)
+    // This MUST complete before the article loading useEffect runs
     useEffect(() => {
         const feedId = item.feed?.id || 'default'
         
         // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}`)
+        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}, current mode: ${viewMode}`)
         
-        // Load saved mode asynchronously
+        // On Capacitor, we need to load async, so mark as not loaded yet
+        if (typeof window !== 'undefined') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const win = window as any
+            if (win.Capacitor?.getPlatform?.() === 'android') {
+                setViewModeLoaded(false)
+            }
+        }
+        
+        // Load saved mode asynchronously (needed for Capacitor)
         getArticleViewMode(feedId).then((savedMode) => {
             // eslint-disable-next-line no-console
-            console.log(`[FeedArticle] Loaded saved mode: ${savedMode}`)
-            setViewMode(savedMode)
+            console.log(`[FeedArticle] Loaded saved mode: ${savedMode}, current: ${viewMode}`)
+            // Update mode if different
+            if (savedMode !== viewMode) {
+                // eslint-disable-next-line no-console
+                console.log(`[FeedArticle] Setting viewMode to ${savedMode} (was ${viewMode})`)
+                setViewMode(savedMode)
+            }
+            // Mark as loaded - this will allow the article loading useEffect to run
+            setViewModeLoaded(true)
         }).catch((err) => {
             // eslint-disable-next-line no-console
             console.error('[FeedArticle] Failed to load view mode:', err)
-            setViewMode('readability')
+            // On error, use current mode and mark as loaded
+            setViewModeLoaded(true)
         })
-    }, [item.feed?.id, item.url]) // Also trigger on item.url change to reload mode for new articles
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [item.feed?.id, item.url]) // Don't include viewMode to avoid loop - we only want to load when feed/article changes
 
     useEffect(() => {
         // Start the proxy (Tauri) if available; ignore errors in browser dev
@@ -73,7 +109,81 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     }, [])
 
 
+    // Use ref to track the last loaded URL to prevent unnecessary reloads
+    const lastLoadedUrlRef = useRef<string | null>(null)
+    const lastViewModeRef = useRef<ArticleViewMode | null>(null)
+    const lastThemeRef = useRef<string | null>(null)
+    const lastFontSizeRef = useRef<string | null>(null)
+
     useEffect(() => {
+        // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
+        // This prevents double loading (readability -> original/dark)
+        if (!viewModeLoaded) {
+            // eslint-disable-next-line no-console
+            console.log('⏳ [FeedArticle] Waiting for viewMode to load before loading article...')
+            return
+        }
+        
+        // Skip reload if URL, viewMode, theme, and fontSize haven't changed
+        // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
+        const urlChanged = lastLoadedUrlRef.current !== item.url
+        const viewModeChanged = lastViewModeRef.current !== viewMode
+        const themeChanged = lastThemeRef.current !== theme
+        const fontSizeChanged = lastFontSizeRef.current !== fontSize
+        
+        // eslint-disable-next-line no-console
+        console.log('🟡 [FeedArticle] useEffect triggered', {
+            urlChanged,
+            viewModeChanged,
+            themeChanged,
+            fontSizeChanged,
+            currentUrl: item.url,
+            lastUrl: lastLoadedUrlRef.current,
+            currentViewMode: viewMode,
+            lastViewMode: lastViewModeRef.current,
+            isMobile,
+            isLandscape,
+            viewModeLoaded,
+        })
+        // Log séparé pour faciliter le grep
+        // eslint-disable-next-line no-console
+        console.log('[FeedArticle] urlChanged=' + urlChanged + ' viewModeChanged=' + viewModeChanged + ' viewModeLoaded=' + viewModeLoaded)
+        
+        // For readability mode, theme and fontSize changes should update the blob without full reload
+        // For other modes, only reload if URL or viewMode changes
+        if (!urlChanged && !viewModeChanged) {
+            // If only theme/fontSize changed and we're in readability mode, update the iframe content
+            if (viewMode === 'readability' && (themeChanged || fontSizeChanged)) {
+                // Update refs
+                lastThemeRef.current = theme
+                lastFontSizeRef.current = fontSize
+                // eslint-disable-next-line no-console
+                console.log('🟠 [FeedArticle] Only theme/fontSize changed, updating blob')
+                // Recreate the blob with new theme/fontSize (this will be handled by the effect below)
+                // But we need to trigger it, so we'll let it continue
+            } else {
+                // No changes needed
+                // eslint-disable-next-line no-console
+                console.log('✅ [FeedArticle] No changes needed, skipping reload')
+                return
+            }
+        }
+
+        // Update refs
+        lastLoadedUrlRef.current = item.url || null
+        lastViewModeRef.current = viewMode
+        lastThemeRef.current = theme
+        lastFontSizeRef.current = fontSize
+        
+        // eslint-disable-next-line no-console
+        console.log('🔴 [FeedArticle] Reloading article', {
+            url: item.url,
+            viewMode,
+            viewModeLoaded,
+        })
+        // eslint-disable-next-line no-console
+        console.log('[FeedArticle] RELOADING url=' + item.url + ' viewMode=' + viewMode)
+
         const resetState = () => {
             setIsLoading(true)
             setError(null)
@@ -512,7 +622,8 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         } else if (viewMode === 'dark') {
             handleDarkView()
         }
-    }, [item.url, viewMode, proxyPort, theme, fontSize]) // theme and fontSize to update readability colors
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
 
     useEffect(() => {
         const iframe = iframeRef.current
@@ -1029,10 +1140,19 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     flex: isMobile,
                     "absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex":
                         !isMobile,
+                    // In landscape mobile mode, remove borders, padding, and margins to maximize width
+                    "rounded-none border-0 m-0 p-0": isMobile && isLandscape,
                 },
             )}
+            style={isMobile && isLandscape ? { width: '100vw', maxWidth: '100vw' } : undefined}
         >
-            <div className="mb-1 flex h-full flex-none flex-col rounded-t-md bg-secondary shadow-lg" style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
+            <div className={cn(
+                "mb-1 flex h-full flex-none flex-col rounded-t-md bg-secondary shadow-lg",
+                {
+                    // In landscape mode, remove margins to maximize width
+                    "mb-0": isMobile && isLandscape,
+                }
+            )} style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
                 <div className="flex items-center justify-between p-2 h-12">
                     <ArticleToolbar viewMode={viewMode} onViewModeChange={handleViewModeChange} articleUrl={item.url} />
                 </div>
@@ -1067,7 +1187,7 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     {!error && (
                         viewMode === 'readability' ? (
                             <iframe
-                                key={item.url}
+                                key={`${item.id}-${item.url}`}
                                 ref={iframeRef}
                                 className={cn("block h-full w-full", {
                                     invisible: isLoading,
@@ -1108,3 +1228,11 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         </div>
     )
 }
+
+// Memoize to prevent re-renders when parent re-renders due to orientation changes
+// Only re-render if item.id or isMobile actually changes
+export const FeedArticle = memo(FeedArticleComponent, (prevProps, nextProps) => {
+    // Return true if props are equal (skip re-render), false if they differ (re-render)
+    return prevProps.item.id === nextProps.item.id && 
+           prevProps.isMobile === nextProps.isMobile
+})

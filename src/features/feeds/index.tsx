@@ -17,9 +17,11 @@ import { ResizeHandle } from '@/components/ui/resize-handle'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { WebPageLoader } from '@/components/layout/loaders/webpage-loader'
+import { cn } from '@/lib/utils'
 import { useFeedQuery } from '@/hooks/use-feed-query'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useOrientation } from '@/hooks/use-orientation'
 import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 import { useSearch } from '@/context/search-context'
 
@@ -45,6 +47,7 @@ export default function Feeds() {
   const { feedQuery, setFeedQuery } = useFeedQuery()
   const { isSearchMode, searchResults, clearSearchMode } = useSearch()
   const isMobile = useIsMobile()
+  const isLandscape = useOrientation()
 
   // Ref for the list container to manage scroll
   const filterItemListRef = useRef<FilterItemListRef>(null)
@@ -57,7 +60,26 @@ export default function Feeds() {
 
   // Check if we are displaying an article via the URL (articleId parameter)
   // On mobile, show the article if articleId is present in the URL
+  // In landscape mode on mobile, always show article in full width if articleId is present
   const showArticleOnMobile = isMobile && Boolean(articleId)
+  const showArticleFullWidth = isMobile && isLandscape && Boolean(articleId)
+
+  // Debug logging - utiliser des logs très visibles
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('🔵 [Feeds] Layout state changed', {
+      isMobile,
+      isLandscape,
+      articleId,
+      showArticleOnMobile,
+      showArticleFullWidth,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    })
+    // Log séparé pour faciliter le grep
+    // eslint-disable-next-line no-console
+    console.log('[Feeds] isMobile=' + isMobile + ' isLandscape=' + isLandscape + ' articleId=' + articleId)
+  }, [isMobile, isLandscape, articleId, showArticleOnMobile, showArticleFullWidth])
 
   // Hook to manage resizable panels (desktop only)
   const {
@@ -216,6 +238,7 @@ export default function Feeds() {
     items.find(item => item.id.toString() === articleId.toString()) : null
 
   // Synchronise la sélection dans la liste avec l'article de l'URL (back/refresh)
+  // Also preserve article selection when orientation changes
   useEffect(() => {
     if (selectedArticleFromUrl && selectedFeedArticle?.id !== selectedArticleFromUrl.id) {
       setSelectedFeedArticle(selectedArticleFromUrl)
@@ -223,10 +246,13 @@ export default function Feeds() {
     if (!articleId && selectedFeedArticle) {
       setSelectedFeedArticle(null)
     }
-  }, [articleId, selectedArticleFromUrl, selectedFeedArticle])
+  }, [articleId, selectedArticleFromUrl, selectedFeedArticle, isLandscape])
 
   // Use article from URL on mobile
-  const currentSelectedArticle = selectedArticleFromUrl || selectedFeedArticle
+  // Memoize to prevent unnecessary re-renders when orientation changes
+  const currentSelectedArticle = useMemo(() => {
+    return selectedArticleFromUrl || selectedFeedArticle
+  }, [selectedArticleFromUrl?.id, selectedFeedArticle?.id])
 
   // Error handling
   if (error) {
@@ -260,16 +286,38 @@ export default function Feeds() {
         <>
           {showArticleOnMobile ? (
             // article view on mobile
-            <div className="flex flex-col h-dvh">
-              <div className="flex items-center p-3 border-b bg-background">
-                <MobileBackButton onBack={handleBackToList} />
-                <h1 className="ml-3 text-lg font-medium truncate">
-                  {currentSelectedArticle?.title}
-                </h1>
-              </div>
-              <div className="flex-1 overflow-hidden">
+            <div 
+              className={cn(
+                "flex flex-col h-dvh",
+                {
+                  // In landscape mode, remove all padding and margins to maximize width
+                  "m-0 p-0": isLandscape,
+                }
+              )}
+              style={isLandscape ? { width: '100vw', maxWidth: '100vw', margin: 0, padding: 0 } : undefined}
+            >
+              {/* Hide header in landscape mode to maximize article width */}
+              {!isLandscape && (
+                <div className="flex items-center p-3 border-b bg-background">
+                  <MobileBackButton onBack={handleBackToList} />
+                  <h1 className="ml-3 text-lg font-medium truncate">
+                    {currentSelectedArticle?.title}
+                  </h1>
+                </div>
+              )}
+              <div className={cn(
+                "flex-1 overflow-hidden w-full",
+                {
+                  // In landscape mode, ensure full width with no padding
+                  "w-screen": isLandscape,
+                }
+              )}>
                 {currentSelectedArticle ? (
-                  <FeedArticle item={currentSelectedArticle} isMobile={true} />
+                  <FeedArticle 
+                    key={currentSelectedArticle.id} 
+                    item={currentSelectedArticle} 
+                    isMobile={true} 
+                  />
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <WebPageLoader />

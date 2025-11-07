@@ -23,7 +23,23 @@ function isCapacitor(): boolean {
 }
 
 /**
- * Get stored preferences from storage
+ * Get stored preferences from storage (synchronous version for initial state)
+ */
+function getStoredPreferencesSync(): ViewPreferences {
+	try {
+		if (typeof window !== 'undefined' && !isCapacitor()) {
+			// Use localStorage on desktop/web (synchronous)
+			const stored = localStorage.getItem(STORAGE_KEY)
+			return stored ? JSON.parse(stored) : {}
+		}
+	} catch {
+		// Ignore errors
+	}
+	return {}
+}
+
+/**
+ * Get stored preferences from storage (async version for Capacitor)
  */
 async function getStoredPreferences(): Promise<ViewPreferences> {
 	try {
@@ -65,6 +81,24 @@ async function savePreferences(prefs: ViewPreferences): Promise<void> {
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error('[article-view-storage] Failed to save preferences:', e)
+	}
+}
+
+/**
+ * Get stored view mode for a feed synchronously (for initial state)
+ * Returns 'readability' if not found or on Capacitor (where we need async)
+ */
+export function getArticleViewModeSync(feedId: number | string): ArticleViewMode {
+	try {
+		if (isCapacitor()) {
+			// On Capacitor, can't load synchronously, return default
+			return 'readability'
+		}
+		const prefs = getStoredPreferencesSync()
+		const mode = prefs[String(feedId)] || 'readability'
+		return mode
+	} catch {
+		return 'readability'
 	}
 }
 
