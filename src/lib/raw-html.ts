@@ -60,13 +60,18 @@ export async function fetchRawHtml(url: string): Promise<string> {
             console.log('[fetchRawHtml] ✗ Capacitor RawHtml plugin NOT FOUND or NOT a function')
         }
     } catch (e) {
+        // If it's an AuthRequiredError, rethrow immediately (don't try other methods)
+        if (e instanceof AuthRequiredError) {
+            throw e
+        }
+        
         console.error('[fetchRawHtml] ✗ Capacitor plugin error (outer catch):', e)
         console.error('[fetchRawHtml] ✗ Error type:', typeof e, 'instanceof Error?', e instanceof Error)
         if (e instanceof Error) {
             console.error('[fetchRawHtml] ✗ Error stack:', e.stack)
         }
-        // Rethrow to try next fallback
-        throw e
+        // For other errors, continue to try Tauri (don't rethrow yet)
+        console.log('[fetchRawHtml] ✗ Capacitor failed, will try Tauri next')
     }
 
     // 2) Try Tauri invoke (if running under Tauri desktop) via safeInvoke
@@ -79,13 +84,25 @@ export async function fetchRawHtml(url: string): Promise<string> {
         console.log('[fetchRawHtml] ✗ Tauri invoke FAILED:', e)
         console.log('[fetchRawHtml] ✗ Error message:', e instanceof Error ? e.message : String(e))
         
-        // Check if it's an auth required error
         const errorMsg = e instanceof Error ? e.message : String(e)
+        
+        // Check if it's an auth required error
         if (errorMsg.includes('AUTH_REQUIRED:')) {
             // Extract domain from error message (format: "AUTH_REQUIRED:https://example.com")
             const domain = errorMsg.split('AUTH_REQUIRED:')[1]?.trim() || new URL(url).origin
             console.log('[fetchRawHtml] ✗ Auth required for domain:', domain)
             throw new AuthRequiredError(domain)
+        }
+        
+        // If Tauri is not available at all, continue to fallback fetch (step 3)
+        if (errorMsg.includes('Tauri invoke not available')) {
+            console.log('[fetchRawHtml] → Tauri not available, continuing to step 3 (fallback fetch)')
+            // Fall through to step 3
+        } else {
+            // If it's any other Tauri error (Tauri IS available but request failed),
+            // don't fallback to regular fetch - rethrow
+            console.log('[fetchRawHtml] ✗ Re-throwing Tauri error (no fallback)')
+            throw e
         }
     }
 
@@ -104,7 +121,6 @@ export async function fetchRawHtml(url: string): Promise<string> {
         return text
     } catch (fetchError) {
         console.error('[fetchRawHtml] ✗ Fetch ERROR:', fetchError)
-        console.error('[fetchRawHtml] ✗ Error message:', fetchError instanceof Error ? fetchError.message : String(fetchError))
         throw fetchError
     }
 }

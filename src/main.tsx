@@ -31,6 +31,7 @@ import { AxiosError } from 'axios'
 import { Capacitor } from '@capacitor/core'
 import { FontProvider } from './context/font-context'
 import { FontSizeProvider } from './context/font-size-context'
+import { ProxyAuthProvider } from './context/proxy-auth-provider'
 import ReactDOM from 'react-dom/client'
 import { StrictMode } from 'react'
 import { ThemeProvider } from './context/theme-context'
@@ -130,14 +131,16 @@ if (!rootElement.innerHTML) {
         <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
           <FontProvider>
             <FontSizeProvider>
-              {(() => {
-                const authentication = useAuth();
-                return (
-                  <>
-                    <RouterProvider router={router} context={{ authentication }} />
-                  </>
-                );
-              })()}
+              <ProxyAuthProvider>
+                {(() => {
+                  const authentication = useAuth();
+                  return (
+                    <>
+                      <RouterProvider router={router} context={{ authentication }} />
+                    </>
+                  );
+                })()}
+              </ProxyAuthProvider>
             </FontSizeProvider>
           </FontProvider>
         </ThemeProvider>

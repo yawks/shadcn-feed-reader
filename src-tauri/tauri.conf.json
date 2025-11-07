@@ -19,6 +19,7 @@
     ]
   },
   "app": {
+    "macOSPrivateApi": true,
     "security": {
       "csp": null,
       "dangerousDisableAssetCspModification": true,

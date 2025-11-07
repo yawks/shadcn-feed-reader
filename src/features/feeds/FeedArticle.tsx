@@ -1,5 +1,7 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
+import { extractDomain, getStoredAuth, storeAuth } from '@/lib/auth-storage'
+import { getArticleViewMode, setArticleViewMode } from '@/lib/article-view-storage'
 import { useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
@@ -16,7 +18,6 @@ type FeedArticleProps = {
     isMobile?: boolean
 }
 
-
 export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const { theme } = useTheme()
     const { fontSize } = useFontSize()
@@ -24,14 +25,43 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
     const [error, setError] = useState<string | null>(null)
-    const [viewMode, setViewMode] = useState<ArticleViewMode>("readability")
+    const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original/dark modes)
+    const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
+    const [injectedExternalScripts, setInjectedExternalScripts] = useState<string[]>([]) // External scripts (with src) to load
+    const [injectedExternalStylesheets, setInjectedExternalStylesheets] = useState<string[]>([]) // External stylesheets to load
+    const [isDarkMode, setIsDarkMode] = useState(false) // Track if injected HTML is in dark mode
+    
+    // Initialize viewMode from storage (per feed), default to "readability"
+    const [viewMode, setViewMode] = useState<ArticleViewMode>('readability')
+    
     const [proxyPort, setProxyPort] = useState<number | null>(null)
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
+    const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
 
     // Now all view modes use iframe for isolated scroll context
     const isIframeView = true
+
+    // Load view mode from storage when feed or article changes
+    // Uses Capacitor Preferences API on Android, localStorage elsewhere
+    useEffect(() => {
+        const feedId = item.feed?.id || 'default'
+        
+        // eslint-disable-next-line no-console
+        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}`)
+        
+        // Load saved mode asynchronously
+        getArticleViewMode(feedId).then((savedMode) => {
+            // eslint-disable-next-line no-console
+            console.log(`[FeedArticle] Loaded saved mode: ${savedMode}`)
+            setViewMode(savedMode)
+        }).catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error('[FeedArticle] Failed to load view mode:', err)
+            setViewMode('readability')
+        })
+    }, [item.feed?.id, item.url]) // Also trigger on item.url change to reload mode for new articles
 
     useEffect(() => {
         // Start the proxy (Tauri) if available; ignore errors in browser dev
@@ -48,6 +78,100 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             setIsLoading(true)
             setError(null)
             setArticleContent("")
+            setInjectedHtml(null)
+            setInjectedScripts([])
+            setInjectedExternalScripts([])
+            setInjectedExternalStylesheets([])
+            setIsDarkMode(false)
+        }
+        
+        // Function to prepare HTML for Shadow DOM injection
+        // With Shadow DOM, styles are automatically isolated, so we can keep them
+        const prepareHtmlForShadowDom = (html: string): { html: string; scripts: string[]; externalScripts: string[]; externalStylesheets: string[] } => {
+            // Create a temporary DOM to parse and prepare the HTML
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(html, 'text/html')
+            
+            // Remove event handlers from elements (onclick, onload, etc.) for security
+            const allElements = doc.querySelectorAll('*')
+            allElements.forEach(el => {
+                Array.from(el.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on')) {
+                        el.removeAttribute(attr.name)
+                    }
+                })
+            })
+            
+            // Extract scripts separately (we'll execute them manually with document proxy)
+            const extractedScripts: string[] = []
+            const extractedExternalScripts: string[] = []
+            const extractedExternalStylesheets: string[] = []
+            const allScripts = doc.querySelectorAll('script')
+            allScripts.forEach(script => {
+                const scriptSrc = script.getAttribute('src')
+                const scriptContent = script.textContent || ''
+                
+                // Handle external scripts (with src attribute)
+                if (scriptSrc) {
+                    // Remove scripts that try to access parent window (security risk)
+                    // But allow Twitter widgets and other common embeds
+                    if (scriptSrc.includes('window.parent') || 
+                        scriptSrc.includes('parent.postMessage') ||
+                        scriptSrc.includes('top.location')) {
+                        script.remove()
+                        return
+                    }
+                    // Keep external script URLs for loading
+                    extractedExternalScripts.push(scriptSrc)
+                    script.remove()
+                    return
+                }
+                
+                // Handle inline scripts
+                // Remove scripts that try to access parent window (security risk)
+                if (scriptContent.includes('window.parent') || 
+                    scriptContent.includes('parent.postMessage') ||
+                    scriptContent.includes('top.location') ||
+                    scriptContent.includes('window.top')) {
+                    script.remove()
+                    return
+                }
+                
+                // Keep script content for manual execution
+                if (scriptContent.trim()) {
+                    extractedScripts.push(scriptContent)
+                }
+                script.remove() // Remove from DOM so they don't execute automatically
+            })
+            
+            // Extract external stylesheets (we'll load them in Shadow DOM for isolation)
+            const allStylesheets = doc.head.querySelectorAll('link[rel="stylesheet"]')
+            allStylesheets.forEach(link => {
+                const href = link.getAttribute('href')
+                if (href && !href.startsWith('data:') && !href.startsWith('blob:')) {
+                    extractedExternalStylesheets.push(href)
+                    link.remove()
+                }
+            })
+            
+            // Get inline styles from head (they'll be isolated automatically by Shadow DOM)
+            const inlineStyles = Array.from(doc.head.querySelectorAll('style'))
+                .map(el => el.outerHTML)
+                .join('\n')
+            
+            // Get body content (without scripts)
+            const bodyContent = doc.body?.innerHTML || ''
+            
+            // Combine inline styles and body content
+            // External stylesheets will be loaded separately in Shadow DOM for isolation
+            // Shadow DOM will automatically isolate all styles (inline and external)
+            // Return HTML, inline scripts, external scripts, and external stylesheets
+            return {
+                html: inlineStyles + '\n' + bodyContent,
+                scripts: extractedScripts,
+                externalScripts: extractedExternalScripts,
+                externalStylesheets: extractedExternalStylesheets
+            }
         }
 
         const setIframeUrl = (url: string) => {
@@ -60,6 +184,37 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             try {
                 // eslint-disable-next-line no-console
                 console.log('[FeedArticle] handleReadabilityView START for url:', item.url)
+                
+                // Check if we have stored credentials and apply them proactively
+                const domain = extractDomain(item.url)
+                const storedCreds = getStoredAuth(domain)
+                if (storedCreds) {
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Found stored credentials for domain, applying:', domain)
+                    try {
+                        await safeInvoke('set_proxy_auth', { 
+                            domain, 
+                            username: storedCreds.username, 
+                            password: storedCreds.password 
+                        })
+                    } catch (_tauriErr) {
+                        // Try Capacitor (Android)
+                        try {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const win = window as any
+                            const Plugins = win?.Capacitor?.Plugins
+                            if (Plugins?.RawHtml?.setProxyAuth) {
+                                await Plugins.RawHtml.setProxyAuth({ 
+                                    domain, 
+                                    username: storedCreds.username, 
+                                    password: storedCreds.password 
+                                })
+                            }
+                        } catch (_capErr) {
+                            // Ignore - will prompt if needed
+                        }
+                    }
+                }
                 
                 // Fetch raw HTML and extract article content using Readability
                 let html: string
@@ -96,6 +251,19 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     summary = article?.content || ''
                     // eslint-disable-next-line no-console
                     console.log('[FeedArticle] extractArticle SUCCESS, summary length:', summary.length)
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Article title:', article?.title)
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Summary preview:', summary.substring(0, 500))
+                    
+                    // If summary is empty or too short, show error
+                    if (!summary || summary.trim().length < 50) {
+                        // eslint-disable-next-line no-console
+                        console.warn('[FeedArticle] Extracted content too short, may not have worked correctly')
+                        setError('Readability could not extract content from this page. Try "Original" or "Dark" mode instead.')
+                        setIsLoading(false)
+                        return
+                    }
                 } catch (_parseErr) {
                     // Parsing failed — keep the view mode so user can retry, but surface an error
                     const msg = _parseErr instanceof Error ? _parseErr.message : String(_parseErr)
@@ -119,14 +287,15 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 const hrColor = isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb';
                 const linkColor = isDark ? 'rgb(96, 165, 250)' : '#0099CC';
                 // Map app font size key to CSS value (keep in sync with font-size-context)
+                // Readable mode gets larger base font size for better readability
                 const fontSizeMap: Record<string, string> = {
-                    xs: '0.75rem',
-                    sm: '0.875rem',
-                    base: '1rem',
-                    lg: '1.125rem',
-                    xl: '1.25rem',
+                    xs: '0.825rem',    // 0.75 * 1.1
+                    sm: '0.9625rem',   // 0.875 * 1.1
+                    base: '1.1rem',  // 1.0 * 1.1
+                    lg: '1.2375rem',   // 1.125 * 1.1
+                    xl: '1.375rem',    // 1.25 * 1.1
                 }
-                const effectiveFontSize = fontSizeMap[fontSize] || '1rem'
+                const effectiveFontSize = fontSizeMap[fontSize] || '1.2rem'
 
                 const blobHtml = `
 <!DOCTYPE html>
@@ -158,10 +327,58 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         strong { font-weight: 400; }
         figure { margin: 0; }
         figure img { width: 100% !important; float: none; }
-
+        
+        /* Video/iframe styles */
+        video, iframe[src*="youtube"], iframe[src*="vimeo"], iframe[src*="dailymotion"] {
+            max-width: 100%;
+            height: auto;
+        }
+        
         /* Ensure last line visible on mobile safe areas */
         body::after { content: ''; display: block; height: max(6rem, env(safe-area-inset-bottom, 1rem)); }
     </style>
+    <script>
+        // Ensure videos have controls and iframes have fullscreen attributes for native fullscreen
+        (function() {
+            function enableFullscreenForMedia(media) {
+                if (media.tagName === 'IFRAME') {
+                    media.setAttribute('allowfullscreen', '');
+                    media.setAttribute('webkitallowfullscreen', '');
+                    media.setAttribute('mozallowfullscreen', '');
+                } else if (media.tagName === 'VIDEO' && !media.hasAttribute('controls')) {
+                    media.setAttribute('controls', 'controls');
+                }
+            }
+            
+            function processExistingMedia() {
+                document.querySelectorAll('video, iframe').forEach(enableFullscreenForMedia);
+            }
+            
+            // Process existing and dynamically added media
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) {
+                            if (node.tagName === 'VIDEO' || node.tagName === 'IFRAME') {
+                                enableFullscreenForMedia(node);
+                            }
+                            node.querySelectorAll && node.querySelectorAll('video, iframe').forEach(enableFullscreenForMedia);
+                        }
+                    });
+                });
+            });
+            
+            if (document.body) {
+                processExistingMedia();
+                observer.observe(document.body, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    processExistingMedia();
+                    observer.observe(document.body, { childList: true, subtree: true });
+                });
+            }
+        })();
+    </script>
 </head>
 <body>
     ${summary}
@@ -194,11 +411,12 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             if (!item.url) return
             resetState()
             try {
+                let proxyUrl: string
+                
                 // Try Tauri desktop proxy first
                 if (proxyPort) {
                     await safeInvoke('set_proxy_url', { url: item.url })
-                    const proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
-                    setIframeUrl(proxyUrl)
+                    proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
                 } else {
                     // On Android/Capacitor: use the Java proxy server
                     const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
@@ -211,9 +429,25 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     }
                     
                     await setProxyUrl(item.url)
-                    const proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
-                    setIframeUrl(proxyUrl)
+                    proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
                 }
+                
+                // Fetch HTML directly from proxy instead of using iframe
+                const response = await fetch(proxyUrl)
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch: ${response.statusText}`)
+                }
+                
+                const html = await response.text()
+                
+                // Prepare HTML for Shadow DOM (keep styles and scripts, remove dangerous ones)
+                const prepared = prepareHtmlForShadowDom(html)
+                
+                setIsDarkMode(false)
+                setInjectedHtml(prepared.html)
+                setInjectedScripts(prepared.scripts)
+                setInjectedExternalScripts(prepared.externalScripts)
+                setInjectedExternalStylesheets(prepared.externalStylesheets)
             } catch (_err) {
                 setError(_err instanceof Error ? _err.message : String(_err))
             } finally {
@@ -226,16 +460,16 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
             resetState()
             try {
                 // Dark mode = Original HTML with CSS dark filter applied
-                let port: number | null = null
+                let proxyUrl: string
                 
                 // Try Tauri desktop proxy first
                 if (proxyPort) {
                     await safeInvoke('set_proxy_url', { url: item.url })
-                    port = proxyPort
+                    proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
                 } else {
                     // On Android/Capacitor: use the Java proxy server
                     const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-                    port = await startProxyServer()
+                    const port = await startProxyServer()
                     
                     if (!port) {
                         setError('Failed to start proxy server. Use the "Source" button to open in browser.')
@@ -244,44 +478,25 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     }
                     
                     await setProxyUrl(item.url)
+                    proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
                 }
                 
-                const proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
+                // Fetch HTML directly from proxy instead of using iframe
+                const response = await fetch(proxyUrl)
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch: ${response.statusText}`)
+                }
                 
-                // Create blob HTML with dark CSS filter (proxy handles URL rewriting)
-                const blobHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <style>
-        /* Dark mode filter - inverts colors and adjusts for readability */
-        html {
-            background-color: rgb(0, 0, 0) !important;
-        }
-        body {
-            filter: invert(1) hue-rotate(180deg);
-            background-color: rgb(255, 255, 255) !important;
-        }
-        /* Preserve images and videos in their original colors */
-        img, video, iframe, [style*="background-image"] {
-            filter: invert(1) hue-rotate(180deg);
-        }
-        /* Add bottom padding for safe area */
-        body {
-            padding-bottom: max(6rem, env(safe-area-inset-bottom, 1rem)) !important;
-        }
-    </style>
-</head>
-<body>
-    <iframe src="${proxyUrl}" style="border:none; width:100%; height:100vh;"></iframe>
-</body>
-</html>`
+                const html = await response.text()
                 
-                const blob = new Blob([blobHtml], { type: 'text/html' })
-                const blobUrl = URL.createObjectURL(blob)
-                setIframeUrl(blobUrl)
+                // Prepare HTML for Shadow DOM (keep styles and scripts, remove dangerous ones)
+                const prepared = prepareHtmlForShadowDom(html)
+                
+                setIsDarkMode(true)
+                setInjectedHtml(prepared.html)
+                setInjectedScripts(prepared.scripts)
+                setInjectedExternalScripts(prepared.externalScripts)
+                setInjectedExternalStylesheets(prepared.externalStylesheets)
             } catch (_err) {
                 const msg = _err instanceof Error ? _err.message : String(_err)
                 setError(`Dark view fetch failed: ${msg}`)
@@ -313,12 +528,12 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                 // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
                 let targetOrigin = '*'
                 try {
-                    if (item?.url) {
-                        const u = new URL(item.url)
+                    const src = iframe.src
+                    if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+                        const u = new URL(src)
                         targetOrigin = u.origin
                     }
                 } catch {
-                    // If URL parsing fails, fall back to '*'
                     targetOrigin = '*'
                 }
 
@@ -334,7 +549,8 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                     },
                     targetOrigin,
                 )
-                // Try to read iframe size if same-origin (will throw if cross-origin)
+                
+                // Check iframe document for diagnostics (same-origin only, for blob URLs in readability mode)
                 try {
                     const doc = iframe.contentDocument || iframe.contentWindow?.document
                     if (doc) {
@@ -440,12 +656,16 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         
         const { domain } = authDialog
         
+        // Store credentials in localStorage
+        storeAuth(domain, username, password)
+        
         // Set auth for Tauri (desktop)
         try {
             await safeInvoke('set_proxy_auth', { domain, username, password })
         } catch (_e) {
             // Try Capacitor (Android)
             try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const win = window as any
                 const Plugins = win?.Capacitor?.Plugins
                 if (Plugins?.RawHtml?.setProxyAuth) {
@@ -488,6 +708,243 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
     const handleAuthCancel = () => {
         setAuthDialog(null)
     }
+
+    // Inject HTML into Shadow DOM when injectedHtml changes (for original/dark modes)
+    useEffect(() => {
+        if (injectedHtml && injectedHtmlRef.current) {
+            // Clear any existing shadow root
+            if (injectedHtmlRef.current.shadowRoot) {
+                injectedHtmlRef.current.shadowRoot.innerHTML = ''
+            } else {
+                // Create shadow root with open mode (allows JS to access it)
+                injectedHtmlRef.current.attachShadow({ mode: 'open' })
+            }
+            
+            const shadowRoot = injectedHtmlRef.current.shadowRoot
+            if (!shadowRoot) return
+            
+            // Apply dark mode filter to shadow root container if needed
+            const hostElement = shadowRoot.host as HTMLElement
+            // Ensure the host element has proper positioning context for fixed elements inside Shadow DOM
+            hostElement.style.position = 'relative'
+            hostElement.style.isolation = 'isolate' // Create a new stacking context
+            if (isDarkMode) {
+                hostElement.style.filter = 'invert(1) hue-rotate(180deg)'
+                hostElement.style.backgroundColor = 'rgb(255, 255, 255)'
+            } else {
+                hostElement.style.filter = ''
+                hostElement.style.backgroundColor = ''
+            }
+            
+            // Load external stylesheets first (they need to be loaded before content renders)
+            // Load them IN the Shadow DOM to maintain style isolation
+            const loadExternalStylesheets = async () => {
+                const stylesheetPromises = injectedExternalStylesheets.map((href) => {
+                    return new Promise<void>((resolve) => {
+                        // Check if stylesheet is already loaded in shadow root
+                        const existingLink = shadowRoot.querySelector(`link[href="${href}"]`)
+                        if (existingLink) {
+                            resolve()
+                            return
+                        }
+                        
+                        const link = document.createElement('link')
+                        link.rel = 'stylesheet'
+                        link.href = href
+                        link.onload = () => {
+                            // eslint-disable-next-line no-console
+                            console.log('[FeedArticle] External stylesheet loaded in Shadow DOM:', href)
+                            resolve()
+                        }
+                        link.onerror = () => {
+                            // eslint-disable-next-line no-console
+                            console.warn('[FeedArticle] Failed to load external stylesheet:', href)
+                            resolve() // Continue even if stylesheet fails to load
+                        }
+                        // Append to shadow root, not document.head, to maintain isolation
+                        shadowRoot.appendChild(link)
+                    })
+                })
+                
+                await Promise.all(stylesheetPromises)
+            }
+            
+            // Store original document methods for restoration (before any modifications)
+            const originalGetElementById = document.getElementById.bind(document)
+            const originalQuerySelector = document.querySelector.bind(document)
+            const originalQuerySelectorAll = document.querySelectorAll.bind(document)
+            const originalGetElementsByClassName = document.getElementsByClassName.bind(document)
+            const originalGetElementsByTagName = document.getElementsByTagName.bind(document)
+            
+            // Load external scripts (they need to be loaded before inline scripts can use them)
+            const loadExternalScripts = async () => {
+                const scriptPromises = injectedExternalScripts.map((scriptSrc) => {
+                    return new Promise<void>((resolve) => {
+                        // Check if script is already loaded
+                        const existingScript = document.querySelector(`script[src="${scriptSrc}"]`)
+                        if (existingScript) {
+                            resolve()
+                            return
+                        }
+                        
+                        const script = document.createElement('script')
+                        script.src = scriptSrc
+                        script.async = true
+                        script.onload = () => {
+                            // eslint-disable-next-line no-console
+                            console.log('[FeedArticle] External script loaded:', scriptSrc)
+                            resolve()
+                        }
+                        script.onerror = () => {
+                            // eslint-disable-next-line no-console
+                            console.warn('[FeedArticle] Failed to load external script:', scriptSrc)
+                            resolve() // Continue even if script fails to load
+                        }
+                        document.head.appendChild(script)
+                    })
+                })
+                
+                await Promise.all(scriptPromises)
+            }
+            
+            // Permanently redirect document methods to search in shadow root first
+            // This is needed because scripts may use async callbacks (like DOMContentLoaded)
+            document.getElementById = function(id: string) {
+                // ShadowRoot doesn't have getElementById, use querySelector instead
+                const shadowElement = shadowRoot.querySelector('#' + id)
+                if (shadowElement) {
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Found element in shadow DOM:', id)
+                    return shadowElement as HTMLElement | null
+                }
+                return originalGetElementById.call(document, id)
+            }
+            document.querySelector = function(selector: string) {
+                const shadowElement = shadowRoot.querySelector(selector)
+                return shadowElement || originalQuerySelector.call(document, selector)
+            }
+            document.querySelectorAll = function(selector: string) {
+                const shadowResults = shadowRoot.querySelectorAll(selector)
+                return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, selector)
+            }
+            document.getElementsByClassName = function(className: string) {
+                const shadowResults = shadowRoot.querySelectorAll('.' + className)
+                return shadowResults.length > 0 ? (shadowResults as unknown as HTMLCollectionOf<Element>) : originalGetElementsByClassName.call(document, className)
+            }
+            document.getElementsByTagName = function(tagName: string) {
+                const shadowResults = shadowRoot.querySelectorAll(tagName)
+                return shadowResults.length > 0 ? (shadowResults as unknown as HTMLCollectionOf<Element>) : originalGetElementsByTagName.call(document, tagName)
+            }
+            
+            // Load stylesheets first, then inject HTML, then load scripts
+            // Use .then() since useEffect callback cannot be async
+            loadExternalStylesheets().then(() => {
+                // Inject HTML into shadow root (without scripts - they're executed separately)
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+                // Security: This is intentional - we're injecting proxied HTML content from trusted sources
+                shadowRoot.innerHTML = injectedHtml
+                
+                // Function to convert position:fixed to position:absolute for all elements
+                // This ensures fixed elements stay contained within the Shadow DOM
+                const convertFixedToAbsolute = () => {
+                    const allElements = shadowRoot.querySelectorAll('*')
+                    allElements.forEach((element) => {
+                        const el = element as HTMLElement
+                        // Check computed style (this catches both inline styles and CSS classes)
+                        const computedStyle = window.getComputedStyle(el)
+                        if (computedStyle.position === 'fixed') {
+                            // Preserve the original top, left, right, bottom values
+                            const top = computedStyle.top
+                            const left = computedStyle.left
+                            const right = computedStyle.right
+                            const bottom = computedStyle.bottom
+                            
+                            // Convert to absolute
+                            el.style.position = 'absolute'
+                            if (top && top !== 'auto') el.style.top = top
+                            if (left && left !== 'auto') el.style.left = left
+                            if (right && right !== 'auto') el.style.right = right
+                            if (bottom && bottom !== 'auto') el.style.bottom = bottom
+                        }
+                    })
+                }
+                
+                // Convert fixed to absolute immediately after HTML injection
+                convertFixedToAbsolute()
+                
+                // Also use a MutationObserver to catch dynamically added elements with position:fixed
+                const observer = new MutationObserver(() => {
+                    convertFixedToAbsolute()
+                })
+                observer.observe(shadowRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+                
+                // Store observer reference for cleanup
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ;(shadowRoot as any)._positionObserver = observer
+                
+                // Continue with script loading after HTML is injected
+                loadExternalScripts().then(() => {
+                // Wait a bit to ensure DOM is fully parsed
+                setTimeout(() => {
+                    // Verify elements are in shadow DOM before executing scripts
+                    const testElement = shadowRoot.querySelector('#tweet_1986189869287170303') || 
+                                        shadowRoot.querySelector('[id^="tweet_"]') ||
+                                        shadowRoot.querySelector('div[id]')
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Shadow DOM test element:', testElement ? 'found' : 'not found')
+                    // eslint-disable-next-line no-console
+                    console.log('[FeedArticle] Shadow DOM HTML length:', shadowRoot.innerHTML.length)
+                    
+                    // Execute inline scripts (document methods are already redirected)
+                    injectedScripts.forEach((scriptContent, index) => {
+                        try {
+                            // eslint-disable-next-line no-console
+                            console.log('[FeedArticle] Executing script', index + 1, 'of', injectedScripts.length)
+                            // Execute script directly - document methods are already redirected
+                            const scriptFunction = new Function('document', 'window', scriptContent)
+                            scriptFunction(document, window)
+                        } catch (err) {
+                            // eslint-disable-next-line no-console
+                            console.error('[FeedArticle] Error executing script in Shadow DOM:', err)
+                        }
+                    })
+                    
+                    // Trigger DOMContentLoaded event AFTER scripts are executed
+                    // This ensures that async callbacks can use the redirected document methods
+                    const domContentLoadedEvent = new Event('DOMContentLoaded', {
+                        bubbles: true,
+                        cancelable: true
+                    })
+                    window.dispatchEvent(domContentLoadedEvent)
+                    document.dispatchEvent(domContentLoadedEvent)
+                    
+                    // Log videos found in Shadow DOM after scripts have executed
+                    const videos = shadowRoot.querySelectorAll('video')
+                    if (videos && videos.length > 0) {
+                        // eslint-disable-next-line no-console
+                        console.log('[FeedArticle] Found videos in Shadow DOM:', videos.length)
+                    }
+                }, 200) // Increased delay to ensure DOM is fully parsed
+                })
+            })
+            
+            // Cleanup: restore original methods and disconnect observer when component unmounts or HTML changes
+            return () => {
+                // Disconnect MutationObserver
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const obs = (shadowRoot as any)?._positionObserver
+                if (obs) {
+                    obs.disconnect()
+                }
+                // Restore original document methods
+                document.getElementById = originalGetElementById
+                document.querySelector = originalQuerySelector
+                document.querySelectorAll = originalQuerySelectorAll
+                document.getElementsByClassName = originalGetElementsByClassName
+                document.getElementsByTagName = originalGetElementsByTagName
+            }
+        }
+    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, isDarkMode])
 
     // Ensure iframe viewport doesn't extend under native system UI by reducing
     // iframe height according to the native bottom inset (or CSS env() fallback).
@@ -545,9 +1002,23 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
         }
     }, [])
 
-    const handleViewModeChange = (mode: ArticleViewMode) => {
+    const handleViewModeChange = async (mode: ArticleViewMode) => {
+        // eslint-disable-next-line no-console
+        console.log(`[FeedArticle] handleViewModeChange called: ${mode}`)
+        
         // Dark mode = original view with DarkReader
         setViewMode(mode)
+        
+        // Save preference to storage for this feed
+        const feedId = item.feed?.id || 'default'
+        // eslint-disable-next-line no-console
+        console.log(`[FeedArticle] Saving view mode "${mode}" for feed ${feedId}`)
+        await setArticleViewMode(feedId, mode)
+        
+        // Verify it was saved
+        const verifyMode = await getArticleViewMode(feedId)
+        // eslint-disable-next-line no-console
+        console.log(`[FeedArticle] Verification: saved mode is now "${verifyMode}" (expected "${mode}")`)
     }
 
     return (
@@ -594,17 +1065,33 @@ export function FeedArticle({ item, isMobile = false }: FeedArticleProps) {
                         </div>
                     )}
                     {!error && (
-                        <iframe
-                            key={item.url}
-                            ref={iframeRef}
-                            className={cn("block h-full w-full", {
-                                invisible: isLoading,
-                            })}
-                            src="about:blank"
-                            title="Feed article"
-                            sandbox="allow-scripts allow-same-origin"
-                            style={{ border: 0 }}
-                        />
+                        viewMode === 'readability' ? (
+                            <iframe
+                                key={item.url}
+                                ref={iframeRef}
+                                className={cn("block h-full w-full", {
+                                    invisible: isLoading,
+                                })}
+                                src="about:blank"
+                                title="Feed article"
+                                sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-top-navigation-by-user-activation"
+                                allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share"
+                                allowFullScreen
+                                style={{ border: 0 }}
+                            />
+                        ) : (
+                            <div
+                                ref={injectedHtmlRef}
+                                className={cn("block h-full w-full overflow-auto", {
+                                    invisible: isLoading,
+                                })}
+                                style={{ 
+                                    border: 0,
+                                    // Isolate styles from the rest of the app
+                                    isolation: 'isolate'
+                                }}
+                            />
+                        )
                     )}
                 </div>
             </div>

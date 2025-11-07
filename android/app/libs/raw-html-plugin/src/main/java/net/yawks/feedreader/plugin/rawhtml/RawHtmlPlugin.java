@@ -190,10 +190,27 @@ public class RawHtmlPlugin extends Plugin {
             this.plugin = plugin;
         }
 
+        /**
+         * Add CORS headers to a response
+         */
+        private Response addCorsHeaders(Response response) {
+            response.addHeader("Access-Control-Allow-Origin", "*");
+            response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            return response;
+        }
+
         @Override
         public Response serve(IHTTPSession session) {
             String uri = session.getUri();
-            Log.d(TAG, "Proxy request: " + uri);
+            String method = session.getMethod().toString();
+            Log.d(TAG, "Proxy request: " + method + " " + uri);
+
+            // Handle CORS preflight (OPTIONS request)
+            if ("OPTIONS".equals(method)) {
+                Response response = newFixedLengthResponse(Response.Status.NO_CONTENT, "text/plain", "");
+                return addCorsHeaders(response);
+            }
 
             try {
                 if (uri.startsWith("/proxy")) {
@@ -248,13 +265,15 @@ public class RawHtmlPlugin extends Plugin {
                                 "<p style='font-family: system-ui; text-align: center; padding: 2rem;'>" +
                                 "Authentication required for " + domain + "</p>" +
                                 "</body></html>";
-                            return newFixedLengthResponse(Response.Status.OK, 
+                            Response authResponse = newFixedLengthResponse(Response.Status.OK, 
                                 "text/html; charset=utf-8", authHtml);
+                            return addCorsHeaders(authResponse);
                         }
                         
                         if (!res.isSuccessful()) {
-                            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, 
+                            Response errorResponse = newFixedLengthResponse(Response.Status.INTERNAL_ERROR, 
                                 "text/plain", "Proxy error: " + res.code());
+                            return addCorsHeaders(errorResponse);
                         }
                         
                         String contentType = res.header("Content-Type", "text/html");
@@ -271,18 +290,21 @@ public class RawHtmlPlugin extends Plugin {
                             body = html.getBytes("UTF-8");
                         }
                         
-                        return newFixedLengthResponse(Response.Status.OK, contentType, 
+                        Response successResponse = newFixedLengthResponse(Response.Status.OK, contentType, 
                             new java.io.ByteArrayInputStream(body), body.length);
+                        return addCorsHeaders(successResponse);
                     }
                 }
                 
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, 
+                Response notFoundResponse = newFixedLengthResponse(Response.Status.NOT_FOUND, 
                     "text/plain", "Not found");
+                return addCorsHeaders(notFoundResponse);
                     
             } catch (Exception e) {
                 Log.e(TAG, "Proxy error", e);
-                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, 
+                Response errorResponse = newFixedLengthResponse(Response.Status.INTERNAL_ERROR, 
                     "text/plain", "Error: " + e.getMessage());
+                return addCorsHeaders(errorResponse);
             }
         }
 
@@ -303,6 +325,53 @@ public class RawHtmlPlugin extends Plugin {
                     "$1" + proxyBase + "$2" + "$3"
                 );
                 
+                // Inject script to ensure videos have controls and iframes have fullscreen attributes for native fullscreen
+                String injectedScript = "<script>(function(){" +
+                    "function enableFullscreenForMedia(media){" +
+                    "if(media.tagName==='IFRAME'){" +
+                    "media.setAttribute('allowfullscreen','');" +
+                    "media.setAttribute('webkitallowfullscreen','');" +
+                    "media.setAttribute('mozallowfullscreen','');" +
+                    "}else if(media.tagName==='VIDEO'&&!media.hasAttribute('controls')){" +
+                    "media.setAttribute('controls','controls');" +
+                    "}" +
+                    "}" +
+                    "function processExistingMedia(){" +
+                    "document.querySelectorAll('video,iframe').forEach(enableFullscreenForMedia);" +
+                    "}" +
+                    "var observer=new MutationObserver(function(mutations){" +
+                    "mutations.forEach(function(mutation){" +
+                    "mutation.addedNodes.forEach(function(node){" +
+                    "if(node.nodeType===1){" +
+                    "if(node.tagName==='VIDEO'||node.tagName==='IFRAME'){" +
+                    "enableFullscreenForMedia(node);" +
+                    "}" +
+                    "if(node.querySelectorAll){" +
+                    "node.querySelectorAll('video,iframe').forEach(enableFullscreenForMedia);" +
+                    "}" +
+                    "}" +
+                    "});" +
+                    "});" +
+                    "});" +
+                    "if(document.body){" +
+                    "processExistingMedia();" +
+                    "observer.observe(document.body,{childList:true,subtree:true});" +
+                    "}else{" +
+                    "document.addEventListener('DOMContentLoaded',function(){" +
+                    "processExistingMedia();" +
+                    "observer.observe(document.body,{childList:true,subtree:true});" +
+                    "});" +
+                    "}" +
+                    "})();</script>";
+
+                if (html.contains("</body>")) {
+                    html = html.replace("</body>", injectedScript + "</body>");
+                } else if (html.contains("</html>")) {
+                    html = html.replace("</html>", injectedScript + "</html>");
+                } else {
+                    html = html + injectedScript;
+                }
+
                 return html;
             } catch (Exception e) {
                 Log.e(TAG, "URL rewriting error", e);

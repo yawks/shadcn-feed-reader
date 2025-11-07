@@ -47,13 +47,21 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
                 ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
               `}>
                 <img
-                  src={thumbnailUrl || '/public/images/feed_icon.png'}
+                  src={thumbnailUrl || '/images/feed_icon.png'}
                   alt={title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                   onError={e => {
                     const target = e.currentTarget;
-                    if (target.src.indexOf('/public/images/feed_icon.png') === -1) {
-                      target.src = '/public/images/feed_icon.png';
+                    // Try fallback icon if not already set
+                    if (!target.src.includes('/images/feed_icon.png')) {
+                      target.src = '/images/feed_icon.png';
+                    } else if (!target.dataset.fallbackTried) {
+                      // Fallback icon also failed, hide image or use transparent pixel
+                      target.dataset.fallbackTried = 'true';
+                      target.style.opacity = '0.3';
+                      target.style.backgroundColor = 'var(--muted)';
+                      // Use a 1x1 transparent pixel as last resort
+                      target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                     }
                   }}
                 />

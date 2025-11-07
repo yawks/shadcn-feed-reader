@@ -33,3 +33,6 @@ dist-ssr
 
 # Tauri
 src-tauri/target
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc
