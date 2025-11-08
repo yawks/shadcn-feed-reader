@@ -118,28 +118,31 @@
   }
   html {
     @apply overflow-x-hidden;
+    /* Ensure html respects safe areas */
+    height: 100%;
+    height: -webkit-fill-available;
   }
   body {
-    @apply bg-background text-foreground min-h-svh w-full;
+    @apply bg-background text-foreground w-full;
+    /* Use min-height instead of fixed height to allow content to grow */
+    min-height: 100svh;
+    min-height: -webkit-fill-available;
+    /* Don't add padding to body - let containers handle safe areas */
   }
   
   /* Safe area support for Capacitor/mobile */
+  /* Note: Safe areas are handled by the main content container (#content) */
   @supports (padding: max(0px)) {
-    body {
-      padding-top: max(0px, env(safe-area-inset-top));
-      padding-left: max(0px, env(safe-area-inset-left));
-      padding-right: max(0px, env(safe-area-inset-right));
-    }
-    
-    /* Apply bottom padding to main content areas */
-    main, [role="main"], .fixed-main {
-      padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
-    }
-    
-    /* Apply to bottom navigation elements */
+    /* Apply to bottom navigation elements only */
     nav:last-child, footer, [role="navigation"]:last-child {
       padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
     }
+  }
+  
+  /* Ensure root element respects safe areas */
+  #root {
+    min-height: 100svh;
+    min-height: -webkit-fill-available;
   }
 
   button:not(:disabled),

@@ -11,7 +11,6 @@ import { Header } from '@/components/layout/header'
 import { IconX } from '@tabler/icons-react'
 import { ItemsListLoader } from '@/components/layout/loaders/itemslist-loader'
 import { Main } from '@/components/layout/main'
-import { MobileBackButton } from '@/components/mobile-back-button'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ResizeHandle } from '@/components/ui/resize-handle'
 import { Search } from '@/components/search'
@@ -288,23 +287,21 @@ export default function Feeds() {
             // article view on mobile
             <div 
               className={cn(
-                "flex flex-col h-dvh",
+                "flex flex-col",
+                // Use full height - parent handles safe areas with padding-top
+                "h-full",
                 {
                   // In landscape mode, remove all padding and margins to maximize width
-                  "m-0 p-0": isLandscape,
+                  "m-0": isLandscape,
                 }
               )}
-              style={isLandscape ? { width: '100vw', maxWidth: '100vw', margin: 0, padding: 0 } : undefined}
+              style={isLandscape ? { 
+                width: '100vw', 
+                maxWidth: '100vw', 
+                margin: 0,
+                padding: 0
+              } : undefined}
             >
-              {/* Hide header in landscape mode to maximize article width */}
-              {!isLandscape && (
-                <div className="flex items-center p-3 border-b bg-background">
-                  <MobileBackButton onBack={handleBackToList} />
-                  <h1 className="ml-3 text-lg font-medium truncate">
-                    {currentSelectedArticle?.title}
-                  </h1>
-                </div>
-              )}
               <div className={cn(
                 "flex-1 overflow-hidden w-full",
                 {
@@ -316,7 +313,8 @@ export default function Feeds() {
                   <FeedArticle 
                     key={currentSelectedArticle.id} 
                     item={currentSelectedArticle} 
-                    isMobile={true} 
+                    isMobile={true}
+                    onBack={handleBackToList}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">

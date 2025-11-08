@@ -13,6 +13,7 @@ export const Main = ({ fixed, ...props }: MainProps) => {
         'peer-[.header-fixed]/header:mt-16',
         'p-0 border-t border-gray',
         fixed && 'fixed-main flex grow flex-col overflow-hidden'
+        // No padding-bottom - parent container handles it
       )}
       {...props}
     />

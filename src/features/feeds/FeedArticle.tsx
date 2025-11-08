@@ -17,9 +17,10 @@ import { useTheme } from "@/context/theme-context"
 type FeedArticleProps = {
     item: FeedItem
     isMobile?: boolean
+    onBack?: () => void
 }
 
-function FeedArticleComponent({ item, isMobile = false }: FeedArticleProps) {
+function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticleProps) {
     const { theme } = useTheme()
     const { fontSize } = useFontSize()
     const isLandscape = useOrientation()
@@ -445,7 +446,7 @@ function FeedArticleComponent({ item, isMobile = false }: FeedArticleProps) {
         }
         
         /* Ensure last line visible on mobile safe areas */
-        body::after { content: ''; display: block; height: max(6rem, env(safe-area-inset-bottom, 1rem)); }
+        body::after { content: ''; display: block; height: 0; }
     </style>
     <script>
         // Ensure videos have controls and iframes have fullscreen attributes for native fullscreen
@@ -1154,7 +1155,16 @@ function FeedArticleComponent({ item, isMobile = false }: FeedArticleProps) {
                 }
             )} style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
                 <div className="flex items-center justify-between p-2 h-12">
-                    <ArticleToolbar viewMode={viewMode} onViewModeChange={handleViewModeChange} articleUrl={item.url} />
+                    <ArticleToolbar 
+                        viewMode={viewMode} 
+                        onViewModeChange={handleViewModeChange} 
+                        articleUrl={item.url}
+                        feedFaviconUrl={item.feed?.faviconUrl}
+                        articleTitle={item.title}
+                        isMobile={isMobile}
+                        isLandscape={isLandscape}
+                        onBack={onBack}
+                    />
                 </div>
                 {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
                 <div data-article-container className="relative h-full w-full">
