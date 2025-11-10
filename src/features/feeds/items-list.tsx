@@ -5,6 +5,7 @@ import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
 import { StackedArticleCard } from './StackedArticleCard';
 import { timeSinceShort } from '@/lib/utils';
+import { secureImageUrl } from '@/lib/secure-image-url';
 
 interface ItemsListProps {
   readonly items: Readonly<ProcessedFeedItem[]>;
@@ -47,7 +48,7 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
                 ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
               `}>
                 <img
-                  src={thumbnailUrl || '/images/feed_icon.png'}
+                  src={secureImageUrl(thumbnailUrl) || '/images/feed_icon.png'}
                   alt={title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                   onError={e => {

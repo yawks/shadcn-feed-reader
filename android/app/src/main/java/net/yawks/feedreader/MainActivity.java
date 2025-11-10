@@ -51,6 +51,18 @@ public class MainActivity extends BridgeActivity {
 
             if (webView != null) {
                 final android.webkit.WebView finalWebView = webView;
+                
+                // Enable pinch-to-zoom on WebView
+                android.webkit.WebSettings webSettings = finalWebView.getSettings();
+                if (webSettings != null) {
+                    webSettings.setSupportZoom(true);
+                    webSettings.setBuiltInZoomControls(false); // Hide zoom controls, use pinch-to-zoom
+                    webSettings.setDisplayZoomControls(false);
+                    Log.d("MainActivity", "WebView zoom enabled: setSupportZoom(true), setBuiltInZoomControls(false), setDisplayZoomControls(false)");
+                } else {
+                    Log.w("MainActivity", "WebView settings are null, cannot enable zoom");
+                }
+                
                 // Listen to window insets on the activity's decor view; when changed,
                 // forward the bottom inset to the web layer as a CustomEvent.
                 this.getWindow().getDecorView().setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {

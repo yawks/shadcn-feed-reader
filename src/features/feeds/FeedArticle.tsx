@@ -515,11 +515,136 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Permissions-Policy" content="accelerometer=*, gyroscope=*, magnetometer=*">
+    <script>
+        (function() {
+            console.log('[ZOOM-DIAG] Iframe zoom script loaded');
+            
+            let currentScale = 1;
+            let initialDistance = 0;
+            let initialScale = 1;
+            let lastTouchCenter = { x: 0, y: 0 };
+            let lastPan = { x: 0, y: 0 };
+            
+            // Apply zoom transform to body
+            function applyZoom(scale, panX, panY) {
+                const body = document.body;
+                if (!body) return;
+                
+                // Clamp scale between 1.0 (100%) and 5
+                scale = Math.max(1.0, Math.min(5, scale));
+                
+                // Reset pan when zoom returns to 100%
+                if (scale === 1.0) {
+                    panX = 0;
+                    panY = 0;
+                    lastPan = { x: 0, y: 0 };
+                }
+                
+                // Apply transform
+                body.style.transformOrigin = '0 0';
+                body.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                body.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
+                
+                currentScale = scale;
+                console.log('[ZOOM-DIAG] Iframe: Applied zoom: scale=' + scale.toFixed(2));
+            }
+            
+            // Reset zoom
+            function resetZoom() {
+                applyZoom(1, 0, 0);
+                lastPan = { x: 0, y: 0 };
+            }
+            
+            // Calculate center point between two touches
+            function getTouchCenter(touch1, touch2) {
+                return {
+                    x: (touch1.clientX + touch2.clientX) / 2,
+                    y: (touch1.clientY + touch2.clientY) / 2
+                };
+            }
+            
+            // Touch start - detect pinch
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 2) {
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                    initialScale = currentScale;
+                    lastTouchCenter = getTouchCenter(touch1, touch2);
+                    console.log('[ZOOM-DIAG] Iframe: Pinch start, scale:', initialScale.toFixed(2));
+                } else if (e.touches.length === 1 && currentScale > 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            // Touch move - apply zoom or pan
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                    
+                    if (initialDistance > 0) {
+                        const scale = initialScale * (currentDistance / initialDistance);
+                        const touchCenter = getTouchCenter(touch1, touch2);
+                        
+                        const deltaX = touchCenter.x - lastTouchCenter.x;
+                        const deltaY = touchCenter.y - lastTouchCenter.y;
+                        
+                        lastPan.x += deltaX * (1 - 1/scale);
+                        lastPan.y += deltaY * (1 - 1/scale);
+                        
+                        applyZoom(scale, lastPan.x, lastPan.y);
+                        lastTouchCenter = touchCenter;
+                    }
+                } else if (e.touches.length === 1 && currentScale > 1) {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - (lastTouchCenter.x || touch.clientX);
+                    const deltaY = touch.clientY - (lastTouchCenter.y || touch.clientY);
+                    
+                    lastPan.x += deltaX;
+                    lastPan.y += deltaY;
+                    applyZoom(currentScale, lastPan.x, lastPan.y);
+                    
+                    lastTouchCenter = { x: touch.clientX, y: touch.clientY };
+                }
+            }, { passive: false });
+            
+            // Touch end
+            document.addEventListener('touchend', function(e) {
+                if (e.touches.length < 2 && initialDistance > 0) {
+                    console.log('[ZOOM-DIAG] Iframe: Pinch end, final scale:', currentScale.toFixed(2));
+                    initialDistance = 0;
+                    initialScale = currentScale;
+                }
+                if (e.touches.length === 0) {
+                    lastTouchCenter = { x: 0, y: 0 };
+                }
+            }, { passive: true });
+            
+            // Double tap to reset
+            let lastTapTime = 0;
+            document.addEventListener('touchend', function(e) {
+                if (e.touches.length === 0) {
+                    const currentTime = Date.now();
+                    const tapLength = currentTime - lastTapTime;
+                    if (tapLength < 300 && tapLength > 0) {
+                        resetZoom();
+                        console.log('[ZOOM-DIAG] Iframe: Double tap - reset zoom');
+                    }
+                    lastTapTime = currentTime;
+                }
+            }, { passive: true });
+        })();
+    </script>
     <style>
         /* Base reset */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${effectiveFontSize}; line-height: 1.6; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${effectiveFontSize}; line-height: 1.6; touch-action: pan-x pan-y pinch-zoom; }
     body { padding: 1rem; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'}; color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'}; }
 
         /* Imported reader styles (adapted) */
@@ -802,6 +927,13 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             setIsLoading(false)
             // eslint-disable-next-line no-console
             console.debug('[DIAG] FeedArticle: iframe loaded, viewMode=', viewMode, 'proxyPort=', proxyPort)
+            
+            // Log platform info
+            const isAndroid = Capacitor.getPlatform() === 'android'
+            // eslint-disable-next-line no-console
+            console.log('[ZOOM-DIAG] Platform:', Capacitor.getPlatform(), 'isAndroid:', isAndroid)
+            // eslint-disable-next-line no-console
+            console.log('[ZOOM-DIAG] User agent:', navigator.userAgent)
             if (iframe.contentWindow) {
                 // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
                 let targetOrigin = '*'
@@ -835,6 +967,30 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         const h = doc.documentElement?.scrollHeight || doc.body?.scrollHeight
                         // eslint-disable-next-line no-console
                         console.debug('[DIAG] FeedArticle: iframe document scrollHeight (same-origin):', h)
+                        
+                        // Check viewport meta for zoom support
+                        const viewportMeta = doc.querySelector('meta[name="viewport"]')
+                        if (viewportMeta) {
+                            // eslint-disable-next-line no-console
+                            console.debug('[DIAG] FeedArticle: iframe viewport meta:', viewportMeta.getAttribute('content'))
+                        } else {
+                            // eslint-disable-next-line no-console
+                            console.warn('[DIAG] FeedArticle: iframe viewport meta NOT FOUND - zoom may not work!')
+                        }
+                        
+                        // Log touch-action styles
+                        const htmlEl = doc.documentElement
+                        const bodyEl = doc.body
+                        if (htmlEl) {
+                            const htmlStyle = window.getComputedStyle(htmlEl)
+                            // eslint-disable-next-line no-console
+                            console.debug('[DIAG] FeedArticle: iframe html touch-action:', htmlStyle.touchAction)
+                        }
+                        if (bodyEl) {
+                            const bodyStyle = window.getComputedStyle(bodyEl)
+                            // eslint-disable-next-line no-console
+                            console.debug('[DIAG] FeedArticle: iframe body touch-action:', bodyStyle.touchAction)
+                        }
                     }
                 } catch (_e) {
                     // eslint-disable-next-line no-console
@@ -1123,9 +1279,148 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             // Load stylesheets first, then inject HTML, then load scripts
             // Use .then() since useEffect callback cannot be async
             loadExternalStylesheets().then(() => {
+                // Log zoom diagnostics for shadow DOM
+                const isAndroid = Capacitor.getPlatform() === 'android'
+                // eslint-disable-next-line no-console
+                console.log('[ZOOM-DIAG] Shadow DOM: Platform:', Capacitor.getPlatform(), 'isAndroid:', isAndroid)
+                // eslint-disable-next-line no-console
+                console.log('[ZOOM-DIAG] Shadow DOM: About to inject HTML, length:', injectedHtml.length)
+                
                 // Inject HTML into shadow root (without scripts - they're executed separately)
                 // Security: This is intentional - we're injecting proxied HTML content from trusted sources
                 shadowRoot.innerHTML = injectedHtml
+                
+                // Add zoom implementation script to shadow DOM
+                const zoomScript = shadowRoot.ownerDocument.createElement('script')
+                zoomScript.textContent = `
+                    (function() {
+                        console.log('[ZOOM-DIAG] Shadow DOM zoom script loaded');
+                        
+                        let currentScale = 1;
+                        let initialDistance = 0;
+                        let initialScale = 1;
+                        let lastTouchCenter = { x: 0, y: 0 };
+                        let lastPan = { x: 0, y: 0 };
+                        
+                        // Apply zoom transform to body
+                        function applyZoom(scale, panX, panY) {
+                            const body = document.body;
+                            if (!body) return;
+                            
+                            // Clamp scale between 1.0 (100%) and 5
+                            scale = Math.max(1.0, Math.min(5, scale));
+                            
+                            // Reset pan when zoom returns to 100%
+                            if (scale === 1.0) {
+                                panX = 0;
+                                panY = 0;
+                                lastPan = { x: 0, y: 0 };
+                            }
+                            
+                            // Apply transform
+                            body.style.transformOrigin = '0 0';
+                            body.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                            body.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
+                            
+                            currentScale = scale;
+                            console.log('[ZOOM-DIAG] Applied zoom: scale=' + scale.toFixed(2) + ', pan=(' + panX + ', ' + panY + ')');
+                        }
+                        
+                        // Reset zoom
+                        function resetZoom() {
+                            applyZoom(1, 0, 0);
+                            lastPan = { x: 0, y: 0 };
+                        }
+                        
+                        // Calculate center point between two touches
+                        function getTouchCenter(touch1, touch2) {
+                            return {
+                                x: (touch1.clientX + touch2.clientX) / 2,
+                                y: (touch1.clientY + touch2.clientY) / 2
+                            };
+                        }
+                        
+                        // Touch start - detect pinch
+                        document.addEventListener('touchstart', function(e) {
+                            if (e.touches.length === 2) {
+                                const touch1 = e.touches[0];
+                                const touch2 = e.touches[1];
+                                initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                                initialScale = currentScale;
+                                lastTouchCenter = getTouchCenter(touch1, touch2);
+                                console.log('[ZOOM-DIAG] Pinch start, initial distance:', initialDistance.toFixed(2), 'scale:', initialScale.toFixed(2));
+                            } else if (e.touches.length === 1 && currentScale > 1) {
+                                // Single touch when zoomed - allow panning
+                                e.preventDefault();
+                            }
+                        }, { passive: false });
+                        
+                        // Touch move - apply zoom or pan
+                        document.addEventListener('touchmove', function(e) {
+                            if (e.touches.length === 2) {
+                                e.preventDefault();
+                                const touch1 = e.touches[0];
+                                const touch2 = e.touches[1];
+                                const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                                
+                                if (initialDistance > 0) {
+                                    const scale = initialScale * (currentDistance / initialDistance);
+                                    const touchCenter = getTouchCenter(touch1, touch2);
+                                    
+                                    // Calculate pan to keep zoom centered on pinch point
+                                    const deltaX = touchCenter.x - lastTouchCenter.x;
+                                    const deltaY = touchCenter.y - lastTouchCenter.y;
+                                    
+                                    lastPan.x += deltaX * (1 - 1/scale);
+                                    lastPan.y += deltaY * (1 - 1/scale);
+                                    
+                                    applyZoom(scale, lastPan.x, lastPan.y);
+                                    lastTouchCenter = touchCenter;
+                                }
+                            } else if (e.touches.length === 1 && currentScale > 1) {
+                                // Pan when zoomed
+                                e.preventDefault();
+                                const touch = e.touches[0];
+                                const deltaX = touch.clientX - (lastTouchCenter.x || touch.clientX);
+                                const deltaY = touch.clientY - (lastTouchCenter.y || touch.clientY);
+                                
+                                lastPan.x += deltaX;
+                                lastPan.y += deltaY;
+                                applyZoom(currentScale, lastPan.x, lastPan.y);
+                                
+                                lastTouchCenter = { x: touch.clientX, y: touch.clientY };
+                            }
+                        }, { passive: false });
+                        
+                        // Touch end - finalize zoom
+                        document.addEventListener('touchend', function(e) {
+                            if (e.touches.length < 2 && initialDistance > 0) {
+                                console.log('[ZOOM-DIAG] Pinch end, final scale:', currentScale.toFixed(2));
+                                initialDistance = 0;
+                                initialScale = currentScale;
+                            }
+                            if (e.touches.length === 0) {
+                                lastTouchCenter = { x: 0, y: 0 };
+                            }
+                        }, { passive: true });
+                        
+                        // Double tap to reset zoom
+                        let lastTapTime = 0;
+                        document.addEventListener('touchend', function(e) {
+                            if (e.touches.length === 0) {
+                                const currentTime = Date.now();
+                                const tapLength = currentTime - lastTapTime;
+                                if (tapLength < 300 && tapLength > 0) {
+                                    // Double tap detected
+                                    resetZoom();
+                                    console.log('[ZOOM-DIAG] Double tap - reset zoom');
+                                }
+                                lastTapTime = currentTime;
+                            }
+                        }, { passive: true });
+                    })();
+                `
+                shadowRoot.appendChild(zoomScript)
                 
                 // Setup image long press handlers for Android
                 if (Capacitor.getPlatform() === 'android') {
@@ -1139,31 +1434,47 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                                img.getAttribute('data-src') || 
                                                img.getAttribute('data-lazy-src')
                                 if (imageUrl) {
+                                    // eslint-disable-next-line no-console
+                                    console.log('[FeedArticle] Image long press detected, setting selectedImageUrl:', imageUrl)
                                     setSelectedImageUrl(imageUrl)
                                 }
                             })
                             
                             // Touch events for mobile
                             let touchStartTime: number | null = null
-                            img.addEventListener('touchstart', () => {
+                            let touchStartPos: { x: number; y: number } | null = null
+                            img.addEventListener('touchstart', (e) => {
                                 touchStartTime = Date.now()
+                                if (e.touches.length === 1) {
+                                    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                                }
                             })
                             
                             img.addEventListener('touchend', (e) => {
                                 if (touchStartTime && Date.now() - touchStartTime >= 500) {
-                                    e.preventDefault()
-                                    const imageUrl = (img as HTMLImageElement).src || 
-                                                   img.getAttribute('data-src') || 
-                                                   img.getAttribute('data-lazy-src')
-                                    if (imageUrl) {
-                                        setSelectedImageUrl(imageUrl)
+                                    // Check if finger didn't move much (long press, not drag)
+                                    const moved = touchStartPos && e.changedTouches[0] && 
+                                                 (Math.abs(e.changedTouches[0].clientX - touchStartPos.x) > 10 ||
+                                                  Math.abs(e.changedTouches[0].clientY - touchStartPos.y) > 10)
+                                    if (!moved) {
+                                        e.preventDefault()
+                                        const imageUrl = (img as HTMLImageElement).src || 
+                                                       img.getAttribute('data-src') || 
+                                                       img.getAttribute('data-lazy-src')
+                                        if (imageUrl) {
+                                            // eslint-disable-next-line no-console
+                                            console.log('[FeedArticle] Image long press detected (touch), setting selectedImageUrl:', imageUrl)
+                                            setSelectedImageUrl(imageUrl)
+                                        }
                                     }
                                 }
                                 touchStartTime = null
+                                touchStartPos = null
                             })
                             
                             img.addEventListener('touchmove', () => {
                                 touchStartTime = null
+                                touchStartPos = null
                             })
                         })
                     }
@@ -1398,7 +1709,14 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     />
                 </div>
                 {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
-                <div data-article-container className="relative h-full w-full">
+                <div 
+                    data-article-container 
+                    className="relative h-full w-full"
+                    style={{
+                        // Enable pinch-to-zoom on Android
+                        touchAction: 'pan-x pan-y pinch-zoom'
+                    }}
+                >
                     {isLoading && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
                             <div className="flex flex-col items-center space-y-4">
@@ -1436,9 +1754,13 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 src="about:blank"
                                 title="Feed article"
                                 sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-top-navigation-by-user-activation"
-                                allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share"
+                                allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope; magnetometer"
                                 allowFullScreen
-                                style={{ border: 0 }}
+                                style={{ 
+                                    border: 0,
+                                    // Enable pinch-to-zoom on Android
+                                    touchAction: 'pan-x pan-y pinch-zoom'
+                                }}
                             />
                         ) : (
                             <div
@@ -1449,7 +1771,16 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 style={{ 
                                     border: 0,
                                     // Isolate styles from the rest of the app
-                                    isolation: 'isolate'
+                                    isolation: 'isolate',
+                                    // Enable pinch-to-zoom on Android
+                                    touchAction: 'pan-x pan-y pinch-zoom',
+                                    WebkitOverflowScrolling: 'touch'
+                                }}
+                                onTouchStart={(e) => {
+                                    if (e.touches.length === 2) {
+                                        // eslint-disable-next-line no-console
+                                        console.log('[ZOOM-DIAG] Shadow DOM container: Pinch start detected, touches:', e.touches.length)
+                                    }
                                 }}
                             />
                         )

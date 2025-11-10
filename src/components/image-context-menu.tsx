@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { useState, useRef, useEffect } from 'react'
 import { Copy, Maximize2, Share2 } from 'lucide-react'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Capacitor } from '@capacitor/core'
@@ -14,21 +13,212 @@ interface ImageContextMenuProps {
   onClose: () => void
 }
 
+interface FullscreenImageZoomProps {
+  imageUrl: string
+  onClose: () => void
+}
+
+function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const [scale, setScale] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const initialDistanceRef = useRef(0)
+  const initialScaleRef = useRef(1)
+  const lastTouchCenterRef = useRef({ x: 0, y: 0 })
+  const lastPanRef = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const container = containerRef.current
+    const image = imageRef.current
+    if (!container || !image) return
+
+    const getTouchCenter = (touch1: Touch, touch2: Touch) => ({
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2
+    })
+
+    const applyZoom = (newScale: number, panX: number, panY: number) => {
+      const clampedScale = Math.max(1.0, Math.min(5, newScale))
+      
+      // Reset pan when zoom returns to 100%
+      const finalPanX = clampedScale === 1.0 ? 0 : panX
+      const finalPanY = clampedScale === 1.0 ? 0 : panY
+      
+      setScale(clampedScale)
+      setPan({ x: finalPanX, y: finalPanY })
+      lastPanRef.current = { x: finalPanX, y: finalPanY }
+      // eslint-disable-next-line no-console
+      console.log('[ZOOM-DIAG] Fullscreen image: Applied zoom, scale:', clampedScale.toFixed(2))
+    }
+
+    const resetZoom = () => {
+      applyZoom(1, 0, 0)
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0]
+        const touch2 = e.touches[1]
+        initialDistanceRef.current = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        )
+        initialScaleRef.current = scale
+        lastTouchCenterRef.current = getTouchCenter(touch1, touch2)
+        // eslint-disable-next-line no-console
+        console.log('[ZOOM-DIAG] Fullscreen image: Pinch start')
+      } else if (e.touches.length === 1 && scale > 1) {
+        e.preventDefault()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        const touch1 = e.touches[0]
+        const touch2 = e.touches[1]
+        const currentDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        )
+
+        if (initialDistanceRef.current > 0) {
+          const newScale = initialScaleRef.current * (currentDistance / initialDistanceRef.current)
+          const touchCenter = getTouchCenter(touch1, touch2)
+          const deltaX = touchCenter.x - lastTouchCenterRef.current.x
+          const deltaY = touchCenter.y - lastTouchCenterRef.current.y
+
+          const newPanX = lastPanRef.current.x + deltaX * (1 - 1 / newScale)
+          const newPanY = lastPanRef.current.y + deltaY * (1 - 1 / newScale)
+
+          applyZoom(newScale, newPanX, newPanY)
+          lastTouchCenterRef.current = touchCenter
+        }
+      } else if (e.touches.length === 1 && scale > 1) {
+        e.preventDefault()
+        const touch = e.touches[0]
+        const deltaX = touch.clientX - (lastTouchCenterRef.current.x || touch.clientX)
+        const deltaY = touch.clientY - (lastTouchCenterRef.current.y || touch.clientY)
+
+        const newPanX = lastPanRef.current.x + deltaX
+        const newPanY = lastPanRef.current.y + deltaY
+        applyZoom(scale, newPanX, newPanY)
+
+        lastTouchCenterRef.current = { x: touch.clientX, y: touch.clientY }
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2 && initialDistanceRef.current > 0) {
+        // eslint-disable-next-line no-console
+        console.log('[ZOOM-DIAG] Fullscreen image: Pinch end, final scale:', scale.toFixed(2))
+        initialDistanceRef.current = 0
+        initialScaleRef.current = scale
+      }
+      if (e.touches.length === 0) {
+        lastTouchCenterRef.current = { x: 0, y: 0 }
+      }
+    }
+
+    // Double tap to reset
+    let lastTapTime = 0
+    const handleDoubleTap = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        const currentTime = Date.now()
+        const tapLength = currentTime - lastTapTime
+        if (tapLength < 300 && tapLength > 0) {
+          resetZoom()
+          // eslint-disable-next-line no-console
+          console.log('[ZOOM-DIAG] Fullscreen image: Double tap - reset zoom')
+        }
+        lastTapTime = currentTime
+      }
+    }
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false })
+    container.addEventListener('touchmove', handleTouchMove, { passive: false })
+    container.addEventListener('touchend', handleTouchEnd, { passive: true })
+    container.addEventListener('touchend', handleDoubleTap, { passive: true })
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('touchmove', handleTouchMove)
+      container.removeEventListener('touchend', handleTouchEnd)
+      container.removeEventListener('touchend', handleDoubleTap)
+    }
+  }, [scale])
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[9999] bg-black flex items-center justify-center overflow-hidden"
+      style={{
+        touchAction: 'pan-x pan-y pinch-zoom'
+      }}
+      onClick={() => {
+        if (scale === 1) {
+          onClose()
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          onClose()
+        }
+      }}
+      tabIndex={-1}
+    >
+      <img
+        ref={imageRef}
+        src={imageUrl}
+        alt="Fullscreen image"
+        className="max-w-full max-h-full object-contain"
+        style={{
+          touchAction: 'pan-x pan-y pinch-zoom',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+          transformOrigin: 'center center',
+          transition: scale === 1 ? 'transform 0.2s' : 'none'
+        }}
+        onClick={(e) => {
+          if (scale > 1) {
+            e.stopPropagation()
+          }
+        }}
+        draggable={false}
+      />
+    </div>
+  )
+}
+
 export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
   const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null)
   const isAndroid = Capacitor.getPlatform() === 'android'
+  
+  // Log when imageUrl changes
+  // eslint-disable-next-line no-console
+  console.log('[ImageContextMenu] Render - imageUrl:', imageUrl, 'isAndroid:', isAndroid, 'isFullscreenOpen:', isFullscreenOpen, 'fullscreenImageUrl:', fullscreenImageUrl)
 
   const handleFullscreen = () => {
-    if (!imageUrl) return
+    if (!imageUrl) {
+      // eslint-disable-next-line no-console
+      console.log('[ImageContextMenu] handleFullscreen: no imageUrl')
+      return
+    }
+    // eslint-disable-next-line no-console
+    console.log('[ImageContextMenu] handleFullscreen: opening fullscreen for:', imageUrl)
     // Store the image URL before closing the menu
     setFullscreenImageUrl(imageUrl)
     // Close the context menu
     onClose()
     // Open the fullscreen dialog immediately
     setIsFullscreenOpen(true)
+    // eslint-disable-next-line no-console
+    console.log('[ImageContextMenu] handleFullscreen: isFullscreenOpen set to true')
   }
 
   // Don't show the context menu if no image URL or not Android
@@ -272,44 +462,16 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         </div>
       )}
 
-      {/* Dialog is always rendered, independent of imageUrl state */}
-      <Dialog 
-        open={isFullscreenOpen} 
-        onOpenChange={(open) => {
-          setIsFullscreenOpen(open)
-          if (!open) {
+      {/* Fullscreen image - using fixed div instead of Dialog to allow zoom */}
+      {isFullscreenOpen && fullscreenImageUrl && (
+        <FullscreenImageZoom
+          imageUrl={fullscreenImageUrl}
+          onClose={() => {
+            setIsFullscreenOpen(false)
             setFullscreenImageUrl(null)
-          }
-        }}
-      >
-        <DialogContent 
-          className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black border-0 rounded-none fixed inset-0 top-0 left-0 translate-x-0 translate-y-0 [&>button]:z-[10000] [&>button]:relative"
-          overlayClassName="z-[9998]"
-          style={{ zIndex: 9999 }}
-          onPointerDownOutside={(e) => {
-            setIsFullscreenOpen(false)
           }}
-          onInteractOutside={(e) => {
-            setIsFullscreenOpen(false)
-          }}
-          onEscapeKeyDown={() => {
-            setIsFullscreenOpen(false)
-          }}
-        >
-          <div 
-            className="flex items-center justify-center w-full h-full p-4 cursor-pointer"
-            onClick={() => setIsFullscreenOpen(false)}
-          >
-            {fullscreenImageUrl && (
-              <img
-                src={fullscreenImageUrl}
-                alt="Fullscreen image"
-                className="max-w-full max-h-full object-contain"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+        />
+      )}
     </>
   )
 }

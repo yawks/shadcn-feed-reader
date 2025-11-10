@@ -1,6 +1,7 @@
 import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
 import { GroupedFeedItem } from '@/utils/grouping';
+import { secureImageUrl } from '@/lib/secure-image-url';
 import { timeSinceShort } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -51,7 +52,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
             <div className="flex-shrink-0">
                 <div className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
                 <img
-                  src={mainArticle.thumbnailUrl || '/images/feed_icon.png'}
+                  src={secureImageUrl(mainArticle.thumbnailUrl) || '/images/feed_icon.png'}
                   alt={mainArticle.title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                   onError={e => {
@@ -110,7 +111,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                       <div className="flex-shrink-0">
                         <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
                           <img
-                            src={mainArticle.thumbnailUrl || '/images/feed_icon.png'}
+                            src={secureImageUrl(mainArticle.thumbnailUrl) || '/images/feed_icon.png'}
                             alt={mainArticle.title}
                             className="w-full h-full object-cover"
                             onError={e => {
@@ -154,7 +155,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                       <div className="flex-shrink-0">
                         <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
                           <img
-                            src={article.thumbnailUrl || '/images/feed_icon.png'}
+                            src={secureImageUrl(article.thumbnailUrl) || '/images/feed_icon.png'}
                             alt={article.title}
                             className="w-full h-full object-cover"
                             onError={e => {
