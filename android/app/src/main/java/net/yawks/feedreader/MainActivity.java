@@ -4,14 +4,16 @@ import android.os.Bundle;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 import net.yawks.feedreader.plugin.rawhtml.RawHtmlPlugin;
+import net.yawks.feedreader.plugin.clipboard.ClipboardPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        Log.d("MainActivity", "Registering RawHtmlPlugin BEFORE onCreate...");
-        // Register RawHtmlPlugin explicitly - MUST be called BEFORE super.onCreate()
+        Log.d("MainActivity", "Registering plugins BEFORE onCreate...");
+        // Register plugins explicitly - MUST be called BEFORE super.onCreate()
         registerPlugin(RawHtmlPlugin.class);
-        Log.d("MainActivity", "RawHtmlPlugin registered, calling super.onCreate()...");
+        registerPlugin(ClipboardPlugin.class);
+        Log.d("MainActivity", "Plugins registered, calling super.onCreate()...");
         super.onCreate(savedInstanceState);
         Log.d("MainActivity", "MainActivity initialized successfully");
 

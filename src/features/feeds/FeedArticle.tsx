@@ -1,11 +1,16 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
+import { IconBook, IconExternalLink, IconEye, IconMoon } from "@tabler/icons-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { extractDomain, getStoredAuth, storeAuth } from '@/lib/auth-storage'
 import { getArticleViewMode, getArticleViewModeSync, setArticleViewMode } from '@/lib/article-view-storage'
 import { memo, useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
+import { Button } from "@/components/ui/button"
+import { Capacitor } from "@capacitor/core"
 import { FeedItem } from "@/backends/types"
+import { ImageContextMenu } from "@/components/image-context-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { extractArticle } from "@/lib/article-extractor"
@@ -18,6 +23,102 @@ type FeedArticleProps = {
     item: FeedItem
     isMobile?: boolean
     onBack?: () => void
+}
+
+interface FloatingActionButtonProps {
+    viewMode: ArticleViewMode
+    onViewModeChange: (mode: ArticleViewMode) => void
+    articleUrl?: string
+}
+
+function FloatingActionButton({ viewMode, onViewModeChange, articleUrl }: FloatingActionButtonProps) {
+    const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
+    const viewModes = [
+        {
+            mode: "original" as const,
+            Icon: IconEye,
+            label: "Original",
+        },
+        {
+            mode: "readability" as const,
+            Icon: IconBook,
+            label: "Readability",
+        },
+        {
+            mode: "dark" as const,
+            Icon: IconMoon,
+            label: "Dark Mode",
+        },
+    ] as const
+
+    const currentMode = viewModes.find((m) => m.mode === viewMode) || viewModes[0]
+    const CurrentIcon = currentMode.Icon
+
+    const handleModeSelect = (mode: ArticleViewMode) => {
+        onViewModeChange(mode)
+        setIsPopoverOpen(false)
+    }
+
+    const handleSourceClick = async () => {
+        if (!articleUrl) return
+
+        setIsPopoverOpen(false)
+
+        // Try to open with Tauri first (for native app)
+        try {
+            const mod = await import('@tauri-apps/plugin-shell')
+            if (typeof mod.open === 'function') {
+                await mod.open(articleUrl)
+            } else {
+                window.open(articleUrl, "_blank", "noopener,noreferrer")
+            }
+        } catch (_e) {
+            // Fallback to window.open for web or if Tauri is not available
+            window.open(articleUrl, "_blank", "noopener,noreferrer")
+        }
+    }
+
+    return (
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    size="icon"
+                    className="h-12 w-12 rounded-full shadow-lg"
+                    aria-label="Options d'affichage"
+                >
+                    <CurrentIcon className="h-5 w-5" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2 mb-2" align="end" side="top">
+                <div className="flex flex-col gap-1">
+                    {viewModes.map(({ mode, Icon, label }) => (
+                        <Button
+                            key={mode}
+                            variant={viewMode === mode ? "secondary" : "ghost"}
+                            className="w-full justify-start gap-2"
+                            onClick={() => handleModeSelect(mode)}
+                            aria-label={label}
+                        >
+                            <Icon className="h-4 w-4" />
+                            <span className="text-sm">{label}</span>
+                        </Button>
+                    ))}
+                    {articleUrl && (
+                        <Button
+                            variant="ghost"
+                            className="w-full justify-start gap-2"
+                            onClick={handleSourceClick}
+                            aria-label="Voir la source"
+                        >
+                            <IconExternalLink className="h-4 w-4" />
+                            <span className="text-sm">Source</span>
+                        </Button>
+                    )}
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
 }
 
 function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticleProps) {
@@ -55,6 +156,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     
     const [proxyPort, setProxyPort] = useState<number | null>(null)
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
@@ -489,6 +591,70 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 });
             }
         })();
+        
+        // Handle long press on images for Android
+        (function() {
+            var longPressDelay = 500; // 500ms for long press
+            
+            function handleImageLongPress(img) {
+                var imageUrl = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+                if (imageUrl) {
+                    // Send message to parent window
+                    if (window.parent) {
+                        window.parent.postMessage({
+                            type: 'IMAGE_LONG_PRESS',
+                            imageUrl: imageUrl
+                        }, '*');
+                    }
+                }
+            }
+            
+            function setupImageListeners(img) {
+                // Prevent default context menu
+                img.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    handleImageLongPress(img);
+                });
+                
+                // Touch events for mobile
+                var touchStartTime = null;
+                img.addEventListener('touchstart', function(e) {
+                    touchStartTime = Date.now();
+                });
+                
+                img.addEventListener('touchend', function(e) {
+                    if (touchStartTime && Date.now() - touchStartTime >= longPressDelay) {
+                        e.preventDefault();
+                        handleImageLongPress(img);
+                    }
+                    touchStartTime = null;
+                });
+                
+                img.addEventListener('touchmove', function() {
+                    touchStartTime = null;
+                });
+            }
+            
+            function processImages() {
+                document.querySelectorAll('img').forEach(setupImageListeners);
+            }
+            
+            if (document.body) {
+                processImages();
+                var imageObserver = new MutationObserver(function() {
+                    processImages();
+                });
+                imageObserver.observe(document.body, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    processImages();
+                    var imageObserver = new MutationObserver(function() {
+                        processImages();
+                    });
+                    imageObserver.observe(document.body, { childList: true, subtree: true });
+                });
+            }
+        })();
     </script>
 </head>
 <body>
@@ -750,11 +916,17 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     }, [viewMode, articleContent])
 
     // Listen for auth requests from proxy via postMessage
+    // Also listen for image long press events from iframe
     useEffect(() => {
         const handleMessage = async (event: MessageEvent) => {
             if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
                 const { domain } = event.data
                 setAuthDialog({ domain })
+            } else if (event.data?.type === 'IMAGE_LONG_PRESS' && event.data?.imageUrl) {
+                // Only show menu on Android
+                if (Capacitor.getPlatform() === 'android') {
+                    setSelectedImageUrl(event.data.imageUrl)
+                }
             }
         }
 
@@ -952,9 +1124,62 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             // Use .then() since useEffect callback cannot be async
             loadExternalStylesheets().then(() => {
                 // Inject HTML into shadow root (without scripts - they're executed separately)
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
                 // Security: This is intentional - we're injecting proxied HTML content from trusted sources
                 shadowRoot.innerHTML = injectedHtml
+                
+                // Setup image long press handlers for Android
+                if (Capacitor.getPlatform() === 'android') {
+                    const setupImageLongPress = () => {
+                        const images = shadowRoot.querySelectorAll('img')
+                        images.forEach((img) => {
+                            // Prevent default context menu
+                            img.addEventListener('contextmenu', (e) => {
+                                e.preventDefault()
+                                const imageUrl = (img as HTMLImageElement).src || 
+                                               img.getAttribute('data-src') || 
+                                               img.getAttribute('data-lazy-src')
+                                if (imageUrl) {
+                                    setSelectedImageUrl(imageUrl)
+                                }
+                            })
+                            
+                            // Touch events for mobile
+                            let touchStartTime: number | null = null
+                            img.addEventListener('touchstart', () => {
+                                touchStartTime = Date.now()
+                            })
+                            
+                            img.addEventListener('touchend', (e) => {
+                                if (touchStartTime && Date.now() - touchStartTime >= 500) {
+                                    e.preventDefault()
+                                    const imageUrl = (img as HTMLImageElement).src || 
+                                                   img.getAttribute('data-src') || 
+                                                   img.getAttribute('data-lazy-src')
+                                    if (imageUrl) {
+                                        setSelectedImageUrl(imageUrl)
+                                    }
+                                }
+                                touchStartTime = null
+                            })
+                            
+                            img.addEventListener('touchmove', () => {
+                                touchStartTime = null
+                            })
+                        })
+                    }
+                    
+                    setupImageLongPress()
+                    
+                    // Watch for dynamically added images
+                    const imageObserver = new MutationObserver(() => {
+                        setupImageLongPress()
+                    })
+                    imageObserver.observe(shadowRoot, { childList: true, subtree: true })
+                    
+                    // Store observer for cleanup
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ;(shadowRoot as any)._imageObserver = imageObserver
+                }
                 
                 // Function to convert position:fixed to position:absolute for all elements
                 // This ensures fixed elements stay contained within the Shadow DOM
@@ -1048,6 +1273,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 if (obs) {
                     obs.disconnect()
                 }
+                // Disconnect image observer
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const imgObs = (shadowRoot as any)?._imageObserver
+                if (imgObs) {
+                    imgObs.disconnect()
+                }
                 // Restore original document methods
                 document.getElementById = originalGetElementById
                 document.querySelector = originalQuerySelector
@@ -1056,7 +1287,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 document.getElementsByTagName = originalGetElementsByTagName
             }
         }
-    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, isDarkMode])
+    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, isDarkMode, setSelectedImageUrl])
 
     // Ensure iframe viewport doesn't extend under native system UI by reducing
     // iframe height according to the native bottom inset (or CSS env() fallback).
@@ -1226,6 +1457,17 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 </div>
             </div>
             
+            {/* Floating action button - mobile only: modes + source */}
+            {isMobile && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <FloatingActionButton
+                        viewMode={viewMode}
+                        onViewModeChange={handleViewModeChange}
+                        articleUrl={item.url}
+                    />
+                </div>
+            )}
+            
             {/* Auth Dialog */}
             {authDialog && (
                 <AuthDialog
@@ -1235,6 +1477,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     onCancel={handleAuthCancel}
                 />
             )}
+            
+            {/* Image Context Menu */}
+            <ImageContextMenu
+                imageUrl={selectedImageUrl}
+                onClose={() => setSelectedImageUrl(null)}
+            />
         </div>
     )
 }

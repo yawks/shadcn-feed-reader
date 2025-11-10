@@ -137,11 +137,24 @@ export async function startProxyServer(): Promise<number | null> {
         const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
         if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.startProxyServer === 'function') {
             console.log('[startProxyServer] Starting Capacitor proxy server...')
-            const res = await Plugins.RawHtml.startProxyServer()
-            console.log('[startProxyServer] SUCCESS, port:', res?.port)
-            return res?.port || null
+            try {
+                const res = await Plugins.RawHtml.startProxyServer()
+                console.log('[startProxyServer] Response:', res)
+                const port = res?.port || res?.value || (typeof res === 'number' ? res : null)
+                console.log('[startProxyServer] SUCCESS, port:', port)
+                return port
+            } catch (pluginError) {
+                console.error('[startProxyServer] Plugin call failed:', pluginError)
+                // Le plugin peut retourner une erreur si le serveur est déjà démarré
+                // Dans ce cas, on peut essayer de récupérer le port d'une autre manière
+                throw pluginError
+            }
         }
-        console.log('[startProxyServer] Capacitor plugin not available')
+        console.log('[startProxyServer] Capacitor plugin not available', {
+            Plugins: !!Plugins,
+            RawHtml: !!Plugins?.RawHtml,
+            startProxyServer: typeof Plugins?.RawHtml?.startProxyServer,
+        })
         return null
     } catch (e) {
         console.error('[startProxyServer] ERROR:', e)

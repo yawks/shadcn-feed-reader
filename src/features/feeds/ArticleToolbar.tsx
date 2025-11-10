@@ -106,89 +106,100 @@ export function ArticleToolbar({
                         <IconArrowLeft className="h-5 w-5" />
                     </Button>
                 )}
-                {(feedFaviconUrl || articleTitle) && (
-                    <div className="flex items-center gap-2 min-w-0 mr-2">
-                        {feedFaviconUrl && (
-                            <div className="size-9 rounded-md flex-shrink-0 flex items-center justify-center bg-background/50 border border-border">
-                                <FeedFavicon
-                                    src={feedFaviconUrl}
-                                    alt={articleTitle || "Article"}
-                                    className="size-4 object-contain"
-                                    onError={(e) => {
-                                        const target = e.currentTarget as HTMLImageElement
-                                        target.src = 'https://www.google.com/s2/favicons?sz=64&domain=example.com'
-                                    }}
-                                />
-                            </div>
-                        )}
-                        {articleTitle && (
-                            <span className={cn(
-                                "font-medium text-foreground",
-                                {
-                                    // Smaller text on mobile, normal on desktop
-                                    "text-xs": isMobile,
-                                    "text-sm": !isMobile,
-                                    // 1 line in landscape, 2 lines in portrait/desktop
-                                    "line-clamp-1": isMobile && isLandscape,
-                                    "line-clamp-2": !(isMobile && isLandscape),
-                                }
-                            )}>
-                                {articleTitle}
-                            </span>
-                        )}
-                    </div>
+                {/* Favicon - mobile: no frame, 16x16 | desktop: in frame 36x36 */}
+                {feedFaviconUrl && (
+                    isMobile ? (
+                        <FeedFavicon
+                            src={feedFaviconUrl}
+                            alt={articleTitle || "Article"}
+                            className="size-4 object-contain flex-shrink-0"
+                            onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement
+                                target.src = 'https://www.google.com/s2/favicons?sz=64&domain=example.com'
+                            }}
+                        />
+                    ) : (
+                        <div className="size-9 rounded-md flex-shrink-0 flex items-center justify-center bg-background/50 border border-border">
+                            <FeedFavicon
+                                src={feedFaviconUrl}
+                                alt={articleTitle || "Article"}
+                                className="size-4 object-contain"
+                                onError={(e) => {
+                                    const target = e.currentTarget as HTMLImageElement
+                                    target.src = 'https://www.google.com/s2/favicons?sz=64&domain=example.com'
+                                }}
+                            />
+                        </div>
+                    )
+                )}
+                {articleTitle && (
+                    <span className={cn(
+                        "font-medium text-foreground",
+                        {
+                            // Smaller text on mobile, normal on desktop
+                            "text-xs": isMobile,
+                            "text-sm": !isMobile,
+                            // 1 line in landscape, 2 lines in portrait/desktop
+                            "line-clamp-1": isMobile && isLandscape,
+                            "line-clamp-2": !(isMobile && isLandscape),
+                        }
+                    )}>
+                        {articleTitle}
+                    </span>
                 )}
             </div>
             <div className="flex items-center space-x-2 flex-shrink-0">
-                <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <PopoverTrigger asChild>
+                {/* Mode button - desktop only (mobile uses floating button) */}
+                {!isMobile && (
+                    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            aria-label="Mode d'affichage"
+                                        >
+                                            <CurrentIcon className="h-5 w-5" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>Mode d'affichage</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <PopoverContent className="w-48 p-2" align="start">
+                            <div className="flex flex-col gap-1">
+                                {viewModes.map(({ mode, Icon, label }) => (
                                     <Button
-                                        variant="secondary"
-                                        size="icon"
-                                        aria-label="Mode d'affichage"
+                                        key={mode}
+                                        variant={viewMode === mode ? "secondary" : "ghost"}
+                                        className="w-full justify-start gap-2"
+                                        onClick={() => handleModeSelect(mode)}
+                                        aria-label={label}
                                     >
-                                        <CurrentIcon className="h-5 w-5" />
+                                        <Icon className="h-4 w-4" />
+                                        <span className="text-sm">{label}</span>
                                     </Button>
-                                </PopoverTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent>Mode d'affichage</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                    <PopoverContent className="w-48 p-2" align="start">
-                        <div className="flex flex-col gap-1">
-                            {viewModes.map(({ mode, Icon, label }) => (
-                                <Button
-                                    key={mode}
-                                    variant={viewMode === mode ? "secondary" : "ghost"}
-                                    className="w-full justify-start gap-2"
-                                    onClick={() => handleModeSelect(mode)}
-                                    aria-label={label}
-                                >
-                                    <Icon className="h-4 w-4" />
-                                    <span className="text-sm">{label}</span>
-                                </Button>
-                            ))}
-                        </div>
-                    </PopoverContent>
-                </Popover>
-                {articleUrl && (
+                                ))}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                )}
+                {/* Source button - desktop only */}
+                {!isMobile && articleUrl && (
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     variant="ghost"
-                                    size={isMobile ? "icon" : "sm"}
+                                    size="sm"
                                     onClick={handleSourceClick}
                                     aria-label="Voir la source"
-                                    className={cn("gap-1", {
-                                        "gap-0": isMobile,
-                                    })}
+                                    className="gap-1"
                                 >
                                     <IconExternalLink className="h-4 w-4" />
-                                    {!isMobile && <span className="text-sm">Source</span>}
+                                    <span className="text-sm">Source</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>Ouvrir l'article dans le navigateur</TooltipContent>
