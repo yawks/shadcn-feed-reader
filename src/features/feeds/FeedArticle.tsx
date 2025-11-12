@@ -432,11 +432,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 // Fetch raw HTML and extract article content using Readability
                 let html: string
                 try {
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Calling fetchRawHtml...')
                     html = await fetchRawHtml(item.url)
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] fetchRawHtml SUCCESS, html length:', html.length)
                 } catch (_invokeErr: unknown) {
                     // eslint-disable-next-line no-console
                     console.error('[FeedArticle] fetchRawHtml FAILED:', _invokeErr)
@@ -458,16 +454,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 
                 let summary = ''
                 try {
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Calling extractArticle...')
                     const article = extractArticle(html, { url: item.url })
                     summary = article?.content || ''
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] extractArticle SUCCESS, summary length:', summary.length)
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Article title:', article?.title)
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Summary preview:', summary.substring(0, 500))
                     
                     // If summary is empty or too short, show error
                     if (!summary || summary.trim().length < 50) {
@@ -487,8 +475,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     return
                 }
                 setArticleContent(summary)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] setArticleContent done, creating blob HTML...')
 
                 // Create a blob HTML document with the extracted content and safe-area padding
                 // This creates an isolated scroll context (like original mode) that respects insets
@@ -526,11 +512,92 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             let initialScale = 1;
             let lastTouchCenter = { x: 0, y: 0 };
             let lastPan = { x: 0, y: 0 };
+            let naturalContentWidth = 0;
+            let naturalContentHeight = 0;
+            
+            // Measure natural content dimensions once
+            function measureContent() {
+                const body = document.body;
+                if (!body) return;
+                // Temporarily remove transform to measure natural size
+                const savedTransform = body.style.transform;
+                body.style.transform = '';
+                naturalContentWidth = body.scrollWidth || body.offsetWidth;
+                naturalContentHeight = body.scrollHeight || body.offsetHeight;
+                body.style.transform = savedTransform;
+            }
+            
+            // Measure on load
+            if (document.readyState === 'complete') {
+                measureContent();
+            } else {
+                window.addEventListener('load', measureContent);
+            }
+            
+            // Prevent body::after from adding extra padding when app regains focus
+            function ensureBodyAfterHeight() {
+                const style = document.createElement('style');
+                style.textContent = 'body::after { content: ""; display: block; height: 0 !important; }';
+                document.head.appendChild(style);
+            }
+            ensureBodyAfterHeight();
+            
+            // Re-apply on visibility change (when app regains focus)
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    console.log('[ZOOM-DIAG] Iframe: App regained focus (visibilitychange)');
+                    const body = document.body;
+                    const html = document.documentElement;
+                    if (body && html) {
+                        // Log current dimensions before fix
+                        const bodyAfter = window.getComputedStyle(body, '::after');
+                        const bodyHeightBefore = body.offsetHeight;
+                        const bodyScrollHeightBefore = body.scrollHeight;
+                        const htmlHeightBefore = html.offsetHeight;
+                        const htmlScrollHeightBefore = html.scrollHeight;
+                        console.log('[ZOOM-DIAG] Iframe: Before fix - body height:', bodyHeightBefore, 'scrollHeight:', bodyScrollHeightBefore, 'html height:', htmlHeightBefore, 'scrollHeight:', htmlScrollHeightBefore);
+                        console.log('[ZOOM-DIAG] Iframe: body::after computed height:', bodyAfter.height);
+                        
+                        // App regained focus - ensure body::after stays at height 0
+                        ensureBodyAfterHeight();
+                        
+                        // Force a reflow
+                        void body.offsetWidth;
+                        
+                        // Log dimensions after fix
+                        const bodyHeightAfter = body.offsetHeight;
+                        const bodyScrollHeightAfter = body.scrollHeight;
+                        const htmlHeightAfter = html.offsetHeight;
+                        const htmlScrollHeightAfter = html.scrollHeight;
+                        console.log('[ZOOM-DIAG] Iframe: After fix - body height:', bodyHeightAfter, 'scrollHeight:', bodyScrollHeightAfter, 'html height:', htmlHeightAfter, 'scrollHeight:', htmlScrollHeightAfter);
+                        
+                        if (bodyHeightAfter !== bodyHeightBefore || bodyScrollHeightAfter !== bodyScrollHeightBefore) {
+                            console.warn('[ZOOM-DIAG] Iframe: Dimensions changed after focus!', {
+                                bodyHeight: { before: bodyHeightBefore, after: bodyHeightAfter },
+                                bodyScrollHeight: { before: bodyScrollHeightBefore, after: bodyScrollHeightAfter },
+                                htmlHeight: { before: htmlHeightBefore, after: htmlHeightAfter },
+                                htmlScrollHeight: { before: htmlScrollHeightBefore, after: htmlScrollHeightAfter }
+                            });
+                        }
+                    }
+                    // Only remeasure if dimensions are zero (content might have changed)
+                    if (naturalContentWidth === 0 || naturalContentHeight === 0) {
+                        setTimeout(measureContent, 100);
+                    }
+                }
+            });
+            
+            // Also listen to focus events
+            window.addEventListener('focus', function() {
+                console.log('[ZOOM-DIAG] Iframe: Window focus event');
+                ensureBodyAfterHeight();
+            });
             
             // Apply zoom transform to body
             function applyZoom(scale, panX, panY) {
                 const body = document.body;
-                if (!body) return;
+                const html = document.documentElement;
+                if (!body || !html) return;
                 
                 // Clamp scale between 1.0 (100%) and 5
                 scale = Math.max(1.0, Math.min(5, scale));
@@ -540,6 +607,35 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     panX = 0;
                     panY = 0;
                     lastPan = { x: 0, y: 0 };
+                    // Reset dimensions when zoom is 100%
+                    body.style.width = '';
+                    body.style.height = '';
+                    body.style.minHeight = '';
+                    html.style.width = '';
+                    html.style.height = '';
+                    html.style.overflow = '';
+                    body.style.overflow = '';
+                } else {
+                    // Measure if not already measured
+                    if (naturalContentWidth === 0 || naturalContentHeight === 0) {
+                        measureContent();
+                    }
+                    
+                    // When zoomed, adjust container dimensions to allow proper scrolling
+                    // The key is to set html dimensions to the scaled size so the scroll container knows the real size
+                    const scaledWidth = naturalContentWidth * scale;
+                    const scaledHeight = naturalContentHeight * scale;
+                    
+                    // Set html dimensions to scaled size - this makes the scroll container aware of the real content size
+                    html.style.width = scaledWidth + 'px';
+                    html.style.height = scaledHeight + 'px';
+                    html.style.overflow = 'auto';
+                    
+                    // Set body dimensions to match
+                    body.style.width = scaledWidth + 'px';
+                    body.style.height = scaledHeight + 'px';
+                    body.style.minHeight = scaledHeight + 'px';
+                    body.style.overflow = 'visible';
                 }
                 
                 // Apply transform
@@ -548,7 +644,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 body.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
                 
                 currentScale = scale;
-                console.log('[ZOOM-DIAG] Iframe: Applied zoom: scale=' + scale.toFixed(2));
+                console.log('[ZOOM-DIAG] Iframe: Applied zoom: scale=' + scale.toFixed(2) + ', html size: ' + (naturalContentWidth * scale) + 'x' + (naturalContentHeight * scale));
             }
             
             // Reset zoom
@@ -588,7 +684,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
                     
                     if (initialDistance > 0) {
-                        const scale = initialScale * (currentDistance / initialDistance);
+                        // Reduce pinch sensitivity by applying a factor (0.3 = 30% of the distance change affects zoom)
+                        const distanceRatio = currentDistance / initialDistance;
+                        const zoomFactor = 1 + (distanceRatio - 1) * 0.3;
+                        const scale = initialScale * zoomFactor;
                         const touchCenter = getTouchCenter(touch1, touch2);
                         
                         const deltaX = touchCenter.x - lastTouchCenter.x;
@@ -789,11 +888,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 `
                 const blob = new Blob([blobHtml], { type: 'text/html' })
                 const blobUrl = URL.createObjectURL(blob)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Blob created, URL:', blobUrl)
                 setIframeUrl(blobUrl)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Iframe URL set, readability view complete')
             } catch (_err) {
                 const msg = _err instanceof Error ? _err.message : String(_err)
                 // Don't silently switch to original; surface the error so user can retry.
@@ -804,8 +899,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 setError(`Readability fetch failed: ${msg}`)
             } finally {
                 setIsLoading(false)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] handleReadabilityView END')
             }
         }
 
@@ -925,15 +1018,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 
         const handleLoad = () => {
             setIsLoading(false)
-            // eslint-disable-next-line no-console
-            console.debug('[DIAG] FeedArticle: iframe loaded, viewMode=', viewMode, 'proxyPort=', proxyPort)
             
-            // Log platform info
-            const isAndroid = Capacitor.getPlatform() === 'android'
-            // eslint-disable-next-line no-console
-            console.log('[ZOOM-DIAG] Platform:', Capacitor.getPlatform(), 'isAndroid:', isAndroid)
-            // eslint-disable-next-line no-console
-            console.log('[ZOOM-DIAG] User agent:', navigator.userAgent)
             if (iframe.contentWindow) {
                 // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
                 let targetOrigin = '*'
@@ -1192,8 +1277,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         link.rel = 'stylesheet'
                         link.href = href
                         link.onload = () => {
-                            // eslint-disable-next-line no-console
-                            console.log('[FeedArticle] External stylesheet loaded in Shadow DOM:', href)
                             resolve()
                         }
                         link.onerror = () => {
@@ -1279,12 +1362,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             // Load stylesheets first, then inject HTML, then load scripts
             // Use .then() since useEffect callback cannot be async
             loadExternalStylesheets().then(() => {
-                // Log zoom diagnostics for shadow DOM
-                const isAndroid = Capacitor.getPlatform() === 'android'
-                // eslint-disable-next-line no-console
-                console.log('[ZOOM-DIAG] Shadow DOM: Platform:', Capacitor.getPlatform(), 'isAndroid:', isAndroid)
-                // eslint-disable-next-line no-console
-                console.log('[ZOOM-DIAG] Shadow DOM: About to inject HTML, length:', injectedHtml.length)
+
                 
                 // Inject HTML into shadow root (without scripts - they're executed separately)
                 // Security: This is intentional - we're injecting proxied HTML content from trusted sources
@@ -1301,11 +1379,151 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         let initialScale = 1;
                         let lastTouchCenter = { x: 0, y: 0 };
                         let lastPan = { x: 0, y: 0 };
+                        let naturalContentWidth = 0;
+                        let naturalContentHeight = 0;
                         
-                        // Apply zoom transform to body
+                        // Create or get zoom wrapper
+                        function getZoomWrapper() {
+                            let wrapper = document.getElementById('zoom-wrapper');
+                            if (!wrapper) {
+                                wrapper = document.createElement('div');
+                                wrapper.id = 'zoom-wrapper';
+                                wrapper.style.position = 'relative';
+                                wrapper.style.width = '100%';
+                                wrapper.style.height = '100%';
+                                wrapper.style.display = 'block';
+                                // Move body content into wrapper
+                                const body = document.body;
+                                const html = document.documentElement;
+                                // Get all content from body
+                                while (body.firstChild) {
+                                    wrapper.appendChild(body.firstChild);
+                                }
+                                body.appendChild(wrapper);
+                                // Ensure body and html take full size
+                                body.style.margin = '0';
+                                body.style.padding = '0';
+                                html.style.margin = '0';
+                                html.style.padding = '0';
+                            }
+                            return wrapper;
+                        }
+                        
+                        // Measure natural content dimensions once
+                        function measureContent() {
+                            const wrapper = getZoomWrapper();
+                            if (!wrapper) return;
+                            // Temporarily remove transform to measure natural size
+                            const savedTransform = wrapper.style.transform;
+                            const savedWidth = wrapper.style.width;
+                            const savedHeight = wrapper.style.height;
+                            wrapper.style.transform = '';
+                            wrapper.style.width = '';
+                            wrapper.style.height = '';
+                            // Force a reflow to get accurate measurements
+                            void wrapper.offsetWidth;
+                            naturalContentWidth = Math.max(wrapper.scrollWidth, wrapper.offsetWidth, document.documentElement.scrollWidth);
+                            naturalContentHeight = Math.max(wrapper.scrollHeight, wrapper.offsetHeight, document.documentElement.scrollHeight);
+                            wrapper.style.transform = savedTransform;
+                            wrapper.style.width = savedWidth;
+                            wrapper.style.height = savedHeight;
+                            console.log('[ZOOM-DIAG] Measured content: ' + naturalContentWidth + 'x' + naturalContentHeight);
+                        }
+                        
+                        // Measure on load
+                        if (document.readyState === 'complete') {
+                            setTimeout(measureContent, 200);
+                        } else {
+                            window.addEventListener('load', () => setTimeout(measureContent, 200));
+                        }
+                        
+                        // Prevent body::after from adding extra padding when app regains focus
+                        function ensureBodyAfterHeight() {
+                            const style = document.createElement('style');
+                            style.textContent = 'body::after { content: ""; display: block; height: 0 !important; }';
+                            document.head.appendChild(style);
+                        }
+                        ensureBodyAfterHeight();
+                        
+                        // Re-apply on visibility change (when app regains focus)
+                        document.addEventListener('visibilitychange', function() {
+                            if (!document.hidden) {
+                                console.log('[ZOOM-DIAG] Shadow DOM: App regained focus (visibilitychange)');
+                                const body = document.body;
+                                const html = document.documentElement;
+                                const shadowRoot = body.getRootNode();
+                                const shadowHost = shadowRoot.host;
+                                const parent = shadowHost ? shadowHost.parentElement : null;
+                                
+                                if (body && html) {
+                                    // Log current dimensions before fix
+                                    const bodyAfter = window.getComputedStyle(body, '::after');
+                                    const bodyHeightBefore = body.offsetHeight;
+                                    const bodyScrollHeightBefore = body.scrollHeight;
+                                    const htmlHeightBefore = html.offsetHeight;
+                                    const htmlScrollHeightBefore = html.scrollHeight;
+                                    const parentHeightBefore = parent ? parent.offsetHeight : 0;
+                                    const parentScrollHeightBefore = parent ? parent.scrollHeight : 0;
+                                    const shadowHostHeightBefore = shadowHost ? shadowHost.offsetHeight : 0;
+                                    
+                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - body height:', bodyHeightBefore, 'scrollHeight:', bodyScrollHeightBefore);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - html height:', htmlHeightBefore, 'scrollHeight:', htmlScrollHeightBefore);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - parent height:', parentHeightBefore, 'scrollHeight:', parentScrollHeightBefore);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - shadowHost height:', shadowHostHeightBefore);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: body::after computed height:', bodyAfter.height);
+                                    
+                                    // App regained focus - ensure body::after stays at height 0
+                                    ensureBodyAfterHeight();
+                                    
+                                    // Force a reflow
+                                    void body.offsetWidth;
+                                    
+                                    // Log dimensions after fix
+                                    const bodyHeightAfter = body.offsetHeight;
+                                    const bodyScrollHeightAfter = body.scrollHeight;
+                                    const htmlHeightAfter = html.offsetHeight;
+                                    const htmlScrollHeightAfter = html.scrollHeight;
+                                    const parentHeightAfter = parent ? parent.offsetHeight : 0;
+                                    const parentScrollHeightAfter = parent ? parent.scrollHeight : 0;
+                                    const shadowHostHeightAfter = shadowHost ? shadowHost.offsetHeight : 0;
+                                    
+                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - body height:', bodyHeightAfter, 'scrollHeight:', bodyScrollHeightAfter);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - html height:', htmlHeightAfter, 'scrollHeight:', htmlScrollHeightAfter);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - parent height:', parentHeightAfter, 'scrollHeight:', parentScrollHeightAfter);
+                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - shadowHost height:', shadowHostHeightAfter);
+                                    
+                                    if (bodyHeightAfter !== bodyHeightBefore || bodyScrollHeightAfter !== bodyScrollHeightBefore || 
+                                        parentHeightAfter !== parentHeightBefore || parentScrollHeightAfter !== parentScrollHeightBefore) {
+                                        console.warn('[ZOOM-DIAG] Shadow DOM: Dimensions changed after focus!', {
+                                            bodyHeight: { before: bodyHeightBefore, after: bodyHeightAfter },
+                                            bodyScrollHeight: { before: bodyScrollHeightBefore, after: bodyScrollHeightAfter },
+                                            htmlHeight: { before: htmlHeightBefore, after: htmlHeightAfter },
+                                            htmlScrollHeight: { before: htmlScrollHeightBefore, after: htmlScrollHeightAfter },
+                                            parentHeight: { before: parentHeightBefore, after: parentHeightAfter },
+                                            parentScrollHeight: { before: parentScrollHeightBefore, after: parentScrollHeightAfter },
+                                            shadowHostHeight: { before: shadowHostHeightBefore, after: shadowHostHeightAfter }
+                                        });
+                                    }
+                                }
+                                // Only remeasure if dimensions are zero (content might have changed)
+                                if (naturalContentWidth === 0 || naturalContentHeight === 0) {
+                                    setTimeout(measureContent, 100);
+                                }
+                            }
+                        });
+                        
+                        // Also listen to focus events
+                        window.addEventListener('focus', function() {
+                            console.log('[ZOOM-DIAG] Shadow DOM: Window focus event');
+                            ensureBodyAfterHeight();
+                        });
+                        
+                        // Apply zoom transform to wrapper
                         function applyZoom(scale, panX, panY) {
-                            const body = document.body;
-                            if (!body) return;
+                            const wrapper = getZoomWrapper();
+                            const shadowRoot = document.body.getRootNode();
+                            const shadowHost = shadowRoot.host;
+                            if (!wrapper) return;
                             
                             // Clamp scale between 1.0 (100%) and 5
                             scale = Math.max(1.0, Math.min(5, scale));
@@ -1315,15 +1533,90 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 panX = 0;
                                 panY = 0;
                                 lastPan = { x: 0, y: 0 };
+                                // Reset dimensions when zoom is 100%
+                                wrapper.style.width = '';
+                                wrapper.style.height = '';
+                                wrapper.style.minHeight = '';
+                                // Reset shadow host container dimensions
+                                if (shadowHost && shadowHost.style) {
+                                    shadowHost.style.width = '';
+                                    shadowHost.style.height = '';
+                                    shadowHost.style.minHeight = '';
+                                    shadowHost.style.maxWidth = '';
+                                    shadowHost.style.maxHeight = '';
+                                }
+                                // Reset parent scroll container dimensions
+                                if (shadowHost && shadowHost.parentElement && shadowHost.parentElement.style) {
+                                    const parent = shadowHost.parentElement;
+                                    parent.style.width = '';
+                                    parent.style.height = '';
+                                    parent.style.minHeight = '';
+                                    parent.style.minWidth = '';
+                                    parent.style.maxWidth = '';
+                                    parent.style.maxHeight = '';
+                                    // Restore h-full class
+                                    parent.classList.add('h-full');
+                                }
+                            } else {
+                                // Measure if not already measured
+                                if (naturalContentWidth === 0 || naturalContentHeight === 0) {
+                                    measureContent();
+                                }
+                                
+                                // When zoomed, adjust container dimensions to allow proper scrolling
+                                const scaledWidth = naturalContentWidth * scale;
+                                const scaledHeight = naturalContentHeight * scale;
+                                
+                                // Set wrapper dimensions to scaled size
+                                wrapper.style.width = scaledWidth + 'px';
+                                wrapper.style.height = scaledHeight + 'px';
+                                wrapper.style.minHeight = scaledHeight + 'px';
+                                
+                                // Adjust shadow host container dimensions - use min/max to ensure it takes the full size
+                                if (shadowHost && shadowHost.style) {
+                                    shadowHost.style.width = scaledWidth + 'px';
+                                    shadowHost.style.height = scaledHeight + 'px';
+                                    shadowHost.style.minWidth = scaledWidth + 'px';
+                                    shadowHost.style.minHeight = scaledHeight + 'px';
+                                    shadowHost.style.maxWidth = scaledWidth + 'px';
+                                    shadowHost.style.maxHeight = scaledHeight + 'px';
+                                    shadowHost.style.display = 'block';
+                                }
+                                
+                                // CRITICAL: Adjust parent scroll container dimensions so it knows the real content size
+                                // The parent div (injectedHtmlRef) has overflow-auto and h-full which limits height
+                                // We need to override h-full when zoomed to allow expansion
+                                if (shadowHost && shadowHost.parentElement && shadowHost.parentElement.style) {
+                                    const parent = shadowHost.parentElement;
+                                    // Remove height constraint (h-full) by setting height to auto or the scaled height
+                                    parent.style.height = 'auto';
+                                    parent.style.minHeight = scaledHeight + 'px';
+                                    parent.style.minWidth = scaledWidth + 'px';
+                                    // Remove max constraints that might limit scrolling
+                                    parent.style.maxWidth = '';
+                                    parent.style.maxHeight = '';
+                                    // Ensure overflow is enabled
+                                    parent.style.overflow = 'auto';
+                                    parent.style.overflowX = 'auto';
+                                    parent.style.overflowY = 'auto';
+                                    // Remove any height constraints from classes
+                                    parent.classList.remove('h-full');
+                                    // Force the parent to recognize the new size
+                                    parent.style.display = 'block';
+                                    // Force a reflow to ensure dimensions are applied
+                                    void parent.offsetWidth;
+                                    void parent.offsetHeight;
+                                    console.log('[ZOOM-DIAG] Parent container adjusted: minHeight=' + scaledHeight + ', minWidth=' + scaledWidth);
+                                }
                             }
                             
-                            // Apply transform
-                            body.style.transformOrigin = '0 0';
-                            body.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
-                            body.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
+                            // Apply transform to wrapper instead of body
+                            wrapper.style.transformOrigin = '0 0';
+                            wrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                            wrapper.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
                             
                             currentScale = scale;
-                            console.log('[ZOOM-DIAG] Applied zoom: scale=' + scale.toFixed(2) + ', pan=(' + panX + ', ' + panY + ')');
+                            console.log('[ZOOM-DIAG] Applied zoom: scale=' + scale.toFixed(2) + ', pan=(' + panX + ', ' + panY + '), size: ' + (naturalContentWidth * scale) + 'x' + (naturalContentHeight * scale));
                         }
                         
                         // Reset zoom
@@ -1364,7 +1657,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
                                 
                                 if (initialDistance > 0) {
-                                    const scale = initialScale * (currentDistance / initialDistance);
+                                    // Reduce pinch sensitivity by applying a factor (0.3 = 30% of the distance change affects zoom)
+                                    const distanceRatio = currentDistance / initialDistance;
+                                    const zoomFactor = 1 + (distanceRatio - 1) * 0.3;
+                                    const scale = initialScale * zoomFactor;
                                     const touchCenter = getTouchCenter(touch1, touch2);
                                     
                                     // Calculate pan to keep zoom centered on pinch point
@@ -1603,15 +1899,95 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     // Ensure iframe viewport doesn't extend under native system UI by reducing
     // iframe height according to the native bottom inset (or CSS env() fallback).
     useEffect(() => {
-        const adjustIframe = (safeInset: number) => {
+        // Store the last known valid inset value to prevent incorrect adjustments
+        let lastKnownInset = 0
+        
+        const adjustContainer = (safeInset: number, force = false, source = 'unknown') => {
+            // Sanity check: insets are typically between 0 and 100px on mobile devices
+            // If we get a value > 100px, it's likely incorrect (could be a measurement error)
+            if (safeInset > 100) {
+                console.warn('[ZOOM-DIAG] React: adjustContainer - rejecting suspicious inset value:', safeInset, 'from', source, '- using lastKnownInset:', lastKnownInset);
+                if (lastKnownInset > 0 && lastKnownInset <= 100) {
+                    safeInset = lastKnownInset;
+                } else {
+                    // If lastKnownInset is also invalid, remeasure
+                    const remeasured = probeInset();
+                    if (remeasured > 0 && remeasured <= 100) {
+                        console.log('[ZOOM-DIAG] React: adjustContainer - remeasured inset:', remeasured);
+                        safeInset = remeasured;
+                    } else {
+                        console.warn('[ZOOM-DIAG] React: adjustContainer - remeasured value also suspicious:', remeasured, '- skipping adjustment');
+                        return;
+                    }
+                }
+            }
+            
+            // If the inset becomes 0 but we had a non-zero value before, it might be a measurement issue
+            // Wait a bit and remeasure, or use the last known value
+            if (!force && safeInset === 0 && lastKnownInset > 0) {
+                console.log('[ZOOM-DIAG] React: adjustContainer - safeInset is 0 but lastKnownInset was', lastKnownInset, '- remeasuring in 100ms');
+                setTimeout(() => {
+                    const remeasured = probeInset();
+                    if (remeasured > 0 && remeasured <= 100) {
+                        console.log('[ZOOM-DIAG] React: adjustContainer - remeasured inset:', remeasured);
+                        adjustContainer(remeasured, true, 'remeasure');
+                    } else {
+                        // If still 0, use last known value
+                        console.log('[ZOOM-DIAG] React: adjustContainer - still 0, using lastKnownInset:', lastKnownInset);
+                        adjustContainer(lastKnownInset, true, 'fallback');
+                    }
+                }, 100);
+                return;
+            }
+            
+            // Update last known inset if we have a valid value
+            if (safeInset > 0 && safeInset <= 100) {
+                lastKnownInset = safeInset;
+            }
+            
+            // Adjust iframe (for readability mode)
             const iframe = iframeRef.current
-            if (!iframe) return
-            try {
-                // Prefer positioning via explicit height calc so the iframe's internal
-                // viewport ends above the nav bar regardless of inner document CSS.
-                iframe.style.height = `calc(100% - ${safeInset}px)`
-            } catch (_e) {
-                // ignore
+            if (iframe) {
+                try {
+                    const newHeight = `calc(100% - ${safeInset}px)`
+                    // Only adjust if the height actually changed to prevent unnecessary reflows
+                    if (iframe.style.height !== newHeight) {
+                        const iframeHeightBefore = iframe.clientHeight;
+                        // Prefer positioning via explicit height calc so the iframe's internal
+                        // viewport ends above the nav bar regardless of inner document CSS.
+                        iframe.style.height = newHeight
+                        // Force a reflow
+                        void iframe.offsetWidth;
+                        const iframeHeightAfter = iframe.clientHeight;
+                        console.log('[ZOOM-DIAG] React: adjustContainer - iframe safeInset:', safeInset, 'from', source, 'height before:', iframeHeightBefore, 'after:', iframeHeightAfter, 'newHeight:', newHeight);
+                    } else {
+                        console.log('[ZOOM-DIAG] React: adjustContainer - iframe height unchanged, skipping adjustment. Current:', iframe.style.height);
+                    }
+                } catch (_e) {
+                    // ignore
+                }
+            }
+            
+            // Adjust injectedHtmlRef (for original/dark mode) - apply same adjustment for consistency
+            const injectedHtml = injectedHtmlRef.current
+            if (injectedHtml) {
+                try {
+                    const newHeight = `calc(100% - ${safeInset}px)`
+                    // Only adjust if the height actually changed to prevent unnecessary reflows
+                    if (injectedHtml.style.height !== newHeight) {
+                        const injectedHeightBefore = injectedHtml.clientHeight;
+                        // Apply the same height adjustment as iframe for consistency
+                        injectedHtml.style.height = newHeight
+                        // Force a reflow
+                        void injectedHtml.offsetWidth;
+                        const injectedHeightAfter = injectedHtml.clientHeight;
+                        console.log('[ZOOM-DIAG] React: adjustContainer - injectedHtml safeInset:', safeInset, 'from', source, 'height before:', injectedHeightBefore, 'after:', injectedHeightAfter, 'newHeight:', newHeight);
+                    } else {
+                        console.log('[ZOOM-DIAG] React: adjustContainer - injectedHtml height unchanged, skipping adjustment. Current:', injectedHtml.style.height);
+                    }
+                } catch (_e) {
+                    // ignore
+                }
             }
         }
 
@@ -1632,27 +2008,126 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         }
 
         // initial adjust based on CSS env()
-        adjustIframe(probeInset())
+        const initialInset = probeInset();
+        if (initialInset > 0 && initialInset <= 100) {
+            lastKnownInset = initialInset;
+        }
+        adjustContainer(initialInset, true, 'initial')
 
         const handler = (ev: Event) => {
             try {
                 const ce = ev as CustomEvent & { detail?: { bottom?: number } }
                 const safeInset = Number(ce?.detail?.bottom) || 0
-                adjustIframe(safeInset)
+                console.log('[ZOOM-DIAG] React: capacitor-window-insets event received, bottom:', safeInset);
+                if (safeInset > 0 && safeInset <= 100) {
+                    lastKnownInset = safeInset;
+                }
+                adjustContainer(safeInset, true, 'capacitor-event')
             } catch (_e) {
                 // ignore
             }
         }
 
-        const onResize = () => adjustIframe(probeInset())
+        const onResize = () => {
+            const inset = probeInset();
+            console.log('[ZOOM-DIAG] React: onResize called, safe-area-inset-bottom:', inset);
+            adjustContainer(inset, false, 'resize');
+        }
+        
+        const onVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('[ZOOM-DIAG] React: App regained focus (visibilitychange)');
+                const inset = probeInset();
+                console.log('[ZOOM-DIAG] React: safe-area-inset-bottom (immediate):', inset, 'lastKnownInset:', lastKnownInset);
+                
+                // Check current iframe height before adjusting
+                const currentIframe = iframeRef.current;
+                if (currentIframe) {
+                    const currentIframeHeight = currentIframe.style.height;
+                    console.log('[ZOOM-DIAG] React: Current iframe height before visibility change:', currentIframeHeight);
+                }
+                
+                // Don't adjust containers immediately on visibility change - wait a bit for CSS to stabilize
+                // Use a longer delay to ensure CSS has fully stabilized
+                setTimeout(() => {
+                    const insetAfterDelay = probeInset();
+                    console.log('[ZOOM-DIAG] React: safe-area-inset-bottom (after delay):', insetAfterDelay, 'lastKnownInset:', lastKnownInset);
+                    
+                    // Only adjust if the inset has actually changed or if we don't have a valid lastKnownInset
+                    if (insetAfterDelay !== lastKnownInset || lastKnownInset === 0) {
+                        adjustContainer(insetAfterDelay, false, 'visibilitychange-delayed');
+                    } else {
+                        console.log('[ZOOM-DIAG] React: Inset unchanged, skipping adjustment to prevent unnecessary reflow');
+                    }
+                }, 200);
+                
+                const container = document.querySelector('[data-article-container]');
+                if (container) {
+                    const containerHeight = container.clientHeight;
+                    const containerScrollHeight = container.scrollHeight;
+                    const containerStyle = window.getComputedStyle(container);
+                    const containerPaddingBottom = containerStyle.paddingBottom;
+                    const containerMarginBottom = containerStyle.marginBottom;
+                    const containerHeightStyle = containerStyle.height;
+                    const containerMinHeight = containerStyle.minHeight;
+                    const containerMaxHeight = containerStyle.maxHeight;
+                    console.log('[ZOOM-DIAG] React: Container dimensions - height:', containerHeight, 'scrollHeight:', containerScrollHeight);
+                    console.log('[ZOOM-DIAG] React: Container styles - paddingBottom:', containerPaddingBottom, 'marginBottom:', containerMarginBottom, 'height:', containerHeightStyle, 'minHeight:', containerMinHeight, 'maxHeight:', containerMaxHeight);
+                    
+                    // Check parent container
+                    const parent = container.parentElement;
+                    if (parent) {
+                        const parentHeight = parent.clientHeight;
+                        const parentScrollHeight = parent.scrollHeight;
+                        const parentStyle = window.getComputedStyle(parent);
+                        const parentPaddingBottom = parentStyle.paddingBottom;
+                        const parentMarginBottom = parentStyle.marginBottom;
+                        const parentHeightStyle = parentStyle.height;
+                        console.log('[ZOOM-DIAG] React: Parent container dimensions - height:', parentHeight, 'scrollHeight:', parentScrollHeight);
+                        console.log('[ZOOM-DIAG] React: Parent container styles - paddingBottom:', parentPaddingBottom, 'marginBottom:', parentMarginBottom, 'height:', parentHeightStyle);
+                    }
+                }
+                
+                // Check iframe
+                const iframe = iframeRef.current;
+                if (iframe) {
+                    const iframeHeight = iframe.clientHeight;
+                    const iframeStyle = window.getComputedStyle(iframe);
+                    const iframeHeightStyle = iframeStyle.height;
+                    const iframeMinHeight = iframeStyle.minHeight;
+                    const iframeMaxHeight = iframeStyle.maxHeight;
+                    console.log('[ZOOM-DIAG] React: Iframe dimensions - height:', iframeHeight);
+                    console.log('[ZOOM-DIAG] React: Iframe styles - height:', iframeHeightStyle, 'minHeight:', iframeMinHeight, 'maxHeight:', iframeMaxHeight);
+                    console.log('[ZOOM-DIAG] React: Iframe inline style.height:', iframe.style.height);
+                }
+                
+                // Check injectedHtmlRef container (for shadow DOM mode)
+                const injectedHtml = injectedHtmlRef.current;
+                if (injectedHtml) {
+                    const injectedHeight = injectedHtml.clientHeight;
+                    const injectedScrollHeight = injectedHtml.scrollHeight;
+                    const injectedStyle = window.getComputedStyle(injectedHtml);
+                    const injectedPaddingBottom = injectedStyle.paddingBottom;
+                    const injectedMarginBottom = injectedStyle.marginBottom;
+                    const injectedMinHeight = injectedStyle.minHeight;
+                    const injectedMaxHeight = injectedStyle.maxHeight;
+                    console.log('[ZOOM-DIAG] React: injectedHtmlRef dimensions - height:', injectedHeight, 'scrollHeight:', injectedScrollHeight);
+                    console.log('[ZOOM-DIAG] React: injectedHtmlRef styles - paddingBottom:', injectedPaddingBottom, 'marginBottom:', injectedMarginBottom, 'minHeight:', injectedMinHeight, 'maxHeight:', injectedMaxHeight);
+                } else {
+                    console.log('[ZOOM-DIAG] React: injectedHtmlRef is null (likely in iframe/readability mode)');
+                }
+            }
+        }
 
         window.addEventListener('capacitor-window-insets', handler as EventListener)
         window.addEventListener('resize', onResize)
         window.addEventListener('orientationchange', onResize)
+        document.addEventListener('visibilitychange', onVisibilityChange)
         return () => {
             window.removeEventListener('capacitor-window-insets', handler as EventListener)
             window.removeEventListener('resize', onResize)
             window.removeEventListener('orientationchange', onResize)
+            document.removeEventListener('visibilitychange', onVisibilityChange)
         }
     }, [])
 
@@ -1737,8 +2212,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                         // trigger the effect by toggling viewMode away and back
                                         setViewMode((v) => (v === 'readability' ? 'original' : 'readability'))
                                         setTimeout(() => setViewMode('readability'), 50)
-                                    }}>Réessayer</button>
-                                    <button className="px-3 py-1 rounded border" onClick={() => setViewMode('original')}>Voir original</button>
+                                    }}>Retry</button>
+                                    <button className="px-3 py-1 rounded border" onClick={() => setViewMode('original')}>See original</button>
                                 </div>
                             </div>
                         </div>
@@ -1774,7 +2249,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                     isolation: 'isolate',
                                     // Enable pinch-to-zoom on Android
                                     touchAction: 'pan-x pan-y pinch-zoom',
-                                    WebkitOverflowScrolling: 'touch'
+                                    WebkitOverflowScrolling: 'touch',
+                                    // Ensure container can scroll when content is zoomed
+                                    overflowX: 'auto',
+                                    overflowY: 'auto'
                                 }}
                                 onTouchStart={(e) => {
                                     if (e.touches.length === 2) {
@@ -1790,7 +2268,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             
             {/* Floating action button - mobile only: modes + source */}
             {isMobile && (
-                <div className="fixed bottom-4 right-4 z-50">
+                <div 
+                    className="fixed right-4 z-50"
+                    style={{
+                        bottom: 'calc(1rem + env(safe-area-inset-bottom))'
+                    }}
+                >
                     <FloatingActionButton
                         viewMode={viewMode}
                         onViewModeChange={handleViewModeChange}

@@ -523,7 +523,6 @@ function FeedList({ resource }: { resource: { read: () => Feed[] } }) {
               />
               <div className="flex flex-col">
                 <div className="text-sm font-medium">{f.source}</div>
-                <div className="text-xs text-muted-foreground">{f.site || f.address}</div>
               </div>
             </div>
             <div className="flex justify-end">
