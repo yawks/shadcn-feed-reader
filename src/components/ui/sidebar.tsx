@@ -265,7 +265,7 @@ function Sidebar({
         data-slot='sidebar-container'
         className={cn(
           'fixed z-10 hidden w-(--sidebar-width) md:flex',
-          // Respect safe areas for top and bottom - subtract only half of bottom safe area to reduce margin
+          // Respect safe areas for top and bottom - use half of bottom inset to reduce excessive margin
           'top-[env(safe-area-inset-top)]',
           'h-[calc(100svh-env(safe-area-inset-top)-calc(env(safe-area-inset-bottom)/2))]',
           side === 'left'

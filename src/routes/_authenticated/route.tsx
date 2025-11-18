@@ -42,7 +42,7 @@ function RouteComponent() {
               'group-data-[scroll-locked=1]/body:h-full',
               'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh',
               'pl-0', // padding-left forcé à 0
-              // Safe area support - subtract only half of bottom safe area to reduce margin
+              // Safe area support - use half of safe-area-inset-bottom to reduce excessive margin
               'h-[calc(100svh-env(safe-area-inset-top)-calc(env(safe-area-inset-bottom)/2))]',
               'pt-[env(safe-area-inset-top)]'
             )}

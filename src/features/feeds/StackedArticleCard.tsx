@@ -55,16 +55,43 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                   src={secureImageUrl(mainArticle.thumbnailUrl) || '/images/feed_icon.png'}
                   alt={mainArticle.title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
                   onError={e => {
                     const target = e.currentTarget;
-                    if (!target.src.includes('/images/feed_icon.png')) {
-                      target.src = '/images/feed_icon.png';
-                    } else if (!target.dataset.fallbackTried) {
-                      target.dataset.fallbackTried = 'true';
-                      target.style.opacity = '0.3';
-                      target.style.backgroundColor = 'var(--muted)';
-                      target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                    const currentSrc = target.src;
+                    
+                    // Skip if already using fallback
+                    if (currentSrc.includes('/images/feed_icon.png') || currentSrc.startsWith('data:')) {
+                      return;
                     }
+                    
+                    // Check retry count (max 2 retries with increasing delays)
+                    const retryCount = parseInt(target.dataset.retryCount || '0', 10);
+                    
+                    if (retryCount < 2) {
+                      // Increment retry count
+                      target.dataset.retryCount = String(retryCount + 1);
+                      
+                      // Exponential backoff: 5s, 15s
+                      const delay = retryCount === 0 ? 5000 : 15000;
+                      
+                      setTimeout(() => {
+                        // Only retry if still on error state
+                        if (target.dataset.retryCount && parseInt(target.dataset.retryCount, 10) <= 2) {
+                          target.src = currentSrc;
+                        }
+                      }, delay);
+                      return;
+                    }
+                    
+                    // After max retries, use fallback
+                    target.src = '/images/feed_icon.png';
+                  }}
+                  onLoad={(e) => {
+                    // Clear retry count on successful load
+                    const target = e.currentTarget;
+                    delete target.dataset.retryCount;
                   }}
                 />
               </div>
@@ -114,16 +141,43 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                             src={secureImageUrl(mainArticle.thumbnailUrl) || '/images/feed_icon.png'}
                             alt={mainArticle.title}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                             onError={e => {
                               const target = e.currentTarget;
-                              if (!target.src.includes('/images/feed_icon.png')) {
-                                target.src = '/images/feed_icon.png';
-                              } else if (!target.dataset.fallbackTried) {
-                                target.dataset.fallbackTried = 'true';
-                                target.style.opacity = '0.3';
-                                target.style.backgroundColor = 'var(--muted)';
-                                target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                              const currentSrc = target.src;
+                              
+                              // Skip if already using fallback
+                              if (currentSrc.includes('/images/feed_icon.png') || currentSrc.startsWith('data:')) {
+                                return;
                               }
+                              
+                              // Check retry count (max 2 retries with increasing delays)
+                              const retryCount = parseInt(target.dataset.retryCount || '0', 10);
+                              
+                              if (retryCount < 2) {
+                                // Increment retry count
+                                target.dataset.retryCount = String(retryCount + 1);
+                                
+                                // Exponential backoff: 5s, 15s
+                                const delay = retryCount === 0 ? 5000 : 15000;
+                                
+                                setTimeout(() => {
+                                  // Only retry if still on error state
+                                  if (target.dataset.retryCount && parseInt(target.dataset.retryCount, 10) <= 2) {
+                                    target.src = currentSrc;
+                                  }
+                                }, delay);
+                                return;
+                              }
+                              
+                              // After max retries, use fallback
+                              target.src = '/images/feed_icon.png';
+                            }}
+                            onLoad={(e) => {
+                              // Clear retry count on successful load
+                              const target = e.currentTarget;
+                              delete target.dataset.retryCount;
                             }}
                           />
                         </div>
@@ -158,16 +212,43 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                             src={secureImageUrl(article.thumbnailUrl) || '/images/feed_icon.png'}
                             alt={article.title}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                             onError={e => {
                               const target = e.currentTarget;
-                              if (!target.src.includes('/images/feed_icon.png')) {
-                                target.src = '/images/feed_icon.png';
-                              } else if (!target.dataset.fallbackTried) {
-                                target.dataset.fallbackTried = 'true';
-                                target.style.opacity = '0.3';
-                                target.style.backgroundColor = 'var(--muted)';
-                                target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                              const currentSrc = target.src;
+                              
+                              // Skip if already using fallback
+                              if (currentSrc.includes('/images/feed_icon.png') || currentSrc.startsWith('data:')) {
+                                return;
                               }
+                              
+                              // Check retry count (max 2 retries with increasing delays)
+                              const retryCount = parseInt(target.dataset.retryCount || '0', 10);
+                              
+                              if (retryCount < 2) {
+                                // Increment retry count
+                                target.dataset.retryCount = String(retryCount + 1);
+                                
+                                // Exponential backoff: 5s, 15s
+                                const delay = retryCount === 0 ? 5000 : 15000;
+                                
+                                setTimeout(() => {
+                                  // Only retry if still on error state
+                                  if (target.dataset.retryCount && parseInt(target.dataset.retryCount, 10) <= 2) {
+                                    target.src = currentSrc;
+                                  }
+                                }, delay);
+                                return;
+                              }
+                              
+                              // After max retries, use fallback
+                              target.src = '/images/feed_icon.png';
+                            }}
+                            onLoad={(e) => {
+                              // Clear retry count on successful load
+                              const target = e.currentTarget;
+                              delete target.dataset.retryCount;
                             }}
                           />
                         </div>

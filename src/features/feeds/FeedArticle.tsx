@@ -475,6 +475,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     return
                 }
                 setArticleContent(summary)
+                
+                // Log the content that will be injected
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Summary length:', summary.length);
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Summary preview (first 500 chars):', summary.substring(0, 500));
 
                 // Create a blob HTML document with the extracted content and safe-area padding
                 // This creates an isolated scroll context (like original mode) that respects insets
@@ -888,6 +894,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 `
                 const blob = new Blob([blobHtml], { type: 'text/html' })
                 const blobUrl = URL.createObjectURL(blob)
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Blob created, URL:', blobUrl);
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Blob HTML length:', blobHtml.length);
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Blob HTML preview (first 1000 chars):', blobHtml.substring(0, 1000));
                 setIframeUrl(blobUrl)
             } catch (_err) {
                 const msg = _err instanceof Error ? _err.message : String(_err)
@@ -1445,6 +1457,38 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         }
                         ensureBodyAfterHeight();
                         
+                        // Prevent horizontal scroll by constraining all content to container width
+                        function preventHorizontalScroll() {
+                            const style = document.createElement('style');
+                            style.textContent = \`
+                                * {
+                                    max-width: 100% !important;
+                                    box-sizing: border-box !important;
+                                }
+                                html, body {
+                                    overflow-x: hidden !important;
+                                    width: 100% !important;
+                                    max-width: 100% !important;
+                                }
+                                img, video, iframe, embed, object {
+                                    max-width: 100% !important;
+                                    height: auto !important;
+                                }
+                                table {
+                                    max-width: 100% !important;
+                                    table-layout: auto !important;
+                                    word-wrap: break-word !important;
+                                }
+                                pre, code {
+                                    max-width: 100% !important;
+                                    overflow-x: auto !important;
+                                    word-wrap: break-word !important;
+                                }
+                            \`;
+                            document.head.appendChild(style);
+                        }
+                        preventHorizontalScroll();
+                        
                         // Re-apply on visibility change (when app regains focus)
                         document.addEventListener('visibilitychange', function() {
                             if (!document.hidden) {
@@ -1537,6 +1581,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 wrapper.style.width = '';
                                 wrapper.style.height = '';
                                 wrapper.style.minHeight = '';
+                                wrapper.style.maxWidth = '100%';
+                                // Ensure wrapper doesn't exceed container width
+                                wrapper.style.boxSizing = 'border-box';
+                                
                                 // Reset shadow host container dimensions
                                 if (shadowHost && shadowHost.style) {
                                     shadowHost.style.width = '';
@@ -1554,8 +1602,25 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                     parent.style.minWidth = '';
                                     parent.style.maxWidth = '';
                                     parent.style.maxHeight = '';
+                                    // Ensure no horizontal scroll at 100% zoom
+                                    parent.style.overflowX = 'hidden';
+                                    parent.style.overflowY = 'auto';
                                     // Restore h-full class
                                     parent.classList.add('h-full');
+                                }
+                                
+                                // Ensure body and html don't exceed container width
+                                const body = document.body;
+                                const html = document.documentElement;
+                                if (body) {
+                                    body.style.maxWidth = '100%';
+                                    body.style.overflowX = 'hidden';
+                                    body.style.boxSizing = 'border-box';
+                                }
+                                if (html) {
+                                    html.style.maxWidth = '100%';
+                                    html.style.overflowX = 'hidden';
+                                    html.style.boxSizing = 'border-box';
                                 }
                             } else {
                                 // Measure if not already measured
@@ -1612,7 +1677,14 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                             
                             // Apply transform to wrapper instead of body
                             wrapper.style.transformOrigin = '0 0';
-                            wrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                            // At 100% zoom, ensure no transform offset (pan should be exactly 0)
+                            if (scale === 1.0) {
+                                wrapper.style.transform = 'scale(1)';
+                                wrapper.style.left = '0';
+                                wrapper.style.marginLeft = '0';
+                            } else {
+                                wrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                            }
                             wrapper.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
                             
                             currentScale = scale;
@@ -1896,238 +1968,54 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         }
     }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, isDarkMode, setSelectedImageUrl])
 
-    // Ensure iframe viewport doesn't extend under native system UI by reducing
-    // iframe height according to the native bottom inset (or CSS env() fallback).
+    // Ensure iframe viewport doesn't extend under native system UI.
+    // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
     useEffect(() => {
-        // Store the last known valid inset value to prevent incorrect adjustments
-        let lastKnownInset = 0
+        const iframe = iframeRef.current
+        const injectedHtml = injectedHtmlRef.current
         
-        const adjustContainer = (safeInset: number, force = false, source = 'unknown') => {
-            // Sanity check: insets are typically between 0 and 100px on mobile devices
-            // If we get a value > 100px, it's likely incorrect (could be a measurement error)
-            if (safeInset > 100) {
-                console.warn('[ZOOM-DIAG] React: adjustContainer - rejecting suspicious inset value:', safeInset, 'from', source, '- using lastKnownInset:', lastKnownInset);
-                if (lastKnownInset > 0 && lastKnownInset <= 100) {
-                    safeInset = lastKnownInset;
-                } else {
-                    // If lastKnownInset is also invalid, remeasure
-                    const remeasured = probeInset();
-                    if (remeasured > 0 && remeasured <= 100) {
-                        console.log('[ZOOM-DIAG] React: adjustContainer - remeasured inset:', remeasured);
-                        safeInset = remeasured;
-                    } else {
-                        console.warn('[ZOOM-DIAG] React: adjustContainer - remeasured value also suspicious:', remeasured, '- skipping adjustment');
-                        return;
-                    }
-                }
-            }
-            
-            // If the inset becomes 0 but we had a non-zero value before, it might be a measurement issue
-            // Wait a bit and remeasure, or use the last known value
-            if (!force && safeInset === 0 && lastKnownInset > 0) {
-                console.log('[ZOOM-DIAG] React: adjustContainer - safeInset is 0 but lastKnownInset was', lastKnownInset, '- remeasuring in 100ms');
-                setTimeout(() => {
-                    const remeasured = probeInset();
-                    if (remeasured > 0 && remeasured <= 100) {
-                        console.log('[ZOOM-DIAG] React: adjustContainer - remeasured inset:', remeasured);
-                        adjustContainer(remeasured, true, 'remeasure');
-                    } else {
-                        // If still 0, use last known value
-                        console.log('[ZOOM-DIAG] React: adjustContainer - still 0, using lastKnownInset:', lastKnownInset);
-                        adjustContainer(lastKnownInset, true, 'fallback');
-                    }
-                }, 100);
-                return;
-            }
-            
-            // Update last known inset if we have a valid value
-            if (safeInset > 0 && safeInset <= 100) {
-                lastKnownInset = safeInset;
-            }
-            
-            // Adjust iframe (for readability mode)
-            const iframe = iframeRef.current
-            if (iframe) {
-                try {
-                    const newHeight = `calc(100% - ${safeInset}px)`
-                    // Only adjust if the height actually changed to prevent unnecessary reflows
-                    if (iframe.style.height !== newHeight) {
-                        const iframeHeightBefore = iframe.clientHeight;
-                        // Prefer positioning via explicit height calc so the iframe's internal
-                        // viewport ends above the nav bar regardless of inner document CSS.
-                        iframe.style.height = newHeight
-                        // Force a reflow
-                        void iframe.offsetWidth;
-                        const iframeHeightAfter = iframe.clientHeight;
-                        console.log('[ZOOM-DIAG] React: adjustContainer - iframe safeInset:', safeInset, 'from', source, 'height before:', iframeHeightBefore, 'after:', iframeHeightAfter, 'newHeight:', newHeight);
-                    } else {
-                        console.log('[ZOOM-DIAG] React: adjustContainer - iframe height unchanged, skipping adjustment. Current:', iframe.style.height);
-                    }
-                } catch (_e) {
-                    // ignore
-                }
-            }
-            
-            // Adjust injectedHtmlRef (for original/dark mode) - apply same adjustment for consistency
-            const injectedHtml = injectedHtmlRef.current
-            if (injectedHtml) {
-                try {
-                    const newHeight = `calc(100% - ${safeInset}px)`
-                    // Only adjust if the height actually changed to prevent unnecessary reflows
-                    if (injectedHtml.style.height !== newHeight) {
-                        const injectedHeightBefore = injectedHtml.clientHeight;
-                        // Apply the same height adjustment as iframe for consistency
-                        injectedHtml.style.height = newHeight
-                        // Force a reflow
-                        void injectedHtml.offsetWidth;
-                        const injectedHeightAfter = injectedHtml.clientHeight;
-                        console.log('[ZOOM-DIAG] React: adjustContainer - injectedHtml safeInset:', safeInset, 'from', source, 'height before:', injectedHeightBefore, 'after:', injectedHeightAfter, 'newHeight:', newHeight);
-                    } else {
-                        console.log('[ZOOM-DIAG] React: adjustContainer - injectedHtml height unchanged, skipping adjustment. Current:', injectedHtml.style.height);
-                    }
-                } catch (_e) {
-                    // ignore
-                }
-            }
+        // Set height using CSS env() - let the browser handle it natively
+        // Use only half of safe-area-inset-bottom to reduce excessive bottom margin
+        if (iframe) {
+            iframe.style.height = 'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
         }
-
-        // probe env(safe-area-inset-bottom) as fallback
-        const probeInset = () => {
-            try {
-                const probe = document.createElement('div')
-                probe.style.position = 'absolute'
-                probe.style.left = '-9999px'
-                probe.style.height = 'env(safe-area-inset-bottom, 0px)'
-                document.body.appendChild(probe)
-                const h = probe.offsetHeight || 0
-                document.body.removeChild(probe)
-                return Number(h)
-            } catch (_e) {
-                return 0
-            }
+        
+        if (injectedHtml) {
+            injectedHtml.style.height = 'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
         }
-
-        // initial adjust based on CSS env()
-        const initialInset = probeInset();
-        if (initialInset > 0 && initialInset <= 100) {
-            lastKnownInset = initialInset;
-        }
-        adjustContainer(initialInset, true, 'initial')
-
+        
+        // Only listen to Capacitor plugin events for native insets (more reliable than probing)
         const handler = (ev: Event) => {
             try {
                 const ce = ev as CustomEvent & { detail?: { bottom?: number } }
                 const safeInset = Number(ce?.detail?.bottom) || 0
-                console.log('[ZOOM-DIAG] React: capacitor-window-insets event received, bottom:', safeInset);
-                if (safeInset > 0 && safeInset <= 100) {
-                    lastKnownInset = safeInset;
+                
+                // Validate inset value (typically 0-100px on mobile)
+                if (safeInset > 100) {
+                    console.warn('[FeedArticle] Suspicious inset value from Capacitor:', safeInset, '- ignoring');
+                    return;
                 }
-                adjustContainer(safeInset, true, 'capacitor-event')
+                
+                // Apply half of the inset to reduce excessive bottom margin
+                const adjustedInset = safeInset / 2;
+                
+                if (iframe) {
+                    iframe.style.height = `calc(100% - ${adjustedInset}px)`
+                }
+                if (injectedHtml) {
+                    injectedHtml.style.height = `calc(100% - ${adjustedInset}px)`
+                }
             } catch (_e) {
                 // ignore
             }
         }
-
-        const onResize = () => {
-            const inset = probeInset();
-            console.log('[ZOOM-DIAG] React: onResize called, safe-area-inset-bottom:', inset);
-            adjustContainer(inset, false, 'resize');
-        }
         
-        const onVisibilityChange = () => {
-            if (!document.hidden) {
-                console.log('[ZOOM-DIAG] React: App regained focus (visibilitychange)');
-                const inset = probeInset();
-                console.log('[ZOOM-DIAG] React: safe-area-inset-bottom (immediate):', inset, 'lastKnownInset:', lastKnownInset);
-                
-                // Check current iframe height before adjusting
-                const currentIframe = iframeRef.current;
-                if (currentIframe) {
-                    const currentIframeHeight = currentIframe.style.height;
-                    console.log('[ZOOM-DIAG] React: Current iframe height before visibility change:', currentIframeHeight);
-                }
-                
-                // Don't adjust containers immediately on visibility change - wait a bit for CSS to stabilize
-                // Use a longer delay to ensure CSS has fully stabilized
-                setTimeout(() => {
-                    const insetAfterDelay = probeInset();
-                    console.log('[ZOOM-DIAG] React: safe-area-inset-bottom (after delay):', insetAfterDelay, 'lastKnownInset:', lastKnownInset);
-                    
-                    // Only adjust if the inset has actually changed or if we don't have a valid lastKnownInset
-                    if (insetAfterDelay !== lastKnownInset || lastKnownInset === 0) {
-                        adjustContainer(insetAfterDelay, false, 'visibilitychange-delayed');
-                    } else {
-                        console.log('[ZOOM-DIAG] React: Inset unchanged, skipping adjustment to prevent unnecessary reflow');
-                    }
-                }, 200);
-                
-                const container = document.querySelector('[data-article-container]');
-                if (container) {
-                    const containerHeight = container.clientHeight;
-                    const containerScrollHeight = container.scrollHeight;
-                    const containerStyle = window.getComputedStyle(container);
-                    const containerPaddingBottom = containerStyle.paddingBottom;
-                    const containerMarginBottom = containerStyle.marginBottom;
-                    const containerHeightStyle = containerStyle.height;
-                    const containerMinHeight = containerStyle.minHeight;
-                    const containerMaxHeight = containerStyle.maxHeight;
-                    console.log('[ZOOM-DIAG] React: Container dimensions - height:', containerHeight, 'scrollHeight:', containerScrollHeight);
-                    console.log('[ZOOM-DIAG] React: Container styles - paddingBottom:', containerPaddingBottom, 'marginBottom:', containerMarginBottom, 'height:', containerHeightStyle, 'minHeight:', containerMinHeight, 'maxHeight:', containerMaxHeight);
-                    
-                    // Check parent container
-                    const parent = container.parentElement;
-                    if (parent) {
-                        const parentHeight = parent.clientHeight;
-                        const parentScrollHeight = parent.scrollHeight;
-                        const parentStyle = window.getComputedStyle(parent);
-                        const parentPaddingBottom = parentStyle.paddingBottom;
-                        const parentMarginBottom = parentStyle.marginBottom;
-                        const parentHeightStyle = parentStyle.height;
-                        console.log('[ZOOM-DIAG] React: Parent container dimensions - height:', parentHeight, 'scrollHeight:', parentScrollHeight);
-                        console.log('[ZOOM-DIAG] React: Parent container styles - paddingBottom:', parentPaddingBottom, 'marginBottom:', parentMarginBottom, 'height:', parentHeightStyle);
-                    }
-                }
-                
-                // Check iframe
-                const iframe = iframeRef.current;
-                if (iframe) {
-                    const iframeHeight = iframe.clientHeight;
-                    const iframeStyle = window.getComputedStyle(iframe);
-                    const iframeHeightStyle = iframeStyle.height;
-                    const iframeMinHeight = iframeStyle.minHeight;
-                    const iframeMaxHeight = iframeStyle.maxHeight;
-                    console.log('[ZOOM-DIAG] React: Iframe dimensions - height:', iframeHeight);
-                    console.log('[ZOOM-DIAG] React: Iframe styles - height:', iframeHeightStyle, 'minHeight:', iframeMinHeight, 'maxHeight:', iframeMaxHeight);
-                    console.log('[ZOOM-DIAG] React: Iframe inline style.height:', iframe.style.height);
-                }
-                
-                // Check injectedHtmlRef container (for shadow DOM mode)
-                const injectedHtml = injectedHtmlRef.current;
-                if (injectedHtml) {
-                    const injectedHeight = injectedHtml.clientHeight;
-                    const injectedScrollHeight = injectedHtml.scrollHeight;
-                    const injectedStyle = window.getComputedStyle(injectedHtml);
-                    const injectedPaddingBottom = injectedStyle.paddingBottom;
-                    const injectedMarginBottom = injectedStyle.marginBottom;
-                    const injectedMinHeight = injectedStyle.minHeight;
-                    const injectedMaxHeight = injectedStyle.maxHeight;
-                    console.log('[ZOOM-DIAG] React: injectedHtmlRef dimensions - height:', injectedHeight, 'scrollHeight:', injectedScrollHeight);
-                    console.log('[ZOOM-DIAG] React: injectedHtmlRef styles - paddingBottom:', injectedPaddingBottom, 'marginBottom:', injectedMarginBottom, 'minHeight:', injectedMinHeight, 'maxHeight:', injectedMaxHeight);
-                } else {
-                    console.log('[ZOOM-DIAG] React: injectedHtmlRef is null (likely in iframe/readability mode)');
-                }
-            }
-        }
-
+        // Only listen to Capacitor plugin events - don't adjust on resize/visibilitychange
+        // as those cause flickering. Let CSS env() handle it automatically.
         window.addEventListener('capacitor-window-insets', handler as EventListener)
-        window.addEventListener('resize', onResize)
-        window.addEventListener('orientationchange', onResize)
-        document.addEventListener('visibilitychange', onVisibilityChange)
+        
         return () => {
             window.removeEventListener('capacitor-window-insets', handler as EventListener)
-            window.removeEventListener('resize', onResize)
-            window.removeEventListener('orientationchange', onResize)
-            document.removeEventListener('visibilitychange', onVisibilityChange)
         }
     }, [])
 
@@ -2171,7 +2059,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     "mb-0": isMobile && isLandscape,
                 }
             )} style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
-                <div className="flex items-center justify-between p-2 h-12">
+                <div className="flex items-center justify-between p-2 h-12 flex-none">
                     <ArticleToolbar 
                         viewMode={viewMode} 
                         onViewModeChange={handleViewModeChange} 
@@ -2186,10 +2074,15 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
                 <div 
                     data-article-container 
-                    className="relative h-full w-full"
+                    className="relative flex-1 w-full min-h-0"
                     style={{
                         // Enable pinch-to-zoom on Android
-                        touchAction: 'pan-x pan-y pinch-zoom'
+                        touchAction: 'pan-x pan-y pinch-zoom',
+                        // Ensure container has explicit height for iframe
+                        height: '100%',
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column'
                     }}
                 >
                     {isLoading && (
@@ -2223,7 +2116,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                             <iframe
                                 key={`${item.id}-${item.url}`}
                                 ref={iframeRef}
-                                className={cn("block h-full w-full", {
+                                className={cn("block w-full", {
                                     invisible: isLoading,
                                 })}
                                 src="about:blank"
@@ -2233,6 +2126,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 allowFullScreen
                                 style={{ 
                                     border: 0,
+                                    height: '100%',
+                                    minHeight: '100%',
                                     // Enable pinch-to-zoom on Android
                                     touchAction: 'pan-x pan-y pinch-zoom'
                                 }}

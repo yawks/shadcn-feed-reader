@@ -51,19 +51,43 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
                   src={secureImageUrl(thumbnailUrl) || '/images/feed_icon.png'}
                   alt={title}
                   className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
                   onError={e => {
                     const target = e.currentTarget;
-                    // Try fallback icon if not already set
-                    if (!target.src.includes('/images/feed_icon.png')) {
-                      target.src = '/images/feed_icon.png';
-                    } else if (!target.dataset.fallbackTried) {
-                      // Fallback icon also failed, hide image or use transparent pixel
-                      target.dataset.fallbackTried = 'true';
-                      target.style.opacity = '0.3';
-                      target.style.backgroundColor = 'var(--muted)';
-                      // Use a 1x1 transparent pixel as last resort
-                      target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                    const currentSrc = target.src;
+                    
+                    // Skip if already using fallback
+                    if (currentSrc.includes('/images/feed_icon.png') || currentSrc.startsWith('data:')) {
+                      return;
                     }
+                    
+                    // Check retry count (max 2 retries with increasing delays)
+                    const retryCount = parseInt(target.dataset.retryCount || '0', 10);
+                    
+                    if (retryCount < 2) {
+                      // Increment retry count
+                      target.dataset.retryCount = String(retryCount + 1);
+                      
+                      // Exponential backoff: 5s, 15s
+                      const delay = retryCount === 0 ? 5000 : 15000;
+                      
+                      setTimeout(() => {
+                        // Only retry if still on error state
+                        if (target.dataset.retryCount && parseInt(target.dataset.retryCount, 10) <= 2) {
+                          target.src = currentSrc;
+                        }
+                      }, delay);
+                      return;
+                    }
+                    
+                    // After max retries, use fallback
+                    target.src = '/images/feed_icon.png';
+                  }}
+                  onLoad={(e) => {
+                    // Clear retry count on successful load
+                    const target = e.currentTarget;
+                    delete target.dataset.retryCount;
                   }}
                 />
               </div>
