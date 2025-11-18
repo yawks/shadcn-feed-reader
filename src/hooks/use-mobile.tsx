@@ -38,7 +38,16 @@ function isMobileDevice(): boolean {
 }
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(() => {
+    // Initialize with correct value immediately on Android
+    if (typeof window !== 'undefined') {
+      const win = window as any
+      if (win.Capacitor?.getPlatform?.() === 'android') {
+        return true
+      }
+    }
+    return undefined
+  })
 
   React.useEffect(() => {
     const updateIsMobile = () => {

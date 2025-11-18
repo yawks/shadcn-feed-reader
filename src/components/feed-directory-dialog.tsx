@@ -29,9 +29,11 @@ import { Button } from '@/components/ui/button'
 import FeedBackend from '@/backends/nextcloud-news/nextcloud-news'
 import type { FeedFolder } from '@/backends/types'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { fetchRawHtml } from '@/lib/raw-html'
 import { toast } from 'sonner'
 import { useFeedDirectory } from '@/hooks/use-feed-directory'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useQueryClient } from '@tanstack/react-query'
 
 // Local type used for optimistically updating the sidebar folders cache
@@ -58,7 +60,8 @@ function SubcategoryCard({ subcategory, categoryIndex, count }: SubcategoryCardP
   const Icon = getCategoryIcon(subcategory.name)
   const colorClass = getCategoryColor(categoryIndex)
   const [open, setOpen] = useState(false)
-  const [resource, setResource] = useState<any | null>(null)
+  const [resource, setResource] = useState<{ read: () => Feed[] } | null>(null)
+  const isMobile = useIsMobile()
 
   const handleToggle = () => {
     if (!open && subcategory.xmlUrl && !resource) {
@@ -69,16 +72,16 @@ function SubcategoryCard({ subcategory, categoryIndex, count }: SubcategoryCardP
   }
 
   return (
-    <div>
+    <div className={cn(isMobile && "w-full")}>
       <Card className="group relative overflow-hidden transition-all hover:shadow-md">
         <div onClick={handleToggle}>
-          <CardHeader className="space-y-2">
+          <CardHeader className={cn(isMobile ? "space-y-1.5 p-3" : "space-y-2")}>
             <div className="flex items-start justify-between">
-              <div className={`rounded-lg bg-muted p-2 ${colorClass}`}>
-                <Icon className="h-6 w-6" />
+              <div className={cn("rounded-lg bg-muted", isMobile ? "p-1.5" : "p-2", colorClass)}>
+                <Icon className={cn(isMobile ? "h-5 w-5" : "h-6 w-6")} />
               </div>
             </div>
-            <CardTitle className="text-sm font-medium leading-tight">
+            <CardTitle className={cn(isMobile ? "text-xs" : "text-sm", "font-medium leading-tight")}>
               {subcategory.name}
             </CardTitle>
             <Badge variant="secondary" className="w-fit text-xs">
@@ -99,7 +102,7 @@ function SubcategoryCard({ subcategory, categoryIndex, count }: SubcategoryCardP
 
         {/* Expanded feed list rendered inside the card */}
         {open && (
-          <div className="mt-2 px-4 pb-4">
+          <div className={cn(isMobile ? "mt-1 px-3 pb-3" : "mt-2 px-4 pb-4")}>
             {!resource ? (
               <div className="text-sm text-muted-foreground">No XML URL available for this subcategory.</div>
             ) : (
@@ -169,7 +172,7 @@ function DirectoryContent() {
   const [urlFolders, setUrlFolders] = useState<FeedFolder[] | null>(null)
   const [urlPopoverOpen, setUrlPopoverOpen] = useState(false)
   const queryClient = useQueryClient()
-  
+  const isMobile = useIsMobile()
 
   // Prefetch counts for subcategories using the Tauri proxy in batches to avoid
   // firing too many requests at once. We store counts in a map keyed by xmlUrl
@@ -431,24 +434,29 @@ function DirectoryContent() {
               <p className="text-muted-foreground">No feeds match your search.</p>
             </div>
           ) : (
-            <Accordion type="multiple" className="space-y-2">
+            <Accordion type="multiple" className={cn(isMobile ? "space-y-1" : "space-y-2")}>
               {filteredCategories.map((category: FeedCategory, index: number) => {
                 const Icon = getCategoryIcon(category.name)
                 const colorClass = getCategoryColor(index)
                 
                 return (
-                  <AccordionItem key={category.name} value={category.name} className="border rounded-lg px-4">
+                  <AccordionItem key={category.name} value={category.name} className={cn("border rounded-lg", isMobile ? "px-2" : "px-4")}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex items-center gap-3">
-                        <Icon className={`h-5 w-5 ${colorClass}`} />
-                        <span className="font-medium">{category.name}</span>
+                        <Icon className={cn(isMobile ? "h-4 w-4" : "h-5 w-5", colorClass)} />
+                        <span className={cn(isMobile && "text-sm", "font-medium")}>{category.name}</span>
                         <Badge variant="outline" className="ml-2">
                           {category.subcategories.length}
                         </Badge>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 pt-4">
+                      <div 
+                        className={cn(
+                          "grid",
+                          isMobile ? "grid-cols-1 gap-2 pt-2" : "grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 pt-4"
+                        )}
+                      >
                         {category.subcategories.map((subcategory: FeedSubcategory) => {
                           const key = subcategory.xmlUrl ?? subcategory.name
                           return (
@@ -487,6 +495,7 @@ function FeedList({ resource }: { resource: { read: () => Feed[] } }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const backend = new FeedBackend()
   const queryClient = useQueryClient()
+  const isMobile = useIsMobile()
 
   if (!feeds || feeds.length === 0) {
     return <div className="text-sm text-muted-foreground">No feeds found in this subcategory.</div>
@@ -505,24 +514,24 @@ function FeedList({ resource }: { resource: { read: () => Feed[] } }) {
       }
     }
   }
-
+  
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn("flex flex-col", isMobile ? "gap-1" : "gap-2")}>
       {feeds.map((f, idx) => (
         <div key={idx} className="w-full rounded-md">
-          <div className="grid grid-cols-[1fr_48px] items-center gap-3 p-2 hover:bg-muted rounded">
-            <div className="flex items-center gap-3">
+          <div className={cn("grid grid-cols-[1fr_48px] items-center hover:bg-muted rounded", isMobile ? "gap-2 p-1.5" : "gap-3 p-2")}>
+            <div className={cn("flex items-center", isMobile ? "gap-2" : "gap-3")}>
               <img
                 src={getFavicon(f)}
                 alt="favicon"
-                className="w-6 h-6 rounded-sm object-contain"
+                className={cn("rounded-sm object-contain", isMobile ? "w-5 h-5" : "w-6 h-6")}
                 onError={(e) => {
                   const t = e.currentTarget as HTMLImageElement
                   t.src = 'https://www.google.com/s2/favicons?sz=64&domain=example.com'
                 }}
               />
               <div className="flex flex-col">
-                <div className="text-sm font-medium">{f.source}</div>
+                <div className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>{f.source}</div>
               </div>
             </div>
             <div className="flex justify-end">
@@ -662,17 +671,19 @@ function FeedCountFromResource({ resource }: { resource: { read: () => Feed[] } 
  * Main Feed Directory Dialog component
  */
 export function FeedDirectoryDialog({ open, onOpenChange }: FeedDirectoryDialogProps) {
+  const isMobile = useIsMobile()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-  <DialogContent className="w-[95vw] md:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Subscribe to Feeds</DialogTitle>
-          <DialogDescription>
+      <DialogContent className={cn("w-[95vw] md:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col", isMobile ? "p-2" : "p-6")}>
+        <DialogHeader className={cn(isMobile && "px-2 pb-2")}>
+          <DialogTitle className={cn(isMobile ? "text-xl" : "text-2xl")}>Subscribe to Feeds</DialogTitle>
+          <DialogDescription className={cn(isMobile && "text-sm")}>
             Browse and subscribe to RSS feeds from various categories
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto px-1">
+        <div className={cn("flex-1 overflow-y-auto", isMobile ? "px-0" : "px-1")}>
           <Suspense
             fallback={
               <div className="flex items-center justify-center py-12">
