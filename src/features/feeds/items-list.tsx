@@ -4,8 +4,8 @@ import FeedBackend from '@/backends/nextcloud-news/nextcloud-news';
 import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
 import { StackedArticleCard } from './StackedArticleCard';
+import { ThumbnailImage } from '@/components/thumbnail-image';
 import { timeSinceShort } from '@/lib/utils';
-import { secureImageUrl } from '@/lib/secure-image-url';
 
 interface ItemsListProps {
   readonly items: Readonly<ProcessedFeedItem[]>;
@@ -42,56 +42,31 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
       >
         <div className="space-y-2">
           <div className="flex gap-3">
-            <div className="flex-shrink-0">
-              <div className={`
-                w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
-                ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
-              `}>
-                <img
-                  src={secureImageUrl(thumbnailUrl) || '/images/feed_icon.png'}
-                  alt={title}
-                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  loading="lazy"
-                  decoding="async"
-                  onError={e => {
-                    const target = e.currentTarget;
-                    const currentSrc = target.src;
-                    
-                    // Skip if already using fallback
-                    if (currentSrc.includes('/images/feed_icon.png') || currentSrc.startsWith('data:')) {
-                      return;
-                    }
-                    
-                    // Check retry count (max 2 retries with increasing delays)
-                    const retryCount = parseInt(target.dataset.retryCount || '0', 10);
-                    
-                    if (retryCount < 2) {
-                      // Increment retry count
-                      target.dataset.retryCount = String(retryCount + 1);
-                      
-                      // Exponential backoff: 5s, 15s
-                      const delay = retryCount === 0 ? 5000 : 15000;
-                      
-                      setTimeout(() => {
-                        // Only retry if still on error state
-                        if (target.dataset.retryCount && parseInt(target.dataset.retryCount, 10) <= 2) {
-                          target.src = currentSrc;
-                        }
-                      }, delay);
-                      return;
-                    }
-                    
-                    // After max retries, use fallback
-                    target.src = '/images/feed_icon.png';
+              <div className="flex-shrink-0">
+                <div 
+                  className={`
+                    w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
+                    ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
+                  `}
+                  style={{
+                    width: '3rem',
+                    height: '3rem',
+                    minWidth: '3rem',
+                    minHeight: '3rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                  onLoad={(e) => {
-                    // Clear retry count on successful load
-                    const target = e.currentTarget;
-                    delete target.dataset.retryCount;
-                  }}
-                />
+                >
+                  <ThumbnailImage
+                    src={thumbnailUrl}
+                    alt={title}
+                    className="transition-transform duration-200 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               </div>
-            </div>
             <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
               <h3 className={`
                 feed-item-title font-medium leading-tight line-clamp-4

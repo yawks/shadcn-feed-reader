@@ -65,7 +65,6 @@ public class RawHtmlPlugin extends Plugin {
                 .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
                 .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                 .addHeader("Accept-Language", "en-US,en;q=0.9")
-                .addHeader("Accept-Encoding", "gzip, deflate, br")
                 .addHeader("Connection", "keep-alive")
                 .addHeader("Upgrade-Insecure-Requests", "1");
             
@@ -249,7 +248,6 @@ public class RawHtmlPlugin extends Plugin {
                             .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
                             .addHeader("Accept", "*/*")
                             .addHeader("Accept-Language", "en-US,en;q=0.9")
-                            .addHeader("Accept-Encoding", "gzip, deflate, br")
                             .addHeader("Connection", "keep-alive");
                         
                         // For images and other resources, use the base_url (article URL) as Referer
