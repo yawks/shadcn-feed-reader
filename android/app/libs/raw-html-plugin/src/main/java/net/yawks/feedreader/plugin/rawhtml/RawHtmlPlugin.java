@@ -59,7 +59,15 @@ public class RawHtmlPlugin extends Plugin {
             }
             
             // Build request with optional auth
-            Request.Builder reqBuilder = new Request.Builder().url(url);
+            Request.Builder reqBuilder = new Request.Builder()
+                .url(url)
+                // Use a complete User-Agent that mimics a real Chrome browser on Android
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .addHeader("Accept-Language", "en-US,en;q=0.9")
+                .addHeader("Accept-Encoding", "gzip, deflate, br")
+                .addHeader("Connection", "keep-alive")
+                .addHeader("Upgrade-Insecure-Requests", "1");
             
             // Add Authorization header if we have credentials for this domain
             if (domain != null) {
@@ -237,7 +245,20 @@ public class RawHtmlPlugin extends Plugin {
                         // Build request with optional auth
                         Request.Builder reqBuilder = new Request.Builder()
                             .url(targetUrl)
-                            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+                            // Use a complete User-Agent that mimics a real Chrome browser on Android
+                            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                            .addHeader("Accept", "*/*")
+                            .addHeader("Accept-Language", "en-US,en;q=0.9")
+                            .addHeader("Accept-Encoding", "gzip, deflate, br")
+                            .addHeader("Connection", "keep-alive");
+                        
+                        // For images and other resources, use the base_url (article URL) as Referer
+                        // This helps bypass hotlinking protection on CDNs
+                        String baseUrl = plugin.getCurrentBaseUrl();
+                        if (baseUrl != null && !baseUrl.isEmpty()) {
+                            reqBuilder.addHeader("Referer", baseUrl);
+                            Log.d(TAG, "Using article URL as Referer: " + baseUrl);
+                        }
                         
                         // Add Authorization header if we have credentials for this domain
                         if (domain != null) {
@@ -282,7 +303,7 @@ public class RawHtmlPlugin extends Plugin {
                         // If HTML, rewrite URLs to use proxy
                         if (contentType.contains("text/html")) {
                             String html = new String(body, "UTF-8");
-                            String baseUrl = plugin.getCurrentBaseUrl();
+                            // Reuse baseUrl variable declared above
                             int port = getListeningPort();
                             
                             // Simple URL rewriting (similar to Rust proxy)

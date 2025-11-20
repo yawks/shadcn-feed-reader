@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{header, StatusCode, Uri},
     response::Response,
-    routing::{get, options},
+    routing::get,
     Router,
     middleware::{self, Next},
 };
@@ -21,17 +21,11 @@ async fn log_requests(uri: Uri, req: axum::http::Request<Body>, next: Next) -> R
     next.run(req).await
 }
 
-// The entire Dark Reader library source code, to be injected.
-const DARK_READER_JS: &str = include_str!("../../node_modules/darkreader/darkreader.js");
-
 // The listener script that will be injected to handle communication.
-// It injects DarkReader (for dark mode control) and a small renderer helper
-// that posts the fully rendered HTML back to the parent window via postMessage.
+// It posts the fully rendered HTML back to the parent window via postMessage.
 // The parent can then run Readability on that HTML (which includes JS-rendered content).
 const LISTENER_SCRIPT: &str = r#"
 <script>
-    // Injected Dark Reader library
-    {{DARK_READER_JS}}
 
     (function(){
         // Always allow posting messages to parent even if cross-origin
@@ -103,21 +97,6 @@ const LISTENER_SCRIPT: &str = r#"
             };
         })();
 
-        // Dark mode control from parent
-        window.addEventListener('message', (event) => {
-            try {
-                const { action, enabled, theme } = event.data || {};
-                if (action === 'SET_DARK_MODE') {
-                    if (enabled) {
-                        DarkReader.enable(theme);
-                    } else {
-                        DarkReader.disable();
-                    }
-                }
-            } catch (e) {
-                // ignore
-            }
-        });
 
         // Helper to scroll through the page to trigger lazy-loaded content
         function scrollToRevealContent() {
@@ -735,15 +714,23 @@ async fn proxy_resource_handler(
         client_req_builder = client_req_builder.basic_auth(username, Some(password));
     }
     
+    // For images and other resources, use the base_url (article URL) as Referer
+    // This helps bypass hotlinking protection on CDNs
+    let referer_url = {
+        let base_url_guard = state.base_url.lock().unwrap();
+        base_url_guard.to_string()
+    };
+    
     let client_req = client_req_builder
         .header(
             header::USER_AGENT,
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         )
         .header(header::ACCEPT, "*/*")
-        .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.5")
+        .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(header::ACCEPT_ENCODING, "gzip, deflate, br")
         .header(header::CONNECTION, "keep-alive")
-        .header(header::REFERER, target_url.as_str())
+        .header(header::REFERER, referer_url)
         .header(header::HOST, target_url.host_str().unwrap_or("localhost"))
         .body(body_bytes)
         .build()
@@ -825,7 +812,7 @@ Authentication required for {}
         let text = response.text().await.unwrap();
         let mut output = Vec::new();
 
-        let final_script = LISTENER_SCRIPT.replace("{{DARK_READER_JS}}", DARK_READER_JS);
+        let final_script = LISTENER_SCRIPT.to_string();
 
         let mut rewriter = HtmlRewriter::new(
             Settings {
@@ -994,16 +981,24 @@ async fn proxy_handler(
         client_req_builder = client_req_builder.basic_auth(username, Some(password));
     }
     
+    // For images and other resources, use the base_url (article URL) as Referer
+    // This helps bypass hotlinking protection on CDNs
+    let referer_url = {
+        let base_url_guard = state.base_url.lock().unwrap();
+        base_url_guard.to_string()
+    };
+    
     let client_req = client_req_builder
         .header(
             header::USER_AGENT,
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         )
         .header(header::ACCEPT, "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.5")
+        .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(header::ACCEPT_ENCODING, "gzip, deflate, br")
         .header(header::CONNECTION, "keep-alive")
         .header("Upgrade-Insecure-Requests", "1")
-        .header(header::REFERER, target_url.as_str())
+        .header(header::REFERER, referer_url)
         .header(header::HOST, target_url.host_str().unwrap_or("localhost"))
         .body(body_bytes)
         .build()
@@ -1074,7 +1069,7 @@ Authentication required for {}
         let text = response.text().await.unwrap();
         let mut output = Vec::new();
 
-        let final_script = LISTENER_SCRIPT.replace("{{DARK_READER_JS}}", DARK_READER_JS);
+        let final_script = LISTENER_SCRIPT.to_string();
 
         let mut rewriter = HtmlRewriter::new(
             Settings {

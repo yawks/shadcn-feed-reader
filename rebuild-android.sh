@@ -29,7 +29,8 @@ npx cap copy android
 
 echo ""
 echo "✅ Nettoyage et rebuild terminés!"
-echo ""
-echo "Maintenant, lancez l'app depuis Android Studio ou avec:"
-echo "  cd android && ./gradlew assembleDebug"
-echo ""
+
+# 2. Builder et installer
+cd android && ./gradlew installDebug
+
+echo "✅ Build et installation terminés! à $(date)"

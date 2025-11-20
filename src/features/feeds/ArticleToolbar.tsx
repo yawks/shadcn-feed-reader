@@ -1,4 +1,4 @@
-import { IconArrowLeft, IconBook, IconExternalLink, IconEye, IconMoon } from "@tabler/icons-react"
+import { IconArrowLeft, IconBook, IconExternalLink, IconEye } from "@tabler/icons-react"
 import {
     Popover,
     PopoverContent,
@@ -16,7 +16,7 @@ import { FeedFavicon } from "@/components/ui/feed-favicon"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
-export type ArticleViewMode = "original" | "readability" | "dark"
+export type ArticleViewMode = "original" | "readability"
 
 interface ArticleToolbarProps {
     viewMode: ArticleViewMode
@@ -51,11 +51,6 @@ export function ArticleToolbar({
             mode: "readability" as const,
             Icon: IconBook,
             label: "Readability",
-        },
-        {
-            mode: "dark" as const,
-            Icon: IconMoon,
-            label: "Dark Mode",
         },
     ] as const
 

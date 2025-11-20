@@ -1,20 +1,19 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
-import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
-import { IconBook, IconExternalLink, IconEye, IconMoon } from "@tabler/icons-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { extractDomain, getStoredAuth, storeAuth } from '@/lib/auth-storage'
 import { getArticleViewMode, getArticleViewModeSync, setArticleViewMode } from '@/lib/article-view-storage'
+import { handleOriginalView, handleReadabilityView } from './article-view-handlers'
 import { memo, useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
-import { Button } from "@/components/ui/button"
 import { Capacitor } from "@capacitor/core"
 import { FeedItem } from "@/backends/types"
+import { FloatingActionButton } from "./FloatingActionButton"
 import { ImageContextMenu } from "@/components/image-context-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { extractArticle } from "@/lib/article-extractor"
+import { getShadowDomZoomScript } from './article-zoom-scripts'
+import { prepareHtmlForShadowDom } from './article-html-preparation'
 import { safeInvoke } from '@/lib/safe-invoke'
+import { storeAuth } from '@/lib/auth-storage'
 import { useFontSize } from '@/context/font-size-context'
 import { useOrientation } from '@/hooks/use-orientation'
 import { useTheme } from "@/context/theme-context"
@@ -25,102 +24,6 @@ type FeedArticleProps = {
     onBack?: () => void
 }
 
-interface FloatingActionButtonProps {
-    viewMode: ArticleViewMode
-    onViewModeChange: (mode: ArticleViewMode) => void
-    articleUrl?: string
-}
-
-function FloatingActionButton({ viewMode, onViewModeChange, articleUrl }: FloatingActionButtonProps) {
-    const [isPopoverOpen, setIsPopoverOpen] = useState(false)
-
-    const viewModes = [
-        {
-            mode: "original" as const,
-            Icon: IconEye,
-            label: "Original",
-        },
-        {
-            mode: "readability" as const,
-            Icon: IconBook,
-            label: "Readability",
-        },
-        {
-            mode: "dark" as const,
-            Icon: IconMoon,
-            label: "Dark Mode",
-        },
-    ] as const
-
-    const currentMode = viewModes.find((m) => m.mode === viewMode) || viewModes[0]
-    const CurrentIcon = currentMode.Icon
-
-    const handleModeSelect = (mode: ArticleViewMode) => {
-        onViewModeChange(mode)
-        setIsPopoverOpen(false)
-    }
-
-    const handleSourceClick = async () => {
-        if (!articleUrl) return
-
-        setIsPopoverOpen(false)
-
-        // Try to open with Tauri first (for native app)
-        try {
-            const mod = await import('@tauri-apps/plugin-shell')
-            if (typeof mod.open === 'function') {
-                await mod.open(articleUrl)
-            } else {
-                window.open(articleUrl, "_blank", "noopener,noreferrer")
-            }
-        } catch (_e) {
-            // Fallback to window.open for web or if Tauri is not available
-            window.open(articleUrl, "_blank", "noopener,noreferrer")
-        }
-    }
-
-    return (
-        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    size="icon"
-                    className="h-12 w-12 rounded-full shadow-lg"
-                    aria-label="Options d'affichage"
-                >
-                    <CurrentIcon className="h-5 w-5" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-2 mb-2" align="end" side="top">
-                <div className="flex flex-col gap-1">
-                    {viewModes.map(({ mode, Icon, label }) => (
-                        <Button
-                            key={mode}
-                            variant={viewMode === mode ? "secondary" : "ghost"}
-                            className="w-full justify-start gap-2"
-                            onClick={() => handleModeSelect(mode)}
-                            aria-label={label}
-                        >
-                            <Icon className="h-4 w-4" />
-                            <span className="text-sm">{label}</span>
-                        </Button>
-                    ))}
-                    {articleUrl && (
-                        <Button
-                            variant="ghost"
-                            className="w-full justify-start gap-2"
-                            onClick={handleSourceClick}
-                            aria-label="Voir la source"
-                        >
-                            <IconExternalLink className="h-4 w-4" />
-                            <span className="text-sm">Source</span>
-                        </Button>
-                    )}
-                </div>
-            </PopoverContent>
-        </Popover>
-    )
-}
-
 function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticleProps) {
     const { theme } = useTheme()
     const { fontSize } = useFontSize()
@@ -129,11 +32,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     const [isLoading, setIsLoading] = useState(true)
     const [articleContent, setArticleContent] = useState("")
     const [error, setError] = useState<string | null>(null)
-    const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original/dark modes)
+    const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original mode)
     const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
     const [injectedExternalScripts, setInjectedExternalScripts] = useState<string[]>([]) // External scripts (with src) to load
     const [injectedExternalStylesheets, setInjectedExternalStylesheets] = useState<string[]>([]) // External stylesheets to load
-    const [isDarkMode, setIsDarkMode] = useState(false) // Track if injected HTML is in dark mode
     
     // Initialize viewMode from storage (per feed), default to "readability"
     // Use a state to track if viewMode is loaded (to avoid loading article before mode is known)
@@ -220,7 +122,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 
     useEffect(() => {
         // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
-        // This prevents double loading (readability -> original/dark)
+        // This prevents double loading (readability -> original)
         if (!viewModeLoaded) {
             // eslint-disable-next-line no-console
             console.log('⏳ [FeedArticle] Waiting for viewMode to load before loading article...')
@@ -287,737 +189,34 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         // eslint-disable-next-line no-console
         console.log('[FeedArticle] RELOADING url=' + item.url + ' viewMode=' + viewMode)
 
-        const resetState = () => {
-            setIsLoading(true)
-            setError(null)
-            setArticleContent("")
-            setInjectedHtml(null)
-            setInjectedScripts([])
-            setInjectedExternalScripts([])
-            setInjectedExternalStylesheets([])
-            setIsDarkMode(false)
-        }
-        
-        // Function to prepare HTML for Shadow DOM injection
-        // With Shadow DOM, styles are automatically isolated, so we can keep them
-        const prepareHtmlForShadowDom = (html: string): { html: string; scripts: string[]; externalScripts: string[]; externalStylesheets: string[] } => {
-            // Create a temporary DOM to parse and prepare the HTML
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(html, 'text/html')
-            
-            // Remove event handlers from elements (onclick, onload, etc.) for security
-            const allElements = doc.querySelectorAll('*')
-            allElements.forEach(el => {
-                Array.from(el.attributes).forEach(attr => {
-                    if (attr.name.startsWith('on')) {
-                        el.removeAttribute(attr.name)
-                    }
-                })
-            })
-            
-            // Extract scripts separately (we'll execute them manually with document proxy)
-            const extractedScripts: string[] = []
-            const extractedExternalScripts: string[] = []
-            const extractedExternalStylesheets: string[] = []
-            const allScripts = doc.querySelectorAll('script')
-            allScripts.forEach(script => {
-                const scriptSrc = script.getAttribute('src')
-                const scriptContent = script.textContent || ''
-                
-                // Handle external scripts (with src attribute)
-                if (scriptSrc) {
-                    // Remove scripts that try to access parent window (security risk)
-                    // But allow Twitter widgets and other common embeds
-                    if (scriptSrc.includes('window.parent') || 
-                        scriptSrc.includes('parent.postMessage') ||
-                        scriptSrc.includes('top.location')) {
-                        script.remove()
-                        return
-                    }
-                    // Keep external script URLs for loading
-                    extractedExternalScripts.push(scriptSrc)
-                    script.remove()
-                    return
-                }
-                
-                // Handle inline scripts
-                // Remove scripts that try to access parent window (security risk)
-                if (scriptContent.includes('window.parent') || 
-                    scriptContent.includes('parent.postMessage') ||
-                    scriptContent.includes('top.location') ||
-                    scriptContent.includes('window.top')) {
-                    script.remove()
-                    return
-                }
-                
-                // Keep script content for manual execution
-                if (scriptContent.trim()) {
-                    extractedScripts.push(scriptContent)
-                }
-                script.remove() // Remove from DOM so they don't execute automatically
-            })
-            
-            // Extract external stylesheets (we'll load them in Shadow DOM for isolation)
-            const allStylesheets = doc.head.querySelectorAll('link[rel="stylesheet"]')
-            allStylesheets.forEach(link => {
-                const href = link.getAttribute('href')
-                if (href && !href.startsWith('data:') && !href.startsWith('blob:')) {
-                    extractedExternalStylesheets.push(href)
-                    link.remove()
-                }
-            })
-            
-            // Get inline styles from head (they'll be isolated automatically by Shadow DOM)
-            const inlineStyles = Array.from(doc.head.querySelectorAll('style'))
-                .map(el => el.outerHTML)
-                .join('\n')
-            
-            // Get body content (without scripts)
-            const bodyContent = doc.body?.innerHTML || ''
-            
-            // Combine inline styles and body content
-            // External stylesheets will be loaded separately in Shadow DOM for isolation
-            // Shadow DOM will automatically isolate all styles (inline and external)
-            // Return HTML, inline scripts, external scripts, and external stylesheets
-            return {
-                html: inlineStyles + '\n' + bodyContent,
-                scripts: extractedScripts,
-                externalScripts: extractedExternalScripts,
-                externalStylesheets: extractedExternalStylesheets
-            }
-        }
-
         const setIframeUrl = (url: string) => {
             if (iframeRef.current) iframeRef.current.src = url
         }
 
-        const handleReadabilityView = async () => {
-            if (!item.url) return
-            resetState()
-            try {
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] handleReadabilityView START for url:', item.url)
-                
-                // Check if we have stored credentials and apply them proactively
-                const domain = extractDomain(item.url)
-                const storedCreds = getStoredAuth(domain)
-                if (storedCreds) {
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Found stored credentials for domain, applying:', domain)
-                    try {
-                        await safeInvoke('set_proxy_auth', { 
-                            domain, 
-                            username: storedCreds.username, 
-                            password: storedCreds.password 
-                        })
-                    } catch (_tauriErr) {
-                        // Try Capacitor (Android)
-                        try {
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const win = window as any
-                            const Plugins = win?.Capacitor?.Plugins
-                            if (Plugins?.RawHtml?.setProxyAuth) {
-                                await Plugins.RawHtml.setProxyAuth({ 
-                                    domain, 
-                                    username: storedCreds.username, 
-                                    password: storedCreds.password 
-                                })
-                            }
-                        } catch (_capErr) {
-                            // Ignore - will prompt if needed
-                        }
-                    }
-                }
-                
-                // Fetch raw HTML and extract article content using Readability
-                let html: string
-                try {
-                    html = await fetchRawHtml(item.url)
-                } catch (_invokeErr: unknown) {
-                    // eslint-disable-next-line no-console
-                    console.error('[FeedArticle] fetchRawHtml FAILED:', _invokeErr)
-                    
-                    // Check if it's an auth required error
-                    if (_invokeErr instanceof AuthRequiredError) {
-                        // eslint-disable-next-line no-console
-                        console.log('[FeedArticle] Auth required for domain:', _invokeErr.domain)
-                        setAuthDialog({ domain: _invokeErr.domain })
-                        setIsLoading(false)
-                        return
-                    }
-                    
-                    const msg = _invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr)
-                    setError(`Failed to fetch article: ${msg}`)
-                    setIsLoading(false)
-                    return
-                }
-
-                let summary = ''
-                try {
-                    const article = extractArticle(html, { url: item.url })
-                    summary = article?.content || ''
-                    
-                    // If summary is empty or too short, show error
-                    if (!summary || summary.trim().length < 50) {
-                        // eslint-disable-next-line no-console
-                        console.warn('[FeedArticle] Extracted content too short, may not have worked correctly')
-                        setError('Readability could not extract content from this page. Try "Original" or "Dark" mode instead.')
-                        setIsLoading(false)
-                        return
-                    }
-                } catch (_parseErr) {
-                    // Parsing failed — keep the view mode so user can retry, but surface an error
-                    const msg = _parseErr instanceof Error ? _parseErr.message : String(_parseErr)
-                    // eslint-disable-next-line no-console
-                    console.error('[FeedArticle] extractArticle FAILED:', msg)
-                    setError(`Readability parse failed: ${msg}`)
-                    setIsLoading(false)
-                    return
-                }
-                setArticleContent(summary)
-                
-                // Log the content that will be injected
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Summary length:', summary.length);
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Summary preview (first 500 chars):', summary.substring(0, 500));
-
-                // Create a blob HTML document with the extracted content and safe-area padding
-                // This creates an isolated scroll context (like original mode) that respects insets
-                const isDark = theme === 'dark'
-                const quoteLeftColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
-                const bgBlockquote = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
-                const subtitleColor = isDark ? 'rgba(255,255,255,0.7)' : '#374151'; // muted
-                const subtitleBorderColor = isDark ? 'rgba(255,255,255,0.04)' : '#e5e7eb';
-                const hrColor = isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb';
-                const linkColor = isDark ? 'rgb(96, 165, 250)' : '#0099CC';
-                // Map app font size key to CSS value (keep in sync with font-size-context)
-                // Readable mode gets larger base font size for better readability
-                const fontSizeMap: Record<string, string> = {
-                    xs: '0.825rem',    // 0.75 * 1.1
-                    sm: '0.9625rem',   // 0.875 * 1.1
-                    base: '1.1rem',  // 1.0 * 1.1
-                    lg: '1.2375rem',   // 1.125 * 1.1
-                    xl: '1.375rem',    // 1.25 * 1.1
-                }
-                const effectiveFontSize = fontSizeMap[fontSize] || '1.2rem'
-
-                const blobHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-    <meta http-equiv="Permissions-Policy" content="accelerometer=*, gyroscope=*, magnetometer=*">
-    <script>
-        (function() {
-            console.log('[ZOOM-DIAG] Iframe zoom script loaded');
-            
-            let currentScale = 1;
-            let initialDistance = 0;
-            let initialScale = 1;
-            let lastTouchCenter = { x: 0, y: 0 };
-            let lastPan = { x: 0, y: 0 };
-            let naturalContentWidth = 0;
-            let naturalContentHeight = 0;
-            
-            // Measure natural content dimensions once
-            function measureContent() {
-                const body = document.body;
-                if (!body) return;
-                // Temporarily remove transform to measure natural size
-                const savedTransform = body.style.transform;
-                body.style.transform = '';
-                naturalContentWidth = body.scrollWidth || body.offsetWidth;
-                naturalContentHeight = body.scrollHeight || body.offsetHeight;
-                body.style.transform = savedTransform;
-            }
-            
-            // Measure on load
-            if (document.readyState === 'complete') {
-                measureContent();
-            } else {
-                window.addEventListener('load', measureContent);
-            }
-            
-            // Prevent body::after from adding extra padding when app regains focus
-            function ensureBodyAfterHeight() {
-                const style = document.createElement('style');
-                style.textContent = 'body::after { content: ""; display: block; height: 0 !important; }';
-                document.head.appendChild(style);
-            }
-            ensureBodyAfterHeight();
-            
-            // Re-apply on visibility change (when app regains focus)
-            document.addEventListener('visibilitychange', function() {
-                if (!document.hidden) {
-                    console.log('[ZOOM-DIAG] Iframe: App regained focus (visibilitychange)');
-                    const body = document.body;
-                    const html = document.documentElement;
-                    if (body && html) {
-                        // Log current dimensions before fix
-                        const bodyAfter = window.getComputedStyle(body, '::after');
-                        const bodyHeightBefore = body.offsetHeight;
-                        const bodyScrollHeightBefore = body.scrollHeight;
-                        const htmlHeightBefore = html.offsetHeight;
-                        const htmlScrollHeightBefore = html.scrollHeight;
-                        console.log('[ZOOM-DIAG] Iframe: Before fix - body height:', bodyHeightBefore, 'scrollHeight:', bodyScrollHeightBefore, 'html height:', htmlHeightBefore, 'scrollHeight:', htmlScrollHeightBefore);
-                        console.log('[ZOOM-DIAG] Iframe: body::after computed height:', bodyAfter.height);
-                        
-                        // App regained focus - ensure body::after stays at height 0
-                        ensureBodyAfterHeight();
-                        
-                        // Force a reflow
-                        void body.offsetWidth;
-                        
-                        // Log dimensions after fix
-                        const bodyHeightAfter = body.offsetHeight;
-                        const bodyScrollHeightAfter = body.scrollHeight;
-                        const htmlHeightAfter = html.offsetHeight;
-                        const htmlScrollHeightAfter = html.scrollHeight;
-                        console.log('[ZOOM-DIAG] Iframe: After fix - body height:', bodyHeightAfter, 'scrollHeight:', bodyScrollHeightAfter, 'html height:', htmlHeightAfter, 'scrollHeight:', htmlScrollHeightAfter);
-                        
-                        if (bodyHeightAfter !== bodyHeightBefore || bodyScrollHeightAfter !== bodyScrollHeightBefore) {
-                            console.warn('[ZOOM-DIAG] Iframe: Dimensions changed after focus!', {
-                                bodyHeight: { before: bodyHeightBefore, after: bodyHeightAfter },
-                                bodyScrollHeight: { before: bodyScrollHeightBefore, after: bodyScrollHeightAfter },
-                                htmlHeight: { before: htmlHeightBefore, after: htmlHeightAfter },
-                                htmlScrollHeight: { before: htmlScrollHeightBefore, after: htmlScrollHeightAfter }
-                            });
-                        }
-                    }
-                    // Only remeasure if dimensions are zero (content might have changed)
-                    if (naturalContentWidth === 0 || naturalContentHeight === 0) {
-                        setTimeout(measureContent, 100);
-                    }
-                }
-            });
-            
-            // Also listen to focus events
-            window.addEventListener('focus', function() {
-                console.log('[ZOOM-DIAG] Iframe: Window focus event');
-                ensureBodyAfterHeight();
-            });
-            
-            // Apply zoom transform to body
-            function applyZoom(scale, panX, panY) {
-                const body = document.body;
-                const html = document.documentElement;
-                if (!body || !html) return;
-                
-                // Clamp scale between 1.0 (100%) and 5
-                scale = Math.max(1.0, Math.min(5, scale));
-                
-                // Reset pan when zoom returns to 100%
-                if (scale === 1.0) {
-                    panX = 0;
-                    panY = 0;
-                    lastPan = { x: 0, y: 0 };
-                    // Reset dimensions when zoom is 100%
-                    body.style.width = '';
-                    body.style.height = '';
-                    body.style.minHeight = '';
-                    html.style.width = '';
-                    html.style.height = '';
-                    html.style.overflow = '';
-                    body.style.overflow = '';
-                } else {
-                    // Measure if not already measured
-                    if (naturalContentWidth === 0 || naturalContentHeight === 0) {
-                        measureContent();
-                    }
-                    
-                    // When zoomed, adjust container dimensions to allow proper scrolling
-                    // The key is to set html dimensions to the scaled size so the scroll container knows the real size
-                    const scaledWidth = naturalContentWidth * scale;
-                    const scaledHeight = naturalContentHeight * scale;
-                    
-                    // Set html dimensions to scaled size - this makes the scroll container aware of the real content size
-                    html.style.width = scaledWidth + 'px';
-                    html.style.height = scaledHeight + 'px';
-                    html.style.overflow = 'auto';
-                    
-                    // Set body dimensions to match
-                    body.style.width = scaledWidth + 'px';
-                    body.style.height = scaledHeight + 'px';
-                    body.style.minHeight = scaledHeight + 'px';
-                    body.style.overflow = 'visible';
-                }
-                
-                // Apply transform
-                body.style.transformOrigin = '0 0';
-                body.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
-                body.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
-                
-                currentScale = scale;
-                console.log('[ZOOM-DIAG] Iframe: Applied zoom: scale=' + scale.toFixed(2) + ', html size: ' + (naturalContentWidth * scale) + 'x' + (naturalContentHeight * scale));
-            }
-            
-            // Reset zoom
-            function resetZoom() {
-                applyZoom(1, 0, 0);
-                lastPan = { x: 0, y: 0 };
-            }
-            
-            // Calculate center point between two touches
-            function getTouchCenter(touch1, touch2) {
-                return {
-                    x: (touch1.clientX + touch2.clientX) / 2,
-                    y: (touch1.clientY + touch2.clientY) / 2
-                };
-            }
-            
-            // Touch start - detect pinch
-            document.addEventListener('touchstart', function(e) {
-                if (e.touches.length === 2) {
-                    const touch1 = e.touches[0];
-                    const touch2 = e.touches[1];
-                    initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-                    initialScale = currentScale;
-                    lastTouchCenter = getTouchCenter(touch1, touch2);
-                    console.log('[ZOOM-DIAG] Iframe: Pinch start, scale:', initialScale.toFixed(2));
-                } else if (e.touches.length === 1 && currentScale > 1) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-            
-            // Touch move - apply zoom or pan
-            document.addEventListener('touchmove', function(e) {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    const touch1 = e.touches[0];
-                    const touch2 = e.touches[1];
-                    const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-                    
-                    if (initialDistance > 0) {
-                        // Reduce pinch sensitivity by applying a factor (0.3 = 30% of the distance change affects zoom)
-                        const distanceRatio = currentDistance / initialDistance;
-                        const zoomFactor = 1 + (distanceRatio - 1) * 0.3;
-                        const scale = initialScale * zoomFactor;
-                        const touchCenter = getTouchCenter(touch1, touch2);
-                        
-                        const deltaX = touchCenter.x - lastTouchCenter.x;
-                        const deltaY = touchCenter.y - lastTouchCenter.y;
-                        
-                        lastPan.x += deltaX * (1 - 1/scale);
-                        lastPan.y += deltaY * (1 - 1/scale);
-                        
-                        applyZoom(scale, lastPan.x, lastPan.y);
-                        lastTouchCenter = touchCenter;
-                    }
-                } else if (e.touches.length === 1 && currentScale > 1) {
-                    e.preventDefault();
-                    const touch = e.touches[0];
-                    const deltaX = touch.clientX - (lastTouchCenter.x || touch.clientX);
-                    const deltaY = touch.clientY - (lastTouchCenter.y || touch.clientY);
-                    
-                    lastPan.x += deltaX;
-                    lastPan.y += deltaY;
-                    applyZoom(currentScale, lastPan.x, lastPan.y);
-                    
-                    lastTouchCenter = { x: touch.clientX, y: touch.clientY };
-                }
-            }, { passive: false });
-            
-            // Touch end
-            document.addEventListener('touchend', function(e) {
-                if (e.touches.length < 2 && initialDistance > 0) {
-                    console.log('[ZOOM-DIAG] Iframe: Pinch end, final scale:', currentScale.toFixed(2));
-                    initialDistance = 0;
-                    initialScale = currentScale;
-                }
-                if (e.touches.length === 0) {
-                    lastTouchCenter = { x: 0, y: 0 };
-                }
-            }, { passive: true });
-            
-            // Double tap to reset
-            let lastTapTime = 0;
-            document.addEventListener('touchend', function(e) {
-                if (e.touches.length === 0) {
-                    const currentTime = Date.now();
-                    const tapLength = currentTime - lastTapTime;
-                    if (tapLength < 300 && tapLength > 0) {
-                        resetZoom();
-                        console.log('[ZOOM-DIAG] Iframe: Double tap - reset zoom');
-                    }
-                    lastTapTime = currentTime;
-                }
-            }, { passive: true });
-        })();
-    </script>
-    <style>
-        /* Base reset */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${effectiveFontSize}; line-height: 1.6; touch-action: pan-x pan-y pinch-zoom; }
-    body { padding: 1rem; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'}; color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'}; }
-
-        /* Imported reader styles (adapted) */
-        h1, h2 { font-weight: 300; line-height: 130%; }
-        h1 { font-size: 170%; margin-bottom: 0.1em; }
-        h2 { font-size: 140%; }
-        h1 span, h2 span { padding-right: 10px; }
-        a { color: ${linkColor}; }
-        h1 a { color: inherit; text-decoration: none; }
-        img { height: auto; margin-right: 15px; margin-top: 5px; vertical-align: middle; max-width: 100%; }
-        pre { white-space: pre-wrap; direction: ltr; }
-        blockquote { border-left: thick solid ${quoteLeftColor}; background-color: ${bgBlockquote}; margin: 0.5em 0; padding: 0.5em; }
-        p { margin: 0.8em 0; }
-        p.subtitle { color: ${subtitleColor}; border-top:1px ${subtitleBorderColor}; border-bottom:1px ${subtitleBorderColor}; padding-top:2px; padding-bottom:2px; font-weight:600; }
-        ul, ol { margin: 0 0 0.8em 0.6em; padding: 0 0 0 1em; }
-        ul li, ol li { margin: 0 0 0.8em 0; padding: 0; }
-        hr { border: 1px solid ${hrColor}; background-color: ${hrColor}; }
-        strong { font-weight: 400; }
-        figure { margin: 0; }
-        figure img { width: 100% !important; float: none; }
-        
-        /* Video/iframe styles */
-        video, iframe[src*="youtube"], iframe[src*="vimeo"], iframe[src*="dailymotion"] {
-            max-width: 100%;
-            height: auto;
-        }
-        
-        /* Ensure last line visible on mobile safe areas */
-        body::after { content: ''; display: block; height: 0; }
-    </style>
-    <script>
-        // Ensure videos have controls and iframes have fullscreen attributes for native fullscreen
-        (function() {
-            function enableFullscreenForMedia(media) {
-                if (media.tagName === 'IFRAME') {
-                    media.setAttribute('allowfullscreen', '');
-                    media.setAttribute('webkitallowfullscreen', '');
-                    media.setAttribute('mozallowfullscreen', '');
-                } else if (media.tagName === 'VIDEO' && !media.hasAttribute('controls')) {
-                    media.setAttribute('controls', 'controls');
-                }
-            }
-            
-            function processExistingMedia() {
-                document.querySelectorAll('video, iframe').forEach(enableFullscreenForMedia);
-            }
-            
-            // Process existing and dynamically added media
-            var observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    mutation.addedNodes.forEach(function(node) {
-                        if (node.nodeType === 1) {
-                            if (node.tagName === 'VIDEO' || node.tagName === 'IFRAME') {
-                                enableFullscreenForMedia(node);
-                            }
-                            node.querySelectorAll && node.querySelectorAll('video, iframe').forEach(enableFullscreenForMedia);
-                        }
-                    });
-                });
-            });
-            
-            if (document.body) {
-                processExistingMedia();
-                observer.observe(document.body, { childList: true, subtree: true });
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
-                    processExistingMedia();
-                    observer.observe(document.body, { childList: true, subtree: true });
-                });
-            }
-        })();
-        
-        // Handle long press on images for Android
-        (function() {
-            var longPressDelay = 500; // 500ms for long press
-            
-            function handleImageLongPress(img) {
-                var imageUrl = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
-                if (imageUrl) {
-                    // Send message to parent window
-                    if (window.parent) {
-                        window.parent.postMessage({
-                            type: 'IMAGE_LONG_PRESS',
-                            imageUrl: imageUrl
-                        }, '*');
-                    }
-                }
-            }
-            
-            function setupImageListeners(img) {
-                // Prevent default context menu
-                img.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
-                    handleImageLongPress(img);
-                });
-                
-                // Touch events for mobile
-                var touchStartTime = null;
-                img.addEventListener('touchstart', function(e) {
-                    touchStartTime = Date.now();
-                });
-                
-                img.addEventListener('touchend', function(e) {
-                    if (touchStartTime && Date.now() - touchStartTime >= longPressDelay) {
-                        e.preventDefault();
-                        handleImageLongPress(img);
-                    }
-                    touchStartTime = null;
-                });
-                
-                img.addEventListener('touchmove', function() {
-                    touchStartTime = null;
-                });
-            }
-            
-            function processImages() {
-                document.querySelectorAll('img').forEach(setupImageListeners);
-            }
-            
-            if (document.body) {
-                processImages();
-                var imageObserver = new MutationObserver(function() {
-                    processImages();
-                });
-                imageObserver.observe(document.body, { childList: true, subtree: true });
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
-                    processImages();
-                    var imageObserver = new MutationObserver(function() {
-                        processImages();
-                    });
-                    imageObserver.observe(document.body, { childList: true, subtree: true });
-                });
-            }
-        })();
-    </script>
-</head>
-<body>
-    ${summary}
-</body>
-</html>
-`
-                const blob = new Blob([blobHtml], { type: 'text/html' })
-                const blobUrl = URL.createObjectURL(blob)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Blob created, URL:', blobUrl);
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Blob HTML length:', blobHtml.length);
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Blob HTML preview (first 1000 chars):', blobHtml.substring(0, 1000));
-                setIframeUrl(blobUrl)
-            } catch (_err) {
-                const msg = _err instanceof Error ? _err.message : String(_err)
-                // Don't silently switch to original; surface the error so user can retry.
-                // eslint-disable-next-line no-console
-                console.error('[FeedArticle] handleReadabilityView FAILED:', msg)
-                // eslint-disable-next-line no-console
-                console.error('[FeedArticle] Full error:', _err)
-                setError(`Readability fetch failed: ${msg}`)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        const handleOriginalView = async () => {
-            if (!item.url) return
-            resetState()
-            try {
-                let proxyUrl: string
-                
-                // Try Tauri desktop proxy first
-                if (proxyPort) {
-                    await safeInvoke('set_proxy_url', { url: item.url })
-                    proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
-                } else {
-                    // On Android/Capacitor: use the Java proxy server
-                    const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-                    const port = await startProxyServer()
-                    
-                    if (!port) {
-                        setError('Failed to start proxy server. Use the "Source" button to open in browser.')
-                        setIsLoading(false)
-                        return
-                    }
-                    
-                    await setProxyUrl(item.url)
-                    proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
-                }
-                
-                // Fetch HTML directly from proxy instead of using iframe
-                const response = await fetch(proxyUrl)
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch: ${response.statusText}`)
-                }
-                
-                const html = await response.text()
-                
-                // Prepare HTML for Shadow DOM (keep styles and scripts, remove dangerous ones)
-                const prepared = prepareHtmlForShadowDom(html)
-                
-                setIsDarkMode(false)
-                setInjectedHtml(prepared.html)
-                setInjectedScripts(prepared.scripts)
-                setInjectedExternalScripts(prepared.externalScripts)
-                setInjectedExternalStylesheets(prepared.externalStylesheets)
-            } catch (_err) {
-                setError(_err instanceof Error ? _err.message : String(_err))
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        const handleDarkView = async () => {
-            if (!item.url) return
-            resetState()
-            try {
-                // Dark mode = Original HTML with CSS dark filter applied
-                let proxyUrl: string
-                
-                // Try Tauri desktop proxy first
-                if (proxyPort) {
-                    await safeInvoke('set_proxy_url', { url: item.url })
-                    proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(item.url)}`
-                } else {
-                    // On Android/Capacitor: use the Java proxy server
-                    const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-                    const port = await startProxyServer()
-                    
-                    if (!port) {
-                        setError('Failed to start proxy server. Use the "Source" button to open in browser.')
-                        setIsLoading(false)
-                        return
-                    }
-                    
-                    await setProxyUrl(item.url)
-                    proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(item.url)}`
-                }
-                
-                // Fetch HTML directly from proxy instead of using iframe
-                const response = await fetch(proxyUrl)
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch: ${response.statusText}`)
-                }
-                
-                const html = await response.text()
-                
-                // Prepare HTML for Shadow DOM (keep styles and scripts, remove dangerous ones)
-                const prepared = prepareHtmlForShadowDom(html)
-                
-                setIsDarkMode(true)
-                setInjectedHtml(prepared.html)
-                setInjectedScripts(prepared.scripts)
-                setInjectedExternalScripts(prepared.externalScripts)
-                setInjectedExternalStylesheets(prepared.externalStylesheets)
-            } catch (_err) {
-                const msg = _err instanceof Error ? _err.message : String(_err)
-                setError(`Dark view fetch failed: ${msg}`)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
         if (viewMode === "readability") {
-            handleReadabilityView()
+            handleReadabilityView({
+                url: item.url || '',
+                proxyPort,
+                theme,
+                fontSize,
+                setArticleContent,
+                setError,
+                setIsLoading,
+                setAuthDialog,
+                setIframeUrl,
+            })
         } else if (viewMode === "original") {
-            handleOriginalView()
-        } else if (viewMode === 'dark') {
-            handleDarkView()
+            handleOriginalView({
+                url: item.url || '',
+                proxyPort,
+                setInjectedHtml,
+                setInjectedScripts,
+                setInjectedExternalScripts,
+                setInjectedExternalStylesheets,
+                setError,
+                setIsLoading,
+                prepareHtmlForShadowDom,
+            })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
@@ -1032,31 +231,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             setIsLoading(false)
             
             if (iframe.contentWindow) {
-                // Prefer the iframe's origin as the target for postMessage to avoid leaking to other origins.
-                let targetOrigin = '*'
-                try {
-                    const src = iframe.src
-                    if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-                        const u = new URL(src)
-                        targetOrigin = u.origin
-                    }
-                } catch {
-                    targetOrigin = '*'
-                }
-
-                iframe.contentWindow.postMessage(
-                    {
-                        action: 'SET_DARK_MODE',
-                        enabled: viewMode === 'dark',
-                        theme: {
-                            brightness: 100,
-                            contrast: 90,
-                            sepia: 10,
-                        },
-                    },
-                    targetOrigin,
-                )
-                
                 // Check iframe document for diagnostics (same-origin only, for blob URLs in readability mode)
                 try {
                     const doc = iframe.contentDocument || iframe.contentWindow?.document
@@ -1230,15 +404,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     if (iframeRef.current) iframeRef.current.src = currentSrc
                 }, 100)
             }
-        } else if (viewMode === 'dark') {
-            // Reload dark view
-            if (iframeRef.current) {
-                const currentSrc = iframeRef.current.src
-                iframeRef.current.src = 'about:blank'
-                setTimeout(() => {
-                    if (iframeRef.current) iframeRef.current.src = currentSrc
-                }, 100)
-            }
         }
     }
 
@@ -1246,7 +411,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         setAuthDialog(null)
     }
 
-    // Inject HTML into Shadow DOM when injectedHtml changes (for original/dark modes)
+    // Inject HTML into Shadow DOM when injectedHtml changes (for original mode)
     useEffect(() => {
         if (injectedHtml && injectedHtmlRef.current) {
             // Clear any existing shadow root
@@ -1260,18 +425,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             const shadowRoot = injectedHtmlRef.current.shadowRoot
             if (!shadowRoot) return
             
-            // Apply dark mode filter to shadow root container if needed
             const hostElement = shadowRoot.host as HTMLElement
             // Ensure the host element has proper positioning context for fixed elements inside Shadow DOM
             hostElement.style.position = 'relative'
             hostElement.style.isolation = 'isolate' // Create a new stacking context
-            if (isDarkMode) {
-                hostElement.style.filter = 'invert(1) hue-rotate(180deg)'
-                hostElement.style.backgroundColor = 'rgb(255, 255, 255)'
-            } else {
-                hostElement.style.filter = ''
-                hostElement.style.backgroundColor = ''
-            }
             
             // Load external stylesheets first (they need to be loaded before content renders)
             // Load them IN the Shadow DOM to maintain style isolation
@@ -1382,412 +539,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 
                 // Add zoom implementation script to shadow DOM
                 const zoomScript = shadowRoot.ownerDocument.createElement('script')
-                zoomScript.textContent = `
-                    (function() {
-                        console.log('[ZOOM-DIAG] Shadow DOM zoom script loaded');
-                        
-                        let currentScale = 1;
-                        let initialDistance = 0;
-                        let initialScale = 1;
-                        let lastTouchCenter = { x: 0, y: 0 };
-                        let lastPan = { x: 0, y: 0 };
-                        let naturalContentWidth = 0;
-                        let naturalContentHeight = 0;
-                        
-                        // Create or get zoom wrapper
-                        function getZoomWrapper() {
-                            let wrapper = document.getElementById('zoom-wrapper');
-                            if (!wrapper) {
-                                wrapper = document.createElement('div');
-                                wrapper.id = 'zoom-wrapper';
-                                wrapper.style.position = 'relative';
-                                wrapper.style.width = '100%';
-                                wrapper.style.height = '100%';
-                                wrapper.style.display = 'block';
-                                // Move body content into wrapper
-                                const body = document.body;
-                                const html = document.documentElement;
-                                // Get all content from body
-                                while (body.firstChild) {
-                                    wrapper.appendChild(body.firstChild);
-                                }
-                                body.appendChild(wrapper);
-                                // Ensure body and html take full size
-                                body.style.margin = '0';
-                                body.style.padding = '0';
-                                html.style.margin = '0';
-                                html.style.padding = '0';
-                            }
-                            return wrapper;
-                        }
-                        
-                        // Measure natural content dimensions once
-                        function measureContent() {
-                            const wrapper = getZoomWrapper();
-                            if (!wrapper) return;
-                            // Temporarily remove transform to measure natural size
-                            const savedTransform = wrapper.style.transform;
-                            const savedWidth = wrapper.style.width;
-                            const savedHeight = wrapper.style.height;
-                            wrapper.style.transform = '';
-                            wrapper.style.width = '';
-                            wrapper.style.height = '';
-                            // Force a reflow to get accurate measurements
-                            void wrapper.offsetWidth;
-                            naturalContentWidth = Math.max(wrapper.scrollWidth, wrapper.offsetWidth, document.documentElement.scrollWidth);
-                            naturalContentHeight = Math.max(wrapper.scrollHeight, wrapper.offsetHeight, document.documentElement.scrollHeight);
-                            wrapper.style.transform = savedTransform;
-                            wrapper.style.width = savedWidth;
-                            wrapper.style.height = savedHeight;
-                            console.log('[ZOOM-DIAG] Measured content: ' + naturalContentWidth + 'x' + naturalContentHeight);
-                        }
-                        
-                        // Measure on load
-                        if (document.readyState === 'complete') {
-                            setTimeout(measureContent, 200);
-                        } else {
-                            window.addEventListener('load', () => setTimeout(measureContent, 200));
-                        }
-                        
-                        // Prevent body::after from adding extra padding when app regains focus
-                        function ensureBodyAfterHeight() {
-                            const style = document.createElement('style');
-                            style.textContent = 'body::after { content: ""; display: block; height: 0 !important; }';
-                            document.head.appendChild(style);
-                        }
-                        ensureBodyAfterHeight();
-                        
-                        // Prevent horizontal scroll by constraining all content to container width
-                        function preventHorizontalScroll() {
-                            const style = document.createElement('style');
-                            style.textContent = \`
-                                * {
-                                    max-width: 100% !important;
-                                    box-sizing: border-box !important;
-                                }
-                                html, body {
-                                    overflow-x: hidden !important;
-                                    width: 100% !important;
-                                    max-width: 100% !important;
-                                }
-                                img, video, iframe, embed, object {
-                                    max-width: 100% !important;
-                                    height: auto !important;
-                                }
-                                table {
-                                    max-width: 100% !important;
-                                    table-layout: auto !important;
-                                    word-wrap: break-word !important;
-                                }
-                                pre, code {
-                                    max-width: 100% !important;
-                                    overflow-x: auto !important;
-                                    word-wrap: break-word !important;
-                                }
-                            \`;
-                            document.head.appendChild(style);
-                        }
-                        preventHorizontalScroll();
-                        
-                        // Re-apply on visibility change (when app regains focus)
-                        document.addEventListener('visibilitychange', function() {
-                            if (!document.hidden) {
-                                console.log('[ZOOM-DIAG] Shadow DOM: App regained focus (visibilitychange)');
-                                const body = document.body;
-                                const html = document.documentElement;
-                                const shadowRoot = body.getRootNode();
-                                const shadowHost = shadowRoot.host;
-                                const parent = shadowHost ? shadowHost.parentElement : null;
-                                
-                                if (body && html) {
-                                    // Log current dimensions before fix
-                                    const bodyAfter = window.getComputedStyle(body, '::after');
-                                    const bodyHeightBefore = body.offsetHeight;
-                                    const bodyScrollHeightBefore = body.scrollHeight;
-                                    const htmlHeightBefore = html.offsetHeight;
-                                    const htmlScrollHeightBefore = html.scrollHeight;
-                                    const parentHeightBefore = parent ? parent.offsetHeight : 0;
-                                    const parentScrollHeightBefore = parent ? parent.scrollHeight : 0;
-                                    const shadowHostHeightBefore = shadowHost ? shadowHost.offsetHeight : 0;
-                                    
-                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - body height:', bodyHeightBefore, 'scrollHeight:', bodyScrollHeightBefore);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - html height:', htmlHeightBefore, 'scrollHeight:', htmlScrollHeightBefore);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - parent height:', parentHeightBefore, 'scrollHeight:', parentScrollHeightBefore);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: Before fix - shadowHost height:', shadowHostHeightBefore);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: body::after computed height:', bodyAfter.height);
-                                    
-                                    // App regained focus - ensure body::after stays at height 0
-                                    ensureBodyAfterHeight();
-                                    
-                                    // Force a reflow
-                                    void body.offsetWidth;
-                                    
-                                    // Log dimensions after fix
-                                    const bodyHeightAfter = body.offsetHeight;
-                                    const bodyScrollHeightAfter = body.scrollHeight;
-                                    const htmlHeightAfter = html.offsetHeight;
-                                    const htmlScrollHeightAfter = html.scrollHeight;
-                                    const parentHeightAfter = parent ? parent.offsetHeight : 0;
-                                    const parentScrollHeightAfter = parent ? parent.scrollHeight : 0;
-                                    const shadowHostHeightAfter = shadowHost ? shadowHost.offsetHeight : 0;
-                                    
-                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - body height:', bodyHeightAfter, 'scrollHeight:', bodyScrollHeightAfter);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - html height:', htmlHeightAfter, 'scrollHeight:', htmlScrollHeightAfter);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - parent height:', parentHeightAfter, 'scrollHeight:', parentScrollHeightAfter);
-                                    console.log('[ZOOM-DIAG] Shadow DOM: After fix - shadowHost height:', shadowHostHeightAfter);
-                                    
-                                    if (bodyHeightAfter !== bodyHeightBefore || bodyScrollHeightAfter !== bodyScrollHeightBefore || 
-                                        parentHeightAfter !== parentHeightBefore || parentScrollHeightAfter !== parentScrollHeightBefore) {
-                                        console.warn('[ZOOM-DIAG] Shadow DOM: Dimensions changed after focus!', {
-                                            bodyHeight: { before: bodyHeightBefore, after: bodyHeightAfter },
-                                            bodyScrollHeight: { before: bodyScrollHeightBefore, after: bodyScrollHeightAfter },
-                                            htmlHeight: { before: htmlHeightBefore, after: htmlHeightAfter },
-                                            htmlScrollHeight: { before: htmlScrollHeightBefore, after: htmlScrollHeightAfter },
-                                            parentHeight: { before: parentHeightBefore, after: parentHeightAfter },
-                                            parentScrollHeight: { before: parentScrollHeightBefore, after: parentScrollHeightAfter },
-                                            shadowHostHeight: { before: shadowHostHeightBefore, after: shadowHostHeightAfter }
-                                        });
-                                    }
-                                }
-                                // Only remeasure if dimensions are zero (content might have changed)
-                                if (naturalContentWidth === 0 || naturalContentHeight === 0) {
-                                    setTimeout(measureContent, 100);
-                                }
-                            }
-                        });
-                        
-                        // Also listen to focus events
-                        window.addEventListener('focus', function() {
-                            console.log('[ZOOM-DIAG] Shadow DOM: Window focus event');
-                            ensureBodyAfterHeight();
-                        });
-                        
-                        // Apply zoom transform to wrapper
-                        function applyZoom(scale, panX, panY) {
-                            const wrapper = getZoomWrapper();
-                            const shadowRoot = document.body.getRootNode();
-                            const shadowHost = shadowRoot.host;
-                            if (!wrapper) return;
-                            
-                            // Clamp scale between 1.0 (100%) and 5
-                            scale = Math.max(1.0, Math.min(5, scale));
-                            
-                            // Reset pan when zoom returns to 100%
-                            if (scale === 1.0) {
-                                panX = 0;
-                                panY = 0;
-                                lastPan = { x: 0, y: 0 };
-                                // Reset dimensions when zoom is 100%
-                                wrapper.style.width = '';
-                                wrapper.style.height = '';
-                                wrapper.style.minHeight = '';
-                                wrapper.style.maxWidth = '100%';
-                                // Ensure wrapper doesn't exceed container width
-                                wrapper.style.boxSizing = 'border-box';
-                                
-                                // Reset shadow host container dimensions
-                                if (shadowHost && shadowHost.style) {
-                                    shadowHost.style.width = '';
-                                    shadowHost.style.height = '';
-                                    shadowHost.style.minHeight = '';
-                                    shadowHost.style.maxWidth = '';
-                                    shadowHost.style.maxHeight = '';
-                                }
-                                // Reset parent scroll container dimensions
-                                if (shadowHost && shadowHost.parentElement && shadowHost.parentElement.style) {
-                                    const parent = shadowHost.parentElement;
-                                    parent.style.width = '';
-                                    parent.style.height = '';
-                                    parent.style.minHeight = '';
-                                    parent.style.minWidth = '';
-                                    parent.style.maxWidth = '';
-                                    parent.style.maxHeight = '';
-                                    // Ensure no horizontal scroll at 100% zoom
-                                    parent.style.overflowX = 'hidden';
-                                    parent.style.overflowY = 'auto';
-                                    // Restore h-full class
-                                    parent.classList.add('h-full');
-                                }
-                                
-                                // Ensure body and html don't exceed container width
-                                const body = document.body;
-                                const html = document.documentElement;
-                                if (body) {
-                                    body.style.maxWidth = '100%';
-                                    body.style.overflowX = 'hidden';
-                                    body.style.boxSizing = 'border-box';
-                                }
-                                if (html) {
-                                    html.style.maxWidth = '100%';
-                                    html.style.overflowX = 'hidden';
-                                    html.style.boxSizing = 'border-box';
-                                }
-                            } else {
-                                // Measure if not already measured
-                                if (naturalContentWidth === 0 || naturalContentHeight === 0) {
-                                    measureContent();
-                                }
-                                
-                                // When zoomed, adjust container dimensions to allow proper scrolling
-                                const scaledWidth = naturalContentWidth * scale;
-                                const scaledHeight = naturalContentHeight * scale;
-                                
-                                // Set wrapper dimensions to scaled size
-                                wrapper.style.width = scaledWidth + 'px';
-                                wrapper.style.height = scaledHeight + 'px';
-                                wrapper.style.minHeight = scaledHeight + 'px';
-                                
-                                // Adjust shadow host container dimensions - use min/max to ensure it takes the full size
-                                if (shadowHost && shadowHost.style) {
-                                    shadowHost.style.width = scaledWidth + 'px';
-                                    shadowHost.style.height = scaledHeight + 'px';
-                                    shadowHost.style.minWidth = scaledWidth + 'px';
-                                    shadowHost.style.minHeight = scaledHeight + 'px';
-                                    shadowHost.style.maxWidth = scaledWidth + 'px';
-                                    shadowHost.style.maxHeight = scaledHeight + 'px';
-                                    shadowHost.style.display = 'block';
-                                }
-                                
-                                // CRITICAL: Adjust parent scroll container dimensions so it knows the real content size
-                                // The parent div (injectedHtmlRef) has overflow-auto and h-full which limits height
-                                // We need to override h-full when zoomed to allow expansion
-                                if (shadowHost && shadowHost.parentElement && shadowHost.parentElement.style) {
-                                    const parent = shadowHost.parentElement;
-                                    // Remove height constraint (h-full) by setting height to auto or the scaled height
-                                    parent.style.height = 'auto';
-                                    parent.style.minHeight = scaledHeight + 'px';
-                                    parent.style.minWidth = scaledWidth + 'px';
-                                    // Remove max constraints that might limit scrolling
-                                    parent.style.maxWidth = '';
-                                    parent.style.maxHeight = '';
-                                    // Ensure overflow is enabled
-                                    parent.style.overflow = 'auto';
-                                    parent.style.overflowX = 'auto';
-                                    parent.style.overflowY = 'auto';
-                                    // Remove any height constraints from classes
-                                    parent.classList.remove('h-full');
-                                    // Force the parent to recognize the new size
-                                    parent.style.display = 'block';
-                                    // Force a reflow to ensure dimensions are applied
-                                    void parent.offsetWidth;
-                                    void parent.offsetHeight;
-                                    console.log('[ZOOM-DIAG] Parent container adjusted: minHeight=' + scaledHeight + ', minWidth=' + scaledWidth);
-                                }
-                            }
-                            
-                            // Apply transform to wrapper instead of body
-                            wrapper.style.transformOrigin = '0 0';
-                            // At 100% zoom, ensure no transform offset (pan should be exactly 0)
-                            if (scale === 1.0) {
-                                wrapper.style.transform = 'scale(1)';
-                                wrapper.style.left = '0';
-                                wrapper.style.marginLeft = '0';
-                            } else {
-                                wrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
-                            }
-                            wrapper.style.transition = scale === 1.0 ? 'transform 0.2s' : 'none';
-                            
-                            currentScale = scale;
-                            console.log('[ZOOM-DIAG] Applied zoom: scale=' + scale.toFixed(2) + ', pan=(' + panX + ', ' + panY + '), size: ' + (naturalContentWidth * scale) + 'x' + (naturalContentHeight * scale));
-                        }
-                        
-                        // Reset zoom
-                        function resetZoom() {
-                            applyZoom(1, 0, 0);
-                            lastPan = { x: 0, y: 0 };
-                        }
-                        
-                        // Calculate center point between two touches
-                        function getTouchCenter(touch1, touch2) {
-                            return {
-                                x: (touch1.clientX + touch2.clientX) / 2,
-                                y: (touch1.clientY + touch2.clientY) / 2
-                            };
-                        }
-                        
-                        // Touch start - detect pinch
-                        document.addEventListener('touchstart', function(e) {
-                            if (e.touches.length === 2) {
-                                const touch1 = e.touches[0];
-                                const touch2 = e.touches[1];
-                                initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-                                initialScale = currentScale;
-                                lastTouchCenter = getTouchCenter(touch1, touch2);
-                                console.log('[ZOOM-DIAG] Pinch start, initial distance:', initialDistance.toFixed(2), 'scale:', initialScale.toFixed(2));
-                            } else if (e.touches.length === 1 && currentScale > 1) {
-                                // Single touch when zoomed - allow panning
-                                e.preventDefault();
-                            }
-                        }, { passive: false });
-                        
-                        // Touch move - apply zoom or pan
-                        document.addEventListener('touchmove', function(e) {
-                            if (e.touches.length === 2) {
-                                e.preventDefault();
-                                const touch1 = e.touches[0];
-                                const touch2 = e.touches[1];
-                                const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-                                
-                                if (initialDistance > 0) {
-                                    // Reduce pinch sensitivity by applying a factor (0.3 = 30% of the distance change affects zoom)
-                                    const distanceRatio = currentDistance / initialDistance;
-                                    const zoomFactor = 1 + (distanceRatio - 1) * 0.3;
-                                    const scale = initialScale * zoomFactor;
-                                    const touchCenter = getTouchCenter(touch1, touch2);
-                                    
-                                    // Calculate pan to keep zoom centered on pinch point
-                                    const deltaX = touchCenter.x - lastTouchCenter.x;
-                                    const deltaY = touchCenter.y - lastTouchCenter.y;
-                                    
-                                    lastPan.x += deltaX * (1 - 1/scale);
-                                    lastPan.y += deltaY * (1 - 1/scale);
-                                    
-                                    applyZoom(scale, lastPan.x, lastPan.y);
-                                    lastTouchCenter = touchCenter;
-                                }
-                            } else if (e.touches.length === 1 && currentScale > 1) {
-                                // Pan when zoomed
-                                e.preventDefault();
-                                const touch = e.touches[0];
-                                const deltaX = touch.clientX - (lastTouchCenter.x || touch.clientX);
-                                const deltaY = touch.clientY - (lastTouchCenter.y || touch.clientY);
-                                
-                                lastPan.x += deltaX;
-                                lastPan.y += deltaY;
-                                applyZoom(currentScale, lastPan.x, lastPan.y);
-                                
-                                lastTouchCenter = { x: touch.clientX, y: touch.clientY };
-                            }
-                        }, { passive: false });
-                        
-                        // Touch end - finalize zoom
-                        document.addEventListener('touchend', function(e) {
-                            if (e.touches.length < 2 && initialDistance > 0) {
-                                console.log('[ZOOM-DIAG] Pinch end, final scale:', currentScale.toFixed(2));
-                                initialDistance = 0;
-                                initialScale = currentScale;
-                            }
-                            if (e.touches.length === 0) {
-                                lastTouchCenter = { x: 0, y: 0 };
-                            }
-                        }, { passive: true });
-                        
-                        // Double tap to reset zoom
-                        let lastTapTime = 0;
-                        document.addEventListener('touchend', function(e) {
-                            if (e.touches.length === 0) {
-                                const currentTime = Date.now();
-                                const tapLength = currentTime - lastTapTime;
-                                if (tapLength < 300 && tapLength > 0) {
-                                    // Double tap detected
-                                    resetZoom();
-                                    console.log('[ZOOM-DIAG] Double tap - reset zoom');
-                                }
-                                lastTapTime = currentTime;
-                            }
-                        }, { passive: true });
-                    })();
-                `
+                zoomScript.textContent = getShadowDomZoomScript()
                 shadowRoot.appendChild(zoomScript)
                 
                 // Setup image long press handlers for Android
@@ -1966,7 +718,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 document.getElementsByTagName = originalGetElementsByTagName
             }
         }
-    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, isDarkMode, setSelectedImageUrl])
+    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, setSelectedImageUrl])
 
     // Ensure iframe viewport doesn't extend under native system UI.
     // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
@@ -1992,6 +744,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 
                 // Validate inset value (typically 0-100px on mobile)
                 if (safeInset > 100) {
+                    // eslint-disable-next-line no-console
                     console.warn('[FeedArticle] Suspicious inset value from Capacitor:', safeInset, '- ignoring');
                     return;
                 }
@@ -2023,7 +776,6 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         // eslint-disable-next-line no-console
         console.log(`[FeedArticle] handleViewModeChange called: ${mode}`)
         
-        // Dark mode = original view with DarkReader
         setViewMode(mode)
         
         // Save preference to storage for this feed
