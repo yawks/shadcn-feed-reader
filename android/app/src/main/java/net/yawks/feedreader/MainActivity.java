@@ -64,13 +64,15 @@ public class MainActivity extends BridgeActivity {
                 }
                 
                 // Listen to window insets on the activity's decor view; when changed,
-                // forward the bottom inset to the web layer as a CustomEvent.
+                // forward the insets to the web layer as a CustomEvent.
                 this.getWindow().getDecorView().setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
                     @Override
                     public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
-                        int bottom = insets.getSystemWindowInsetBottom();
+                        final int top = insets.getSystemWindowInsetTop();
+                        final int bottom = insets.getSystemWindowInsetBottom();
+                        Log.d("MainActivity", "WindowInsets changed: top=" + top + ", bottom=" + bottom);
                         try {
-                            final String js = "window.dispatchEvent(new CustomEvent('capacitor-window-insets',{detail:{bottom:" + bottom + "}}));";
+                            final String js = "window.dispatchEvent(new CustomEvent('capacitor-window-insets',{detail:{top:" + top + ",bottom:" + bottom + "}}));";
                             finalWebView.post(new Runnable() {
                                     @Override
                                     public void run() {
@@ -80,20 +82,11 @@ public class MainActivity extends BridgeActivity {
                                         } catch (Throwable t) {
                                             // ignore JS execution errors
                                         }
-                                        try {
-                                            // Also apply padding on the WebView itself so that the
-                                            // embedded content (including cross-origin iframes)
-                                            // is visually inset above system UI (navigation bar).
-                                            int left = finalWebView.getPaddingLeft();
-                                            int top = finalWebView.getPaddingTop();
-                                            int right = finalWebView.getPaddingRight();
-                                            // Apply bottom inset as padding to avoid content being
-                                            // rendered under the system navigation area.
-                                            finalWebView.setPadding(left, top, right, bottom);
-                                            finalWebView.requestLayout();
-                                        } catch (Throwable t) {
-                                            // ignore padding errors
-                                        }
+                                        // NOTE: We intentionally do NOT apply padding to the WebView here.
+                                        // The web layer handles safe area insets via CSS env() and the
+                                        // capacitor-window-insets event. Applying padding here would cause
+                                        // DOUBLE margins when the app regains focus, as Android re-dispatches
+                                        // window insets on resume.
                                     }
                                 });
                         } catch (Throwable t) {
@@ -102,6 +95,9 @@ public class MainActivity extends BridgeActivity {
                         return insets;
                     }
                 });
+
+                // Force request window insets to ensure initial values are sent
+                this.getWindow().getDecorView().requestApplyInsets();
             }
         } catch (Throwable t) {
             Log.w("MainActivity", "Failed to setup WindowInsets forwarder", t);

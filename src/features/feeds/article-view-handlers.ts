@@ -108,7 +108,8 @@ export async function handleReadabilityView({
             return
         }
         
-        // On Android/Capacitor: start proxy server and set base URL
+        // On Android/Capacitor: use proxy port if available, otherwise try to start it
+        // Note: proxy should already be started in FeedArticle useEffect, but we handle it here as fallback
         let javaProxyPort: number | null = null
         if (!proxyPort) {
             try {
@@ -117,9 +118,13 @@ export async function handleReadabilityView({
                 if (port) {
                     javaProxyPort = port
                     await setProxyUrl(url)
+                    // eslint-disable-next-line no-console
+                    console.log('[handleReadabilityView] Capacitor proxy started on port (fallback):', port)
                 }
             } catch (_capErr) {
-                // Ignore - proxy might not be available
+                // Ignore - proxy might not be available or already running
+                // eslint-disable-next-line no-console
+                console.debug('[handleReadabilityView] Capacitor proxy not available or already running')
             }
         }
         
@@ -399,25 +404,91 @@ export async function handleOriginalView({
     prepareHtmlForShadowDom,
 }: OriginalViewParams): Promise<void> {
     try {
+        // eslint-disable-next-line no-console
+        console.log('[handleOriginalView] START, proxyPort:', proxyPort, 'url:', url)
         let proxyUrl: string
+        let effectiveProxyPort = proxyPort
         
-        // Try Tauri desktop proxy first
-        if (proxyPort) {
-            await safeInvoke('set_proxy_url', { url })
-            proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(url)}`
-        } else {
-            // On Android/Capacitor: use the Java proxy server
-            const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-            const port = await startProxyServer()
-            
-            if (!port) {
-                setError('Failed to start proxy server. Use the "Source" button to open in browser.')
-                setIsLoading(false)
-                return
+        // If proxyPort is not set, try to start it
+        if (!effectiveProxyPort) {
+            // eslint-disable-next-line no-console
+            console.log('[handleOriginalView] proxyPort is null, attempting to start proxy...')
+            // First, try to start Tauri proxy (desktop)
+            try {
+                const port = await safeInvoke('start_proxy')
+                if (port && typeof port === 'number') {
+                    effectiveProxyPort = port
+                    // eslint-disable-next-line no-console
+                    console.log('[handleOriginalView] Tauri proxy started on port:', effectiveProxyPort)
+                }
+            } catch (tauriErr) {
+                // Tauri not available or failed, check if it's because Tauri is not available
+                const errorMsg = tauriErr instanceof Error ? tauriErr.message : String(tauriErr)
+                // Check for various Tauri not available error messages
+                const isTauriNotAvailable = 
+                    errorMsg.includes('Tauri invoke not available') ||
+                    errorMsg.includes('Cannot read properties of undefined') ||
+                    errorMsg.includes('invoke') && errorMsg.includes('undefined')
+                
+                // eslint-disable-next-line no-console
+                console.log('[handleOriginalView] Tauri error detected, isTauriNotAvailable:', isTauriNotAvailable, 'errorMsg:', errorMsg)
+                
+                if (isTauriNotAvailable) {
+                    // Tauri is not available, try Android/Capacitor proxy
+                    try {
+                        const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
+                        // eslint-disable-next-line no-console
+                        console.log('[handleOriginalView] Attempting to start Capacitor proxy...')
+                        const port = await startProxyServer()
+                        
+                        if (!port) {
+                            // eslint-disable-next-line no-console
+                            console.error('[handleOriginalView] Capacitor proxy returned null port')
+                            setError('Failed to start proxy server. Use the "Source" button to open in browser.')
+                            setIsLoading(false)
+                            return
+                        }
+                        
+                        effectiveProxyPort = port
+                        await setProxyUrl(url)
+                        // eslint-disable-next-line no-console
+                        console.log('[handleOriginalView] Capacitor proxy started/reused on port:', effectiveProxyPort)
+                    } catch (capErr) {
+                        // eslint-disable-next-line no-console
+                        console.error('[handleOriginalView] Failed to start Capacitor proxy:', capErr)
+                        const errorMsg = capErr instanceof Error ? capErr.message : String(capErr)
+                        // eslint-disable-next-line no-console
+                        console.error('[handleOriginalView] Error details:', {
+                            message: errorMsg,
+                            stack: capErr instanceof Error ? capErr.stack : undefined,
+                        })
+                        setError(`Failed to start proxy server: ${errorMsg}. Use the "Source" button to open in browser.`)
+                        setIsLoading(false)
+                        return
+                    }
+                } else {
+                    // Tauri is available but start_proxy failed - this is unexpected
+                    // eslint-disable-next-line no-console
+                    console.error('[handleOriginalView] Tauri proxy start failed:', errorMsg)
+                    setError(`Failed to start proxy server: ${errorMsg}. Use the "Source" button to open in browser.`)
+                    setIsLoading(false)
+                    return
+                }
             }
-            
-            await setProxyUrl(url)
-            proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(url)}`
+        }
+        
+        // Now we should have a proxy port, set the URL and build proxy URL
+        if (effectiveProxyPort) {
+            // Try to set proxy URL for Tauri (will fail silently if not Tauri)
+            try {
+                await safeInvoke('set_proxy_url', { url })
+            } catch (_tauriErr) {
+                // Not Tauri or failed, continue anyway
+            }
+            proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
+        } else {
+            // This should not happen, but handle it gracefully
+            throw new Error('Proxy server not available')
         }
         
         // Fetch HTML directly from proxy instead of using iframe

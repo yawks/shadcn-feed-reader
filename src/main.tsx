@@ -50,6 +50,114 @@ console.log('[DIAGNOSTIC] window.Capacitor.Plugins:', (window as any)?.Capacitor
 console.log('[DIAGNOSTIC] RawHtml plugin:', (window as any)?.Capacitor?.Plugins?.RawHtml)
 /* eslint-enable no-console */
 
+// Fix for safe area restoration after exiting fullscreen video
+// On Android WebView, safe-area-inset-* becomes 0 after fullscreen exit
+// We capture values from Capacitor events and reapply them manually
+const setupFullscreenSafeAreaFix = () => {
+  // Store safe area values from Capacitor (env() CSS doesn't work reliably on Android)
+  let capacitorSafeAreas: { top: number; bottom: number } = { top: 0, bottom: 0 }
+  let hasExitedFullscreen = false
+
+  // Apply safe areas manually via inline styles
+  const applySafeAreas = (context: string) => {
+    const content = document.getElementById('content')
+    if (!content) return
+
+    const topInset = capacitorSafeAreas.top
+    const bottomInset = capacitorSafeAreas.bottom
+
+    // Calculate height: 100svh - top - (bottom / 2)
+    const height = `calc(100svh - ${topInset}px - ${bottomInset / 2}px)`
+
+    // eslint-disable-next-line no-console
+    console.log(`[FULLSCREEN] Applying safe areas (${context})`, {
+      topInset,
+      bottomInset,
+      height,
+      contentFound: !!content,
+    })
+
+    content.style.height = height
+    content.style.paddingTop = `${topInset}px`
+
+    // Force reflow
+    void content.offsetHeight
+  }
+
+  const handleFullscreenChange = () => {
+    const isEnteringFullscreen = !!document.fullscreenElement
+
+    // eslint-disable-next-line no-console
+    console.log('[FULLSCREEN] fullscreenchange event', {
+      isEnteringFullscreen,
+      capacitorSafeAreas,
+    })
+
+    if (!isEnteringFullscreen) {
+      hasExitedFullscreen = true
+      // eslint-disable-next-line no-console
+      console.log('[FULLSCREEN] Exited fullscreen, will restore safe areas')
+
+      // Multiple attempts with increasing delays
+      setTimeout(() => applySafeAreas('fullscreen-50ms'), 50)
+      setTimeout(() => applySafeAreas('fullscreen-300ms'), 300)
+      setTimeout(() => applySafeAreas('fullscreen-1000ms'), 1000)
+
+      // Dispatch resize event to notify all listeners
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 100)
+    }
+  }
+
+  // Listen to Capacitor window insets events to capture real safe area values
+  const handleCapacitorInsets = (ev: Event) => {
+    try {
+      const ce = ev as CustomEvent & { detail?: { top?: number; bottom?: number } }
+      const top = Number(ce?.detail?.top) || 0
+      const bottom = Number(ce?.detail?.bottom) || 0
+
+      // eslint-disable-next-line no-console
+      console.log('[FULLSCREEN] Received Capacitor insets', { top, bottom, hasExitedFullscreen })
+
+      // Store the values (even if they seem large, modern Android can have 100-200px insets)
+      if (top > 0 || bottom > 0) {
+        capacitorSafeAreas = { top, bottom }
+
+        // If we just exited fullscreen, apply immediately
+        if (hasExitedFullscreen) {
+          applySafeAreas('capacitor-event-after-fullscreen')
+          hasExitedFullscreen = false
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[FULLSCREEN] Error handling Capacitor insets', e)
+    }
+  }
+
+  // Listen to all fullscreen change events
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+
+  // Listen to Capacitor window insets
+  window.addEventListener('capacitor-window-insets', handleCapacitorInsets as EventListener)
+
+  // Also listen to visibility change as a fallback
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (capacitorSafeAreas.top > 0 || capacitorSafeAreas.bottom > 0)) {
+      // eslint-disable-next-line no-console
+      console.log('[VISIBILITY] App became visible, restoring safe areas', capacitorSafeAreas)
+      setTimeout(() => applySafeAreas('visibility-100ms'), 100)
+    }
+  })
+
+  // eslint-disable-next-line no-console
+  console.log('[FULLSCREEN] Safe area fix initialized, waiting for Capacitor events')
+}
+
+setupFullscreenSafeAreaFix()
+
 
 
 const queryClient = new QueryClient({

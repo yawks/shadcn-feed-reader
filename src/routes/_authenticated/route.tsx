@@ -42,10 +42,13 @@ function RouteComponent() {
               'group-data-[scroll-locked=1]/body:h-full',
               'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh',
               'pl-0', // padding-left forcé à 0
-              // Safe area support - use half of safe-area-inset-bottom to reduce excessive margin
-              'h-[calc(100svh-env(safe-area-inset-top)-calc(env(safe-area-inset-bottom)/2))]',
-              'pt-[env(safe-area-inset-top)]'
             )}
+            style={{
+              // Use inline styles for safe area to ensure they're always recalculated
+              // This is more reliable than Tailwind classes for dynamic viewport changes
+              height: 'calc(100svh - env(safe-area-inset-top, 0px) - calc(env(safe-area-inset-bottom, 0px) / 2))',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+            }}
           >
             <Outlet />
           </div>

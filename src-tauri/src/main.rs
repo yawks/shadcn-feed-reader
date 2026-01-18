@@ -25,6 +25,16 @@ pub struct ProxyState {
 #[command]
 async fn start_proxy(app_handle: AppHandle) -> Result<u16, String> {
     let state: tauri::State<ProxyState> = app_handle.state();
+    
+    // Check if proxy is already running
+    {
+        let port_guard = state.port.lock().unwrap();
+        if let Some(existing_port) = *port_guard {
+            return Ok(existing_port);
+        }
+    } // Lock is released here before await
+    
+    // Start new proxy server
     let port = proxy::start_proxy_server(state.inner().clone()).await;
     
     // Store the port in the state

@@ -105,12 +105,57 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     }, [item.feed?.id, item.url]) // Don't include viewMode to avoid loop - we only want to load when feed/article changes
 
     useEffect(() => {
-        // Start the proxy (Tauri) if available; ignore errors in browser dev
-        // try to start the tauri proxy; ignore if not available in dev
-        safeInvoke("start_proxy")
-            .then((port) => setProxyPort(Number(port)))
-            // .catch((err) => console.debug("start_proxy not available or failed (dev):", err))
-            .catch(() => {/* ignore in browser/dev */})
+        // Start the proxy (Tauri or Capacitor) if available; ignore errors in browser dev
+        const startProxy = async () => {
+            // eslint-disable-next-line no-console
+            console.log('[FeedArticle] Starting proxy initialization...')
+            // Try Tauri first (desktop)
+            try {
+                const port = await safeInvoke("start_proxy")
+                setProxyPort(Number(port))
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] ✓ Tauri proxy started on port:', port)
+                return
+            } catch (tauriErr) {
+                // Tauri not available, try Capacitor (Android)
+                const errorMsg = tauriErr instanceof Error ? tauriErr.message : String(tauriErr)
+                // eslint-disable-next-line no-console
+                console.log('[FeedArticle] Tauri not available, error:', errorMsg)
+                // Check for various Tauri not available error messages
+                const isTauriNotAvailable = 
+                    errorMsg.includes('Tauri invoke not available') ||
+                    errorMsg.includes('Cannot read properties of undefined') ||
+                    (errorMsg.includes('invoke') && errorMsg.includes('undefined'))
+                
+                if (isTauriNotAvailable) {
+                    try {
+                        // eslint-disable-next-line no-console
+                        console.log('[FeedArticle] Attempting to start Capacitor proxy...')
+                        const { startProxyServer } = await import('@/lib/raw-html')
+                        const port = await startProxyServer()
+                        if (port) {
+                            setProxyPort(port)
+                            // eslint-disable-next-line no-console
+                            console.log('[FeedArticle] ✓ Capacitor proxy started on port:', port)
+                        } else {
+                            // eslint-disable-next-line no-console
+                            console.warn('[FeedArticle] Capacitor proxy returned null port')
+                        }
+                    } catch (capErr) {
+                        // eslint-disable-next-line no-console
+                        console.error('[FeedArticle] ✗ Capacitor proxy failed:', capErr)
+                        const errorDetails = capErr instanceof Error ? capErr.message : String(capErr)
+                        // eslint-disable-next-line no-console
+                        console.error('[FeedArticle] Error details:', errorDetails)
+                    }
+                } else {
+                    // eslint-disable-next-line no-console
+                    console.debug('[FeedArticle] Tauri proxy not available or failed (dev):', tauriErr)
+                }
+            }
+        }
+        
+        startProxy()
     }, [])
 
 
@@ -193,6 +238,9 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             if (iframeRef.current) iframeRef.current.src = url
         }
 
+        // eslint-disable-next-line no-console
+        console.log('[FeedArticle] About to load article, proxyPort:', proxyPort)
+        
         if (viewMode === "readability") {
             handleReadabilityView({
                 url: item.url || '',
@@ -206,6 +254,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 setIframeUrl,
             })
         } else if (viewMode === "original") {
+            // eslint-disable-next-line no-console
+            console.log('[FeedArticle] Calling handleOriginalView with proxyPort:', proxyPort)
             handleOriginalView({
                 url: item.url || '',
                 proxyPort,
@@ -742,8 +792,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 const ce = ev as CustomEvent & { detail?: { bottom?: number } }
                 const safeInset = Number(ce?.detail?.bottom) || 0
                 
-                // Validate inset value (typically 0-100px on mobile)
-                if (safeInset > 100) {
+                // Validate inset value (can be up to ~200px on modern Android devices with gesture navigation)
+                if (safeInset > 250) {
                     // eslint-disable-next-line no-console
                     console.warn('[FeedArticle] Suspicious inset value from Capacitor:', safeInset, '- ignoring');
                     return;

@@ -136,20 +136,31 @@ export async function startProxyServer(): Promise<number | null> {
         const win = window as any
         const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
         if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.startProxyServer === 'function') {
-            console.log('[startProxyServer] Starting Capacitor proxy server...')
+            // eslint-disable-next-line no-console
+            console.log('[startProxyServer] Calling Capacitor startProxyServer...')
             try {
                 const res = await Plugins.RawHtml.startProxyServer()
-                console.log('[startProxyServer] Response:', res)
+                // eslint-disable-next-line no-console
+                console.log('[startProxyServer] Response:', JSON.stringify(res))
                 const port = res?.port || res?.value || (typeof res === 'number' ? res : null)
-                console.log('[startProxyServer] SUCCESS, port:', port)
-                return port
+                if (port) {
+                    // eslint-disable-next-line no-console
+                    console.log('[startProxyServer] SUCCESS, port:', port)
+                    return port
+                } else {
+                    // eslint-disable-next-line no-console
+                    console.warn('[startProxyServer] Response received but no port found:', res)
+                    return null
+                }
             } catch (pluginError) {
+                // eslint-disable-next-line no-console
                 console.error('[startProxyServer] Plugin call failed:', pluginError)
-                // Le plugin peut retourner une erreur si le serveur est déjà démarré
-                // Dans ce cas, on peut essayer de récupérer le port d'une autre manière
+                // Le plugin Java vérifie déjà si le proxy est en cours et retourne le port existant
+                // Si on arrive ici, c'est une vraie erreur (ex: IOException)
                 throw pluginError
             }
         }
+        // eslint-disable-next-line no-console
         console.log('[startProxyServer] Capacitor plugin not available', {
             Plugins: !!Plugins,
             RawHtml: !!Plugins?.RawHtml,
@@ -157,6 +168,7 @@ export async function startProxyServer(): Promise<number | null> {
         })
         return null
     } catch (e) {
+        // eslint-disable-next-line no-console
         console.error('[startProxyServer] ERROR:', e)
         return null
     }

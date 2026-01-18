@@ -49,4 +49,4 @@ $ADB_PATH logcat -c
 echo "📋 Affichage de TOUS les logs JavaScript (Capacitor/Console)..."
 echo "   Cherchez les lignes avec [FeedArticle] ou [article-view-storage]"
 echo ""
-$ADB_PATH logcat | grep -E "Capacitor/Console.*FeedArticle|Capacitor/Console.*article-view-storage|Capacitor/Console.*viewMode|Capacitor/Console.*view.*mode|Capacitor/Console.*Loading view|Capacitor/Console.*Saving view|Capacitor/Console.*handleViewModeChange" --line-buffered
+$ADB_PATH logcat | grep -E "Capacitor/Console.*FeedArticle|Capacitor/Console.*article-view-storage|Capacitor/Console.*viewMode|Capacitor/Console.*view.*mode|Capacitor/Console.*Loading view|Capacitor/Console.*Saving view|Capacitor/Console.*handleViewModeChange|\[LAYOU|\[FULL" --line-buffered
