@@ -1,0 +1,84 @@
+{
+  "article_toolbar": {
+    "original": "Original",
+    "readability": "Readability",
+    "configured": "Selectors",
+    "view_mode": "View Mode",
+    "back": "Back",
+    "source": "Source",
+    "open_in_browser": "Open article in browser",
+    "article": "Article"
+  },
+  "feeds": {
+    "error_loading": "Error loading articles: {{message}}",
+    "search_results": "Search Results ({{total}} articles)",
+    "clear_search": "Clear search",
+    "feeds_title": "Feeds"
+  },
+  "auth_dialog": {
+    "title": "Authentication Required",
+    "description_part1": "The site",
+    "description_part2": "requires authentication. Please enter your username and password.",
+    "username": "Username",
+    "password": "Password",
+    "cancel": "Cancel",
+    "sign_in": "Sign In"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your account settings and set e-mail preferences.",
+    "nav": {
+      "profile": "Profile",
+      "account": "Account",
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "display": "Display"
+    }
+  },
+  "errors": {
+    "readability_failed": "Readability could not extract content from this page. Try \"Original\" mode instead.",
+    "fetch_failed": "Failed to fetch article: {{message}}",
+    "parse_failed": "Readability parse failed: {{message}}",
+    "proxy_failed": "Failed to start proxy server. Use the \"Source\" button to open in browser.",
+    "proxy_failed_with_msg": "Failed to start proxy server: {{message}}. Use the \"Source\" button to open in browser.",
+    "no_selector_config": "No selector or custom CSS configured for this feed.",
+    "selectors_no_content": "Selectors found no content. Check configuration."
+  },
+  "auth_config": {
+    "login_url_required": "Login URL is required",
+    "login_url_invalid": "Login URL is invalid",
+    "username_required": "Username is required",
+    "password_required": "Password is required",
+    "save_error": "Error saving configuration",
+    "delete_error": "Error deleting configuration",
+    "credentials_required": "Credentials are required",
+    "logging_in": "Logging in...",
+    "fetching_dynamic_values": "Fetching dynamic values...",
+    "login_success_with_text": "Login successful: {{text}}",
+    "login_success": "Login successful",
+    "login_fail": "Login failed",
+    "native_app_required": "Login requires native application",
+    "login_fail_with_error": "Login failed: {{message}}",
+    "description": "Configure credentials to log in to this feed's site and access subscriber-only content.",
+    "login_url": "Login URL (POST)",
+    "login_url_help": "The URL to which the login form submits data.",
+    "username_field": "Username Field",
+    "password_field": "Password Field",
+    "username": "Username",
+    "password": "Password",
+    "extra_fields": "Extra Fields",
+    "add": "Add",
+    "extra_fields_help": "Additional fields required by the form. Leave empty to automatically retrieve the value from the form (e.g., CSRF token).",
+    "field_name_placeholder": "Field Name",
+    "field_value_placeholder": "Value (empty = auto)",
+    "response_selector": "Response Selector (optional)",
+    "response_selector_help": "CSS selector to extract a message from the response (e.g., welcome message).",
+    "logout_url": "Logout URL (optional)",
+    "logout_url_help": "URL to call (GET) after fetching the article to logout from the session.",
+    "saving": "Saving...",
+    "save": "Save",
+    "logging_in_button": "Logging in...",
+    "login": "Login",
+    "delete": "Delete"
+  }
+}

@@ -55,6 +55,45 @@ export default class FeedBackend implements Backend {
     }
   }
 
+  // Add a new feed and return the created feed data when available.
+  // The Nextcloud API typically returns the created feed object as JSON.
+  async addFeed(urlFeed: string, folderId: number | null): Promise<Feed | null> {
+    try {
+      const url = this.url + `/index.php/apps/news/api/v1-2/feeds`;
+      const baseOptions = this._getOptions('POST');
+      const options: RequestInit = {
+        ...baseOptions,
+        body: JSON.stringify({ url: urlFeed, folderId }),
+        headers: new Headers(baseOptions.headers),
+      };
+      (options.headers as Headers).set('Content-Type', 'application/json');
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error('Error while adding feed: ' + res.statusText);
+
+      // Try to parse returned JSON; if it matches the NNFeed shape, map to our Feed type
+      try {
+        const created = await res.json();
+        if (created && typeof created === 'object' && 'id' in created) {
+          const nn: NNFeed = created as NNFeed
+          const mapped: Feed = {
+            id: String(nn.id),
+            title: nn.title,
+            unreadCount: nn.unreadCount,
+            faviconUrl: nn.faviconLink,
+            folderId: String(nn.folderId),
+          }
+          return mapped
+        }
+      } catch (_e) {
+        // ignore parse errors and fall through to return null
+      }
+
+      return null
+    } catch (error) {
+      throw new Error('Error API addFeed: ' + error);
+    }
+  }
+
   async deleteFeed(feedId: string): Promise<void> {
     const url = this.url + `/index.php/apps/news/api/v1-2/feeds/${feedId}`;
     try {

@@ -17,3 +17,9 @@ export function FeedQueryProvider({ children }: Readonly<{ children: React.React
         </FeedQueryContext.Provider>
     )
 }
+
+// Consumer hook for accessing the FeedQuery context
+// Throws when used outside a Provider to make errors easier to diagnose.
+// NOTE: Consumer hook `useFeedQuery` moved to `src/context/use-feed-query.ts` to avoid
+// exporting non-component helpers from a file that also exports a React component
+// which can interfere with fast refresh. See that file for the hook implementation.

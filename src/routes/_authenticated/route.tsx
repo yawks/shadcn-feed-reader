@@ -38,11 +38,17 @@ function RouteComponent() {
               'w-full max-w-full', // suppression de ml-auto
               'peer-data-[state=collapsed]:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
               'peer-data-[state=expanded]:w-[calc(100%-var(--sidebar-width))]',
-              'flex h-svh flex-col',
+              'flex flex-col',
               'group-data-[scroll-locked=1]/body:h-full',
               'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh',
-              'pl-0' // padding-left forcé à 0
+              'pl-0', // padding-left forcé à 0
             )}
+            style={{
+              // Use inline styles for safe area to ensure they're always recalculated
+              // This is more reliable than Tailwind classes for dynamic viewport changes
+              height: 'calc(100svh - env(safe-area-inset-top, 0px) - calc(env(safe-area-inset-bottom, 0px) / 2))',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+            }}
           >
             <Outlet />
           </div>

@@ -33,6 +33,7 @@ export const Header = ({
       className={cn(
         'bg-background flex h-16 items-center gap-3 p-4 sm:gap-4',
         fixed && 'header-fixed peer/header fixed z-50 w-[inherit] rounded-md',
+        // Don't add top offset here - parent container already has padding-top for safe area
         offset > 10 && fixed ? 'shadow-sm' : 'shadow-none',
         className
       )}

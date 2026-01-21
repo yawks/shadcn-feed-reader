@@ -1,0 +1,84 @@
+{
+  "article_toolbar": {
+    "original": "Original",
+    "readability": "Lecture",
+    "configured": "Sélecteurs",
+    "view_mode": "Mode d'affichage",
+    "back": "Retour",
+    "source": "Source",
+    "open_in_browser": "Ouvrir l'article dans le navigateur",
+    "article": "Article"
+  },
+  "feeds": {
+    "error_loading": "Erreur lors du chargement des articles : {{message}}",
+    "search_results": "Résultats de recherche ({{total}} articles)",
+    "clear_search": "Effacer la recherche",
+    "feeds_title": "Flux"
+  },
+  "auth_dialog": {
+    "title": "Authentification requise",
+    "description_part1": "Le site",
+    "description_part2": "nécessite une authentification. Veuillez entrer votre nom d'utilisateur et votre mot de passe.",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "cancel": "Annuler",
+    "sign_in": "Se connecter"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "description": "Gérez les paramètres de votre compte et vos préférences.",
+    "nav": {
+      "profile": "Profil",
+      "account": "Compte",
+      "appearance": "Apparence",
+      "notifications": "Notifications",
+      "display": "Affichage"
+    }
+  },
+  "errors": {
+    "readability_failed": "Le mode lecture n'a pas pu extraire le contenu. Essayez le mode \"Original\".",
+    "fetch_failed": "Échec de la récupération de l'article : {{message}}",
+    "parse_failed": "L'analyse a échoué : {{message}}",
+    "proxy_failed": "Échec du démarrage du serveur proxy. Utilisez le bouton \"Source\" pour ouvrir dans le navigateur.",
+    "proxy_failed_with_msg": "Échec du démarrage du serveur proxy : {{message}}. Utilisez le bouton \"Source\" pour ouvrir dans le navigateur.",
+    "no_selector_config": "Aucun sélecteur ou CSS personnalisé configuré pour ce flux.",
+    "selectors_no_content": "Les sélecteurs n'ont pas trouvé de contenu. Vérifiez la configuration."
+  },
+  "auth_config": {
+    "login_url_required": "L'URL de connexion est requise",
+    "login_url_invalid": "L'URL de connexion n'est pas valide",
+    "username_required": "L'identifiant est requis",
+    "password_required": "Le mot de passe est requis",
+    "save_error": "Erreur lors de la sauvegarde",
+    "delete_error": "Erreur lors de la suppression",
+    "credentials_required": "Les identifiants sont requis",
+    "logging_in": "Connexion en cours...",
+    "fetching_dynamic_values": "Récupération des valeurs dynamiques...",
+    "login_success_with_text": "Connexion réussie: {{text}}",
+    "login_success": "Connexion réussie",
+    "login_fail": "Échec de la connexion",
+    "native_app_required": "La connexion nécessite l'application native",
+    "login_fail_with_error": "Échec de la connexion: {{message}}",
+    "description": "Configurez les identifiants pour vous connecter au site de ce flux et accéder au contenu réservé aux abonnés.",
+    "login_url": "URL de connexion (POST)",
+    "login_url_help": "L'URL vers laquelle le formulaire de connexion envoie les données.",
+    "username_field": "Champ identifiant",
+    "password_field": "Champ mot de passe",
+    "username": "Identifiant",
+    "password": "Mot de passe",
+    "extra_fields": "Champs supplémentaires",
+    "add": "Ajouter",
+    "extra_fields_help": "Champs additionnels requis par le formulaire. Laissez la valeur vide pour récupérer automatiquement la valeur depuis le formulaire (ex: token CSRF).",
+    "field_name_placeholder": "Nom du champ",
+    "field_value_placeholder": "Valeur (vide = auto)",
+    "response_selector": "Sélecteur de réponse (optionnel)",
+    "response_selector_help": "Sélecteur CSS pour extraire un message de la réponse (ex: message de bienvenue).",
+    "logout_url": "URL de déconnexion (optionnel)",
+    "logout_url_help": "URL à appeler (GET) après la récupération de l'article pour se déconnecter de la session.",
+    "saving": "Enregistrement...",
+    "save": "Enregistrer",
+    "logging_in_button": "Connexion...",
+    "login": "Login",
+    "delete": "Supprimer"
+  }
+}

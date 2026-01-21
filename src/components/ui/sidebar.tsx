@@ -231,7 +231,9 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className='flex h-full w-full flex-col'>{children}</div>
+          <div className='flex h-full w-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]'>
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )
@@ -262,7 +264,10 @@ function Sidebar({
       <div
         data-slot='sidebar-container'
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex',
+          'fixed z-10 hidden w-(--sidebar-width) md:flex',
+          // Respect safe areas for top and bottom - use half of bottom inset to reduce excessive margin
+          'top-[env(safe-area-inset-top)]',
+          'h-[calc(100svh-env(safe-area-inset-top)-calc(env(safe-area-inset-bottom)/2))]',
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
@@ -277,7 +282,8 @@ function Sidebar({
         <div
           data-sidebar='sidebar'
           data-slot='sidebar-inner'
-          className='bg-sidebar flex h-full w-full flex-col group-data-[variant=floating]:shadow-sm'
+          className='bg-sidebar flex h-full w-full flex-col group-data-[variant=floating]:shadow-sm overflow-hidden'
+          // Use flexbox to ensure footer is always visible
         >
           {children}
         </div>
@@ -370,7 +376,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot='sidebar-header'
       data-sidebar='header'
-      className={cn('flex flex-col gap-2 p-2', className)}
+      className={cn('flex flex-col gap-2 p-2 flex-shrink-0', className)}
       {...props}
     />
   )
@@ -381,7 +387,12 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot='sidebar-footer'
       data-sidebar='footer'
-      className={cn('flex flex-col gap-2 p-2', className)}
+      className={cn(
+        'flex flex-col gap-2 p-2',
+        // Use flex-shrink-0 to prevent footer from being compressed
+        'flex-shrink-0',
+        className
+      )}
       {...props}
     />
   )

@@ -1,6 +1,7 @@
 import { FeedFavicon } from '@/components/ui/feed-favicon';
 import { FeedItem } from '@/backends/types';
 import { GroupedFeedItem } from '@/utils/grouping';
+import { ThumbnailImage } from '@/components/thumbnail-image';
 import { timeSinceShort } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -49,18 +50,27 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
         <div className="space-y-2 pb-4">
           <div className="flex gap-3">
             <div className="flex-shrink-0">
-              <div className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
-                <img
-                  src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
-                  alt={mainArticle.title}
-                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  onError={e => {
-                    const target = e.currentTarget;
-                    if (target.src.indexOf('/public/images/feed_icon.png') === -1) target.src = '/public/images/feed_icon.png';
+                <div 
+                  className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
+                  style={{
+                    width: '3rem',
+                    height: '3rem',
+                    minWidth: '3rem',
+                    minHeight: '3rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                />
+                >
+                  <ThumbnailImage
+                    src={mainArticle.thumbnailUrl}
+                    alt={mainArticle.title}
+                    className="transition-transform duration-200 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               </div>
-            </div>
 
             <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
               <h3 className={`feed-item-title font-medium leading-tight line-clamp-4 ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'} group-hover:text-foreground transition-colors duration-200`}>
@@ -101,15 +111,24 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                   >
                     <div className="flex flex-row items-center gap-2">
                       <div className="flex-shrink-0">
-                        <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
-                          <img
-                            src={mainArticle.thumbnailUrl || '/public/images/feed_icon.png'}
+                        <div 
+                          className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
+                          style={{
+                            width: '2rem',
+                            height: '2rem',
+                            minWidth: '2rem',
+                            minHeight: '2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ThumbnailImage
+                            src={mainArticle.thumbnailUrl}
                             alt={mainArticle.title}
-                            className="w-full h-full object-cover"
-                            onError={e => {
-                              const target = e.currentTarget;
-                              if (target.src.indexOf('/public/images/feed_icon.png') === -1) target.src = '/public/images/feed_icon.png';
-                            }}
+                            className="transition-transform duration-200"
+                            loading="lazy"
+                            decoding="async"
                           />
                         </div>
                       </div>
@@ -138,15 +157,24 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                   >
                     <div className="flex flex-row items-center gap-2">
                       <div className="flex-shrink-0">
-                        <div className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}`}>
-                          <img
-                            src={article.thumbnailUrl || '/public/images/feed_icon.png'}
+                        <div 
+                          className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
+                          style={{
+                            width: '2rem',
+                            height: '2rem',
+                            minWidth: '2rem',
+                            minHeight: '2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ThumbnailImage
+                            src={article.thumbnailUrl}
                             alt={article.title}
-                            className="w-full h-full object-cover"
-                            onError={e => {
-                              const target = e.currentTarget;
-                              if (target.src.indexOf('/public/images/feed_icon.png') === -1) target.src = '/public/images/feed_icon.png';
-                            }}
+                            className="transition-transform duration-200"
+                            loading="lazy"
+                            decoding="async"
                           />
                         </div>
                       </div>
