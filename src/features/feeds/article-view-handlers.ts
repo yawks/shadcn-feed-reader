@@ -140,7 +140,15 @@ export async function handleReadabilityView({
         // Rewrite image URLs to go through proxy to avoid hotlinking issues
         // This ensures images from CDNs that check Referer headers will work
         const effectiveProxyPort = proxyPort || javaProxyPort
-        if (effectiveProxyPort) {
+        
+        // Detect Web Mode (no Tauri, no Capacitor)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isWeb = typeof window !== 'undefined' && 
+                      !(window as any).__TAURI_INTERNALS__ && 
+                      !(window as any).__TAURI__ &&
+                      !Capacitor.isNativePlatform();
+
+        if (effectiveProxyPort || isWeb) {
             // Parse the HTML and rewrite all image src attributes
             const parser = new DOMParser()
             const doc = parser.parseFromString(summary, 'text/html')
@@ -153,7 +161,9 @@ export async function handleReadabilityView({
                     !src.startsWith('blob:') && 
                     !src.startsWith('http://localhost:') &&
                     (src.startsWith('http://') || src.startsWith('https://'))) {
-                    const proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
+                    const proxyUrl = effectiveProxyPort 
+                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
+                        : `/proxy?url=${encodeURIComponent(src)}`
                     img.setAttribute('src', proxyUrl)
                 }
             })
@@ -170,7 +180,9 @@ export async function handleReadabilityView({
                             !url.startsWith('blob:') && 
                             !url.startsWith('http://localhost:') &&
                             (url.startsWith('http://') || url.startsWith('https://'))) {
-                            const proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
+                            const proxyUrl = effectiveProxyPort 
+                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
+                                : `/proxy?url=${encodeURIComponent(url)}`
                             return proxyUrl + (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
                         }
                         return entry.trim()
@@ -433,8 +445,15 @@ export async function handleOriginalView({
         let proxyUrl: string
         let effectiveProxyPort = proxyPort
         
-        // If proxyPort is not set, try to start it
-        if (!effectiveProxyPort) {
+        // Detect Web Mode (no Tauri, no Capacitor)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isWeb = typeof window !== 'undefined' && 
+                      !(window as any).__TAURI_INTERNALS__ && 
+                      !(window as any).__TAURI__ &&
+                      !Capacitor.isNativePlatform();
+        
+        // If proxyPort is not set and we are NOT in web mode, try to start it
+        if (!effectiveProxyPort && !isWeb) {
             // eslint-disable-next-line no-console
             console.log('[handleOriginalView] proxyPort is null, attempting to start proxy...')
             // First, try to start Tauri proxy (desktop)
@@ -509,6 +528,11 @@ export async function handleOriginalView({
                 // Not Tauri or failed, continue anyway
             }
             proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
+        } else if (isWeb) {
+            // Web mode fallback - use relative path
+            // eslint-disable-next-line no-console
+            console.log('[handleOriginalView] Web mode detected, using relative proxy path')
+            proxyUrl = `/proxy?url=${encodeURIComponent(url)}`
         } else {
             // This should not happen, but handle it gracefully
             throw new Error('Proxy server not available')

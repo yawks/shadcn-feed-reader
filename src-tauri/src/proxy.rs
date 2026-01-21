@@ -1,4 +1,4 @@
-use crate::ProxyState;
+use crate::shared::ProxyState;
 use axum::{
     body::{to_bytes, Body},
     extract::{Path, Query, State},
@@ -8,7 +8,7 @@ use axum::{
     Router,
     middleware::{self, Next},
 };
-use tauri::http::Request;
+use axum::http::Request;
 use lol_html::{element, HtmlRewriter, Settings};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
@@ -621,7 +621,7 @@ const LISTENER_SCRIPT: &str = r#"
 "#;
 
 // Handler for CORS preflight requests
-async fn cors_options_handler() -> Response {
+pub async fn cors_options_handler() -> Response {
     Response::builder()
         .status(StatusCode::NO_CONTENT)
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
@@ -653,7 +653,7 @@ pub async fn start_proxy_server(state: ProxyState) -> u16 {
 }
 
 // Handler for proxying external resources via /proxy?url=...
-async fn proxy_resource_handler(
+pub async fn proxy_resource_handler(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<ProxyState>,
     req: Request<Body>,
@@ -803,10 +803,15 @@ Authentication required for {}
         }
     }
 
-    // Get proxy port for building resource URLs
-    let proxy_port = {
-        let port_guard = state.port.lock().unwrap();
-        port_guard.unwrap_or(3000)
+    // Get proxy base for building resource URLs
+    let proxy_base = {
+        let relative_guard = state.use_relative_paths.lock().unwrap();
+        if *relative_guard {
+            String::new()
+        } else {
+            let port_guard = state.port.lock().unwrap();
+            format!("http://localhost:{}", port_guard.unwrap_or(3000))
+        }
     };
 
     if content_type.contains("text/html") {
@@ -827,7 +832,7 @@ Authentication required for {}
                                     Ok(url) => url.to_string(),
                                     Err(_) => return Ok(())
                                 };
-                                let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(&absolute_url));
+                                let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(&absolute_url));
                                 el.set_attribute("src", &proxy_url).unwrap();
                             }
                         }
@@ -838,7 +843,7 @@ Authentication required for {}
                         if let Some(href) = el.get_attribute("href") {
                             if !href.starts_with("data:") && !href.starts_with("blob:") && !href.starts_with("http://localhost:") && !href.starts_with("#") && !href.starts_with("javascript:") && !href.starts_with("mailto:") && !href.starts_with("https://") && !href.starts_with("http://") {
                                 let absolute_url = match target_url.join(&href) { Ok(url) => url.to_string(), Err(_) => return Ok(()) };
-                                let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(&absolute_url));
+                                let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(&absolute_url));
                                 el.set_attribute("href", &proxy_url).unwrap();
                             }
                         }
@@ -849,7 +854,7 @@ Authentication required for {}
                         if let Some(href) = el.get_attribute("href") {
                             if !href.starts_with("data:") && !href.starts_with("blob:") && !href.starts_with("http://localhost:") && !href.starts_with("#") && !href.starts_with("javascript:") && !href.starts_with("mailto:") && !href.starts_with("https://") && !href.starts_with("http://") {
                                 let absolute_url = match target_url.join(&href) { Ok(url) => url.to_string(), Err(_) => return Ok(()) };
-                                let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(&absolute_url));
+                                let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(&absolute_url));
                                 el.set_attribute("href", &proxy_url).unwrap();
                             }
                         }
@@ -864,7 +869,7 @@ Authentication required for {}
                                 if let Some(url) = parts.first() {
                                     if !url.starts_with("data:") && !url.starts_with("blob:") && !url.starts_with("http://localhost:") && !url.starts_with("https://") && !url.starts_with("http://") {
                                         if let Ok(absolute_url) = target_url.join(url) {
-                                            let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(absolute_url.as_str()));
+                                            let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(absolute_url.as_str()));
                                             new_srcset.push_str(&proxy_url);
                                             if parts.len() > 1 { new_srcset.push(' '); new_srcset.push_str(parts[1]); }
                                             new_srcset.push_str(", ");
@@ -901,7 +906,7 @@ Authentication required for {}
     Ok(builder.body(body).unwrap())
 }
 
-async fn proxy_handler(
+pub async fn proxy_handler(
     Path(path): Path<String>,
     State(state): State<ProxyState>,
     req: Request<Body>,
@@ -933,10 +938,15 @@ async fn proxy_handler(
     
     let target_url = base_url.join(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // Get the actual proxy port from state
-    let proxy_port = {
-        let port_guard = state.port.lock().unwrap();
-        port_guard.unwrap_or(3000)
+    // Get proxy base for building resource URLs
+    let proxy_base = {
+        let relative_guard = state.use_relative_paths.lock().unwrap();
+        if *relative_guard {
+            String::new()
+        } else {
+            let port_guard = state.port.lock().unwrap();
+            format!("http://localhost:{}", port_guard.unwrap_or(3000))
+        }
     };
 
     // Extract domain for auth lookup
@@ -1099,7 +1109,7 @@ Authentication required for {}
                                         }
                                     }
                                 };
-                                let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(&absolute_url));
+                                let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(&absolute_url));
                                 println!("Rewriting src '{}' -> '{}' (base: {})", src, proxy_url, target_url);
                                 el.set_attribute("src", &proxy_url).unwrap();
                             } else {
@@ -1128,7 +1138,7 @@ Authentication required for {}
                                         }
                                     }
                                 };
-                                let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(&absolute_url));
+                                let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(&absolute_url));
                                 println!("Rewriting resource href '{}' -> '{}' (base: {})", href, proxy_url, target_url);
                                 el.set_attribute("href", &proxy_url).unwrap();
                             } else {
@@ -1158,7 +1168,7 @@ Authentication required for {}
                         if let Some(action) = el.get_attribute("action") {
                             if !action.starts_with("data:") && !action.starts_with("blob:") && !action.starts_with("http://localhost:") && !action.starts_with("#") && !action.starts_with("javascript:") {
                                 if let Ok(absolute_url) = target_url.join(&action) {
-                                    let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(absolute_url.as_str()));
+                                    let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(absolute_url.as_str()));
                                     el.set_attribute("action", &proxy_url).unwrap();
                                 }
                             }
@@ -1174,7 +1184,7 @@ Authentication required for {}
                                 if let Some(url) = parts.first() {
                                     if !url.starts_with("data:") && !url.starts_with("blob:") && !url.starts_with("http://localhost:") {
                                         if let Ok(absolute_url) = target_url.join(url) {
-                                            let proxy_url = format!("http://localhost:{}/proxy?url={}", proxy_port, urlencoding::encode(absolute_url.as_str()));
+                                            let proxy_url = format!("{}/proxy?url={}", proxy_base, urlencoding::encode(absolute_url.as_str()));
                                             new_srcset.push_str(&proxy_url);
                                             if parts.len() > 1 {
                                                 new_srcset.push(' ');
