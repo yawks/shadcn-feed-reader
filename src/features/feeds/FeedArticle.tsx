@@ -1,6 +1,6 @@
 import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
 import { getArticleViewMode, getArticleViewModeSync, setArticleViewMode } from '@/lib/article-view-storage'
-import { handleOriginalView, handleReadabilityView } from './article-view-handlers'
+import { handleOriginalView, handleReadabilityView, handleConfiguredView } from './article-view-handlers'
 import { memo, useEffect, useRef, useState } from "react"
 
 import { AuthDialog } from "@/components/auth-dialog"
@@ -11,6 +11,7 @@ import { ImageContextMenu } from "@/components/image-context-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { getShadowDomZoomScript } from './article-zoom-scripts'
+import { hasSelectorConfig, hasSelectorConfigSync } from '@/lib/selector-config-storage'
 import { prepareHtmlForShadowDom } from './article-html-preparation'
 import { safeInvoke } from '@/lib/safe-invoke'
 import { storeAuth } from '@/lib/auth-storage'
@@ -60,6 +61,13 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
 
+    // Selector configuration state
+    const [selectorConfigExists, setSelectorConfigExists] = useState<boolean>(() => {
+        const feedId = item.feed?.id || 'default'
+        return hasSelectorConfigSync(feedId)
+    })
+
+
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
 
@@ -103,6 +111,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.feed?.id, item.url]) // Don't include viewMode to avoid loop - we only want to load when feed/article changes
+
+    // Check if selector config exists when feed changes
+    useEffect(() => {
+        const feedId = item.feed?.id || 'default'
+        hasSelectorConfig(feedId).then(setSelectorConfigExists)
+    }, [item.feed?.id])
 
     useEffect(() => {
         // Start the proxy (Tauri or Capacitor) if available; ignore errors in browser dev
@@ -267,9 +281,25 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 setIsLoading,
                 prepareHtmlForShadowDom,
             })
+        } else if (viewMode === "configured") {
+            const feedId = item.feed?.id || 'default'
+            // eslint-disable-next-line no-console
+            console.log('[FeedArticle] Calling handleConfiguredView with proxyPort:', proxyPort, 'feedId:', feedId)
+            handleConfiguredView({
+                url: item.url || '',
+                proxyPort,
+                feedId,
+                theme,
+                fontSize,
+                setArticleContent,
+                setError,
+                setIsLoading,
+                setAuthDialog,
+                setIframeUrl,
+            })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
+    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded, item.feed?.id]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
 
     useEffect(() => {
         const iframe = iframeRef.current
@@ -825,15 +855,15 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     const handleViewModeChange = async (mode: ArticleViewMode) => {
         // eslint-disable-next-line no-console
         console.log(`[FeedArticle] handleViewModeChange called: ${mode}`)
-        
+
         setViewMode(mode)
-        
+
         // Save preference to storage for this feed
         const feedId = item.feed?.id || 'default'
         // eslint-disable-next-line no-console
         console.log(`[FeedArticle] Saving view mode "${mode}" for feed ${feedId}`)
         await setArticleViewMode(feedId, mode)
-        
+
         // Verify it was saved
         const verifyMode = await getArticleViewMode(feedId)
         // eslint-disable-next-line no-console
@@ -862,12 +892,14 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 }
             )} style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
                 <div className="flex items-center justify-between p-2 h-12 flex-none">
-                    <ArticleToolbar 
-                        viewMode={viewMode} 
-                        onViewModeChange={handleViewModeChange} 
+                    <ArticleToolbar
+                        viewMode={viewMode}
+                        onViewModeChange={handleViewModeChange}
                         articleUrl={item.url}
                         feedFaviconUrl={item.feed?.faviconUrl}
                         articleTitle={item.title}
+                        feedId={item.feed?.id}
+                        hasSelectorConfig={selectorConfigExists}
                         isMobile={isMobile}
                         isLandscape={isLandscape}
                         onBack={onBack}
@@ -914,9 +946,9 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         </div>
                     )}
                     {!error && (
-                        viewMode === 'readability' ? (
+                        (viewMode === 'readability' || viewMode === 'configured') ? (
                             <iframe
-                                key={`${item.id}-${item.url}`}
+                                key={`${item.id}-${item.url}-${viewMode}`}
                                 ref={iframeRef}
                                 className={cn("block w-full", {
                                     invisible: isLoading,
@@ -926,7 +958,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                                 sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-top-navigation-by-user-activation"
                                 allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope; magnetometer"
                                 allowFullScreen
-                                style={{ 
+                                style={{
                                     border: 0,
                                     height: '100%',
                                     minHeight: '100%',
@@ -975,6 +1007,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         viewMode={viewMode}
                         onViewModeChange={handleViewModeChange}
                         articleUrl={item.url}
+                        hasSelectorConfig={selectorConfigExists}
                     />
                 </div>
             )}
@@ -994,6 +1027,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 imageUrl={selectedImageUrl}
                 onClose={() => setSelectedImageUrl(null)}
             />
+
         </div>
     )
 }

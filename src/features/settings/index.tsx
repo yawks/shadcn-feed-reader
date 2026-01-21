@@ -16,7 +16,39 @@ import { Separator } from '@/components/ui/separator'
 import SidebarNav from './components/sidebar-nav'
 import { ThemeSwitch } from '@/components/theme-switch'
 
+import { useTranslation } from 'react-i18next'
+
 export default function Settings() {
+  const { t } = useTranslation()
+
+  const sidebarNavItems = [
+    {
+      title: t('settings.nav.profile'),
+      icon: <IconUser size={18} />,
+      href: '/settings',
+    },
+    {
+      title: t('settings.nav.account'),
+      icon: <IconTool size={18} />,
+      href: '/settings/account',
+    },
+    {
+      title: t('settings.nav.appearance'),
+      icon: <IconPalette size={18} />,
+      href: '/settings/appearance',
+    },
+    {
+      title: t('settings.nav.notifications'),
+      icon: <IconNotification size={18} />,
+      href: '/settings/notifications',
+    },
+    {
+      title: t('settings.nav.display'),
+      icon: <IconBrowserCheck size={18} />,
+      href: '/settings/display',
+    },
+  ]
+
   return (
     <>
       {/* ===== Top Heading ===== */}
@@ -32,10 +64,10 @@ export default function Settings() {
       <Main fixed>
         <div className='space-y-0.5'>
           <h1 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            Settings
+            {t('settings.title')}
           </h1>
           <p className='text-muted-foreground'>
-            Manage your account settings and set e-mail preferences.
+            {t('settings.description')}
           </p>
         </div>
         <Separator className='my-4 lg:my-6' />
@@ -51,31 +83,3 @@ export default function Settings() {
     </>
   )
 }
-
-const sidebarNavItems = [
-  {
-    title: 'Profile',
-    icon: <IconUser size={18} />,
-    href: '/settings',
-  },
-  {
-    title: 'Account',
-    icon: <IconTool size={18} />,
-    href: '/settings/account',
-  },
-  {
-    title: 'Appearance',
-    icon: <IconPalette size={18} />,
-    href: '/settings/appearance',
-  },
-  {
-    title: 'Notifications',
-    icon: <IconNotification size={18} />,
-    href: '/settings/notifications',
-  },
-  {
-    title: 'Display',
-    icon: <IconBrowserCheck size={18} />,
-    href: '/settings/display',
-  },
-]

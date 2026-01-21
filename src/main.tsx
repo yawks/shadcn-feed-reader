@@ -19,6 +19,7 @@ if ('serviceWorker' in navigator) {
 }
 
 import './index.css'
+import './i18n'
 
 import {
   QueryCache,
@@ -56,7 +57,38 @@ console.log('[DIAGNOSTIC] RawHtml plugin:', (window as any)?.Capacitor?.Plugins?
 const setupFullscreenSafeAreaFix = () => {
   // Store safe area values from Capacitor (env() CSS doesn't work reliably on Android)
   let capacitorSafeAreas: { top: number; bottom: number } = { top: 0, bottom: 0 }
-  let hasExitedFullscreen = false
+  let fullscreenExitTime = 0 // Timestamp when fullscreen was exited
+  let lastAppliedTime = 0 // Timestamp when safe areas were last applied (debounce)
+
+  // Debug: log current state of #content element and CSS env() values
+  const logContentState = (context: string) => {
+    const content = document.getElementById('content')
+
+    // Try to read env() values via a temporary element
+    const testEl = document.createElement('div')
+    testEl.style.cssText = 'position:absolute;visibility:hidden;height:env(safe-area-inset-top,0px);'
+    document.body.appendChild(testEl)
+    const envTop = testEl.offsetHeight
+    testEl.style.height = 'env(safe-area-inset-bottom,0px)'
+    const envBottom = testEl.offsetHeight
+    testEl.remove()
+
+    // eslint-disable-next-line no-console
+    console.log(`[SAFE-AREA-DEBUG] ${context}`, {
+      envTop,
+      envBottom,
+      capacitorSafeAreas,
+      contentExists: !!content,
+      contentInlineHeight: content?.style.height || '(none)',
+      contentInlinePaddingTop: content?.style.paddingTop || '(none)',
+      contentComputedHeight: content ? getComputedStyle(content).height : '(N/A)',
+      contentComputedPaddingTop: content ? getComputedStyle(content).paddingTop : '(N/A)',
+      windowInnerHeight: window.innerHeight,
+      documentHeight: document.documentElement.clientHeight,
+      visualViewportHeight: window.visualViewport?.height,
+      fullscreenElement: document.fullscreenElement ? 'yes' : 'no',
+    })
+  }
 
   // Apply safe areas manually via inline styles
   const applySafeAreas = (context: string) => {
@@ -66,22 +98,60 @@ const setupFullscreenSafeAreaFix = () => {
     const topInset = capacitorSafeAreas.top
     const bottomInset = capacitorSafeAreas.bottom
 
-    // Calculate height: 100svh - top - (bottom / 2)
+    // Match the formula from route.tsx:
+    // height = 100svh - top - (bottom/2), paddingTop = top
+    // With box-sizing: border-box, the padding is inside the height,
+    // so content area = height - paddingTop = 100svh - 2*top - bottom/2
+    // This is the same as CSS env() behavior
     const height = `calc(100svh - ${topInset}px - ${bottomInset / 2}px)`
+    const paddingTop = `${topInset}px`
+
+    // Check if already applied with same values (avoid redundant updates)
+    if (content.style.height === height && content.style.paddingTop === paddingTop) {
+      // eslint-disable-next-line no-console
+      console.log(`[FULLSCREEN] Skipping applySafeAreas (${context}) - already applied with same values`)
+      return
+    }
+
+    // Debounce: don't reapply if we just applied within the last 500ms
+    const now = Date.now()
+    if (now - lastAppliedTime < 500) {
+      // eslint-disable-next-line no-console
+      console.log(`[FULLSCREEN] Skipping applySafeAreas (${context}) - debounced, last applied ${now - lastAppliedTime}ms ago`)
+      return
+    }
+    lastAppliedTime = now
 
     // eslint-disable-next-line no-console
-    console.log(`[FULLSCREEN] Applying safe areas (${context})`, {
-      topInset,
-      bottomInset,
-      height,
-      contentFound: !!content,
-    })
+    console.log(`[FULLSCREEN] Applying safe areas (${context}) top=${topInset} bottom=${bottomInset} height=${height}`)
 
     content.style.height = height
-    content.style.paddingTop = `${topInset}px`
+    content.style.paddingTop = paddingTop
 
     // Force reflow
     void content.offsetHeight
+
+    logContentState(`after-applySafeAreas(${context})`)
+  }
+
+  // Restore original CSS env() styles (these are the same as in route.tsx)
+  const restoreEnvStyles = (context: string) => {
+    const content = document.getElementById('content')
+    if (!content) return
+
+    // eslint-disable-next-line no-console
+    console.log(`[FULLSCREEN] Restoring env() styles (${context})`)
+
+    // Restore the original inline styles from route.tsx that use env()
+    content.style.height = 'calc(100svh - env(safe-area-inset-top, 0px) - calc(env(safe-area-inset-bottom, 0px) / 2))'
+    content.style.paddingTop = 'env(safe-area-inset-top, 0px)'
+
+    logContentState(`after-restoreEnvStyles(${context})`)
+  }
+
+  // Check if we recently exited fullscreen (within the last 3 seconds)
+  const hasRecentlyExitedFullscreen = () => {
+    return fullscreenExitTime > 0 && (Date.now() - fullscreenExitTime) < 3000
   }
 
   const handleFullscreenChange = () => {
@@ -93,15 +163,42 @@ const setupFullscreenSafeAreaFix = () => {
       capacitorSafeAreas,
     })
 
-    if (!isEnteringFullscreen) {
-      hasExitedFullscreen = true
+    if (isEnteringFullscreen) {
+      // Entering fullscreen - reset exit time
+      fullscreenExitTime = 0
+    } else {
+      // Exiting fullscreen
+      fullscreenExitTime = Date.now()
       // eslint-disable-next-line no-console
-      console.log('[FULLSCREEN] Exited fullscreen, will restore safe areas')
+      console.log('[FULLSCREEN] Exited fullscreen, will check env() and restore safe areas if needed')
 
-      // Multiple attempts with increasing delays
-      setTimeout(() => applySafeAreas('fullscreen-50ms'), 50)
-      setTimeout(() => applySafeAreas('fullscreen-300ms'), 300)
-      setTimeout(() => applySafeAreas('fullscreen-1000ms'), 1000)
+      // Helper to check env() and apply styles only if needed
+      const checkAndApplySafeAreas = (context: string) => {
+        // Check if CSS env() is working
+        const testEl = document.createElement('div')
+        testEl.style.cssText = 'position:absolute;visibility:hidden;height:env(safe-area-inset-top,0px);'
+        document.body.appendChild(testEl)
+        const envTop = testEl.offsetHeight
+        testEl.style.height = 'env(safe-area-inset-bottom,0px)'
+        const envBottom = testEl.offsetHeight
+        testEl.remove()
+
+        // eslint-disable-next-line no-console
+        console.log(`[FULLSCREEN] ${context} - env() check: envTop=${envTop} envBottom=${envBottom} capacitorTop=${capacitorSafeAreas.top} capacitorBottom=${capacitorSafeAreas.bottom}`)
+
+        if (envTop === 0 && envBottom === 0 && (capacitorSafeAreas.top > 0 || capacitorSafeAreas.bottom > 0)) {
+          // env() is broken, apply inline styles with Capacitor values
+          applySafeAreas(context)
+        } else {
+          // env() is working, restore env() styles
+          restoreEnvStyles(context)
+        }
+      }
+
+      // Check at multiple intervals as env() might take time to recover
+      setTimeout(() => checkAndApplySafeAreas('fullscreen-50ms'), 50)
+      setTimeout(() => checkAndApplySafeAreas('fullscreen-300ms'), 300)
+      setTimeout(() => checkAndApplySafeAreas('fullscreen-1000ms'), 1000)
 
       // Dispatch resize event to notify all listeners
       setTimeout(() => {
@@ -114,21 +211,47 @@ const setupFullscreenSafeAreaFix = () => {
   const handleCapacitorInsets = (ev: Event) => {
     try {
       const ce = ev as CustomEvent & { detail?: { top?: number; bottom?: number } }
-      const top = Number(ce?.detail?.top) || 0
-      const bottom = Number(ce?.detail?.bottom) || 0
+      const rawTop = Number(ce?.detail?.top) || 0
+      const rawBottom = Number(ce?.detail?.bottom) || 0
+
+      // Capacitor returns physical pixels, but CSS uses logical (CSS) pixels
+      // Divide by devicePixelRatio to convert
+      const dpr = window.devicePixelRatio || 1
+      const top = Math.round(rawTop / dpr)
+      const bottom = Math.round(rawBottom / dpr)
 
       // eslint-disable-next-line no-console
-      console.log('[FULLSCREEN] Received Capacitor insets', { top, bottom, hasExitedFullscreen })
+      console.log(`[FULLSCREEN] Received Capacitor insets raw=(${rawTop},${rawBottom}) dpr=${dpr} css=(${top},${bottom}) recentFullscreen=${hasRecentlyExitedFullscreen()}`)
+      logContentState('capacitor-insets-received')
 
       // Store the values (even if they seem large, modern Android can have 100-200px insets)
       if (top > 0 || bottom > 0) {
         capacitorSafeAreas = { top, bottom }
 
-        // If we just exited fullscreen, apply immediately
-        if (hasExitedFullscreen) {
-          applySafeAreas('capacitor-event-after-fullscreen')
-          hasExitedFullscreen = false
+        // Check if CSS env() is working by reading current values
+        const testEl = document.createElement('div')
+        testEl.style.cssText = 'position:absolute;visibility:hidden;height:env(safe-area-inset-top,0px);'
+        document.body.appendChild(testEl)
+        const envTop = testEl.offsetHeight
+        testEl.style.height = 'env(safe-area-inset-bottom,0px)'
+        const envBottom = testEl.offsetHeight
+        testEl.remove()
+
+        // eslint-disable-next-line no-console
+        console.log(`[FULLSCREEN] Comparing Capacitor vs env(): capacitorTop=${top} capacitorBottom=${bottom} envTop=${envTop} envBottom=${envBottom}`)
+
+        // Only apply inline styles if env() is broken (returns 0 when it shouldn't)
+        if (envTop === 0 && envBottom === 0) {
+          // env() is broken, apply inline styles
+          applySafeAreas('capacitor-event-env-broken')
+        } else {
+          // env() is working, clear any stale inline styles
+          restoreEnvStyles('capacitor-event-env-working')
         }
+      } else if (top === 0 && bottom === 0) {
+        // Insets are 0 - this might be intentional (e.g., fullscreen)
+        // or it might be a bug. Clear inline styles to avoid stale values.
+        restoreEnvStyles('capacitor-event-zero-insets')
       }
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -143,17 +266,29 @@ const setupFullscreenSafeAreaFix = () => {
   // Listen to Capacitor window insets
   window.addEventListener('capacitor-window-insets', handleCapacitorInsets as EventListener)
 
-  // Also listen to visibility change as a fallback
+  // Also listen to visibility change - always clear inline styles on resume
+  // to ensure CSS env() handles safe areas (fixes double margin on app resume)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && (capacitorSafeAreas.top > 0 || capacitorSafeAreas.bottom > 0)) {
+    if (document.visibilityState === 'visible') {
       // eslint-disable-next-line no-console
-      console.log('[VISIBILITY] App became visible, restoring safe areas', capacitorSafeAreas)
-      setTimeout(() => applySafeAreas('visibility-100ms'), 100)
+      console.log('[VISIBILITY] App became visible, recentFullscreen:', hasRecentlyExitedFullscreen())
+      logContentState('visibility-change-visible')
+
+      // If we recently exited fullscreen and are now visible, apply safe areas briefly
+      if (hasRecentlyExitedFullscreen() && (capacitorSafeAreas.top > 0 || capacitorSafeAreas.bottom > 0)) {
+        setTimeout(() => applySafeAreas('visibility-after-fullscreen'), 100)
+      }
+      // Note: onResume in MainActivity will trigger requestApplyInsets() which will
+      // dispatch capacitor-window-insets event, and that handler will clear inline styles
     }
   })
 
   // eslint-disable-next-line no-console
   console.log('[FULLSCREEN] Safe area fix initialized, waiting for Capacitor events')
+
+  // Log initial state after a short delay (wait for DOM to be ready)
+  setTimeout(() => logContentState('initial-after-1s'), 1000)
+  setTimeout(() => logContentState('initial-after-3s'), 3000)
 }
 
 setupFullscreenSafeAreaFix()
@@ -289,7 +424,7 @@ try {
 
           // Final fallback
           if ((navigator as any).app && typeof (navigator as any).app.exitApp === 'function') {
-            ;(navigator as any).app.exitApp()
+            ; (navigator as any).app.exitApp()
             return
           }
 

@@ -7,7 +7,7 @@ import { Preferences } from '@capacitor/preferences'
 
 const STORAGE_KEY = 'article-view-preferences'
 
-export type ArticleViewMode = 'original' | 'readability'
+export type ArticleViewMode = 'original' | 'readability' | 'configured'
 
 interface ViewPreferences {
 	[feedId: string]: ArticleViewMode

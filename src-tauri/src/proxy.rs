@@ -697,6 +697,8 @@ async fn proxy_resource_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .cookie_provider(state.cookie_jar.clone())
         .redirect(reqwest::redirect::Policy::limited(10))
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(10))
@@ -705,15 +707,15 @@ async fn proxy_resource_handler(
         .deflate(true)
         .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     let mut client_req_builder = client.request(parts.method, target_url.clone());
-    
+
     // Add HTTP Basic Auth if credentials are available
     if let Some((username, password)) = auth_credentials {
         println!("Adding HTTP Basic Auth for: {}", domain);
         client_req_builder = client_req_builder.basic_auth(username, Some(password));
     }
-    
+
     // For images and other resources, use the base_url (article URL) as Referer
     // This helps bypass hotlinking protection on CDNs
     let referer_url = {
@@ -955,6 +957,8 @@ async fn proxy_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .cookie_provider(state.cookie_jar.clone())
         .redirect(reqwest::redirect::Policy::limited(10))
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(10))
@@ -963,23 +967,23 @@ async fn proxy_handler(
         .deflate(true)
         .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     // Build request with filtered headers (exclude problematic ones)
     let mut client_req_builder = client.request(parts.method, target_url.clone());
-    
+
     // Copy headers but exclude problematic ones
     for (name, value) in parts.headers.iter() {
         if name != header::HOST && name != header::CONNECTION && name != header::AUTHORIZATION {
             client_req_builder = client_req_builder.header(name, value);
         }
     }
-    
+
     // Add HTTP Basic Auth if credentials are available
     if let Some((username, password)) = auth_credentials {
         println!("Adding HTTP Basic Auth for: {}", domain);
         client_req_builder = client_req_builder.basic_auth(username, Some(password));
     }
-    
+
     // For images and other resources, use the base_url (article URL) as Referer
     // This helps bypass hotlinking protection on CDNs
     let referer_url = {

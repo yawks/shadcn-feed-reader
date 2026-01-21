@@ -3,6 +3,7 @@ import { FilterItemList, FilterItemListRef } from './FilterItemList'
 import { ProcessedFeedItem, groupArticles, isGroupedFeedItem } from '@/utils/grouping'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FeedArticle } from './FeedArticle'
@@ -25,6 +26,7 @@ import { useResizablePanelsFlex } from '@/hooks/use-resizable-panels-flex'
 import { useSearch } from '@/context/search-context'
 
 export default function Feeds() {
+  const { t } = useTranslation()
   // State to persist expanded state of StackedArticleCard groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -267,7 +269,7 @@ export default function Feeds() {
         </Header>
         <Main fixed>
           <div className="flex h-full items-center justify-center">
-            <p className="text-red-500">Error loading articles: {error.message}</p>
+            <p className="text-red-500">{t('feeds.error_loading', { message: error.message })}</p>
           </div>
         </Main>
 
@@ -285,7 +287,7 @@ export default function Feeds() {
         <>
           {showArticleOnMobile ? (
             // article view on mobile
-            <div 
+            <div
               className={cn(
                 "flex flex-col",
                 // Use full height - parent handles safe areas with padding-top
@@ -295,9 +297,9 @@ export default function Feeds() {
                   "m-0": isLandscape,
                 }
               )}
-              style={isLandscape ? { 
-                width: '100vw', 
-                maxWidth: '100vw', 
+              style={isLandscape ? {
+                width: '100vw',
+                maxWidth: '100vw',
                 margin: 0,
                 padding: 0
               } : undefined}
@@ -310,9 +312,9 @@ export default function Feeds() {
                 }
               )}>
                 {currentSelectedArticle ? (
-                  <FeedArticle 
-                    key={currentSelectedArticle.id} 
-                    item={currentSelectedArticle} 
+                  <FeedArticle
+                    key={currentSelectedArticle.id}
+                    item={currentSelectedArticle}
                     isMobile={true}
                     onBack={handleBackToList}
                   />
@@ -336,14 +338,14 @@ export default function Feeds() {
               </Header>
               <Main fixed>
                 <div className="flex flex-col h-full">
-                  <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
+                  <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>{t('feeds.feeds_title')}</h1>
 
                   {/* Search mode banner */}
                   {isSearchMode && (
                     <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">
-                          Search Results ({searchResults.length} articles)
+                          {t('feeds.search_results', { total: searchResults.length })}
                         </span>
                       </div>
                       <Button
@@ -353,7 +355,7 @@ export default function Feeds() {
                         className="h-6 w-6 p-0"
                       >
                         <IconX className="h-4 w-4" />
-                        <span className="sr-only">Clear search</span>
+                        <span className="sr-only">{t('feeds.clear_search')}</span>
                       </Button>
                     </div>
                   )}
@@ -391,7 +393,7 @@ export default function Feeds() {
 
           <Main fixed>
             <section className={`flex h-full resizable-container ${isResizing ? 'select-none' : ''}`}>
-              <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>Feeds</h1>
+              <h1 className={`sr-only ${feedQuery.feedType ? 'text-blue' : 'text-red'}`}>{t('feeds.feeds_title')}</h1>
 
               {/* Left Side - Item List */}
               <div
@@ -409,7 +411,7 @@ export default function Feeds() {
                   <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">
-                        Search Results ({searchResults.length} articles)
+                        {t('feeds.search_results', { total: searchResults.length })}
                       </span>
                     </div>
                     <Button
@@ -419,7 +421,7 @@ export default function Feeds() {
                       className="h-6 w-6 p-0"
                     >
                       <IconX className="h-4 w-4" />
-                      <span className="sr-only">Clear search</span>
+                      <span className="sr-only">{t('feeds.clear_search')}</span>
                     </Button>
                   </div>
                 )}

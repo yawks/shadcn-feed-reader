@@ -1,5 +1,5 @@
 import { ArticleViewMode } from "./ArticleToolbar"
-import { IconBook, IconExternalLink, IconEye } from "@tabler/icons-react"
+import { IconBook, IconExternalLink, IconEye, IconFilter } from "@tabler/icons-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
@@ -8,12 +8,18 @@ interface FloatingActionButtonProps {
     viewMode: ArticleViewMode
     onViewModeChange: (mode: ArticleViewMode) => void
     articleUrl?: string
+    hasSelectorConfig?: boolean
 }
 
-export function FloatingActionButton({ viewMode, onViewModeChange, articleUrl }: FloatingActionButtonProps) {
+export function FloatingActionButton({
+    viewMode,
+    onViewModeChange,
+    articleUrl,
+    hasSelectorConfig = false,
+}: FloatingActionButtonProps) {
     const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
-    const viewModes = [
+    const baseViewModes = [
         {
             mode: "original" as const,
             Icon: IconEye,
@@ -24,7 +30,16 @@ export function FloatingActionButton({ viewMode, onViewModeChange, articleUrl }:
             Icon: IconBook,
             label: "Readability",
         },
-    ] as const
+    ]
+
+    // Add configured mode only if selectors are configured
+    const viewModes = hasSelectorConfig
+        ? [...baseViewModes, {
+            mode: "configured" as const,
+            Icon: IconFilter,
+            label: "Sélecteurs",
+        }]
+        : baseViewModes
 
     const currentMode = viewModes.find((m) => m.mode === viewMode) || viewModes[0]
     const CurrentIcon = currentMode.Icon
@@ -94,4 +109,3 @@ export function FloatingActionButton({ viewMode, onViewModeChange, articleUrl }:
         </Popover>
     )
 }
-

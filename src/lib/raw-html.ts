@@ -224,3 +224,57 @@ export async function clearProxyAuth(domain: string): Promise<void> {
         console.error('[clearProxyAuth] ERROR:', e)
     }
 }
+
+/**
+ * Form login request for site authentication
+ */
+export interface FormLoginRequest {
+    loginUrl: string
+    fields: Array<{ name: string; value: string }>
+    /** Optional CSS selector to extract text from login response */
+    responseSelector?: string
+}
+
+/**
+ * Form login response
+ */
+export interface FormLoginResponse {
+    success: boolean
+    statusCode: number
+    message: string
+    /** Text extracted from the response using responseSelector */
+    extractedText?: string
+}
+
+/**
+ * Perform form-based login to a website (Android/Capacitor only)
+ * The cookies from the login will be stored and used for subsequent requests.
+ */
+export async function performFormLogin(request: FormLoginRequest): Promise<FormLoginResponse> {
+    const win = window as any
+    const Plugins = win?.Capacitor?.Plugins || win?.Plugins || undefined
+
+    if (Plugins && Plugins.RawHtml && typeof Plugins.RawHtml.performFormLogin === 'function') {
+        console.log('[performFormLogin] Calling Capacitor performFormLogin for:', request.loginUrl)
+        try {
+            const res = await Plugins.RawHtml.performFormLogin({
+                loginUrl: request.loginUrl,
+                fields: request.fields,
+                responseSelector: request.responseSelector,
+            })
+            console.log('[performFormLogin] SUCCESS, response:', res)
+            return {
+                success: res?.success ?? false,
+                statusCode: res?.statusCode ?? 0,
+                message: res?.message ?? 'Unknown response',
+                extractedText: res?.extractedText,
+            }
+        } catch (e) {
+            console.error('[performFormLogin] ERROR:', e)
+            throw e
+        }
+    }
+
+    // If Capacitor plugin is not available, throw
+    throw new Error('performFormLogin not available: Capacitor plugin not found')
+}

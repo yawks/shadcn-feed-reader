@@ -5,10 +5,10 @@
 
 :root {
   --radius: 0.625rem;
-  
+
   /* Font size variable for dynamic sizing of feed items */
   --font-size-item: 1rem;
-  
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
@@ -129,7 +129,7 @@
     min-height: -webkit-fill-available;
     /* Don't add padding to body - let containers handle safe areas */
   }
-  
+
   /* Safe area support for Capacitor/mobile */
   /* Note: Safe areas are handled by the main content container (#content) */
   @supports (padding: max(0px)) {
@@ -138,7 +138,7 @@
       padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
     }
   }
-  
+
   /* Ensure root element respects safe areas */
   #root {
     min-height: 100svh;

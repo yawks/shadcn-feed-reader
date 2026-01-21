@@ -7,6 +7,11 @@ import net.yawks.feedreader.plugin.rawhtml.RawHtmlPlugin;
 import net.yawks.feedreader.plugin.clipboard.ClipboardPlugin;
 
 public class MainActivity extends BridgeActivity {
+    // Store last known insets to re-send them when needed
+    private int lastInsetTop = 0;
+    private int lastInsetBottom = 0;
+    private android.webkit.WebView cachedWebView = null;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.d("MainActivity", "Registering plugins BEFORE onCreate...");
@@ -71,27 +76,13 @@ public class MainActivity extends BridgeActivity {
                         final int top = insets.getSystemWindowInsetTop();
                         final int bottom = insets.getSystemWindowInsetBottom();
                         Log.d("MainActivity", "WindowInsets changed: top=" + top + ", bottom=" + bottom);
-                        try {
-                            final String js = "window.dispatchEvent(new CustomEvent('capacitor-window-insets',{detail:{top:" + top + ",bottom:" + bottom + "}}));";
-                            finalWebView.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        try {
-                                            // Dispatch inset event to JS
-                                            finalWebView.evaluateJavascript(js, null);
-                                        } catch (Throwable t) {
-                                            // ignore JS execution errors
-                                        }
-                                        // NOTE: We intentionally do NOT apply padding to the WebView here.
-                                        // The web layer handles safe area insets via CSS env() and the
-                                        // capacitor-window-insets event. Applying padding here would cause
-                                        // DOUBLE margins when the app regains focus, as Android re-dispatches
-                                        // window insets on resume.
-                                    }
-                                });
-                        } catch (Throwable t) {
-                            // ignore
-                        }
+
+                        // Store insets for later use
+                        lastInsetTop = top;
+                        lastInsetBottom = bottom;
+                        cachedWebView = finalWebView;
+
+                        dispatchInsetsToWebView(finalWebView, top, bottom);
                         return insets;
                     }
                 });
@@ -101,6 +92,51 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Throwable t) {
             Log.w("MainActivity", "Failed to setup WindowInsets forwarder", t);
+        }
+    }
+
+    // Helper method to dispatch insets to WebView
+    private void dispatchInsetsToWebView(final android.webkit.WebView webView, final int top, final int bottom) {
+        try {
+            final String js = "window.dispatchEvent(new CustomEvent('capacitor-window-insets',{detail:{top:" + top + ",bottom:" + bottom + "}}));";
+            webView.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        webView.evaluateJavascript(js, null);
+                        Log.d("MainActivity", "Dispatched insets to JS: top=" + top + ", bottom=" + bottom);
+                    } catch (Throwable t) {
+                        Log.w("MainActivity", "Failed to dispatch insets to JS", t);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Log.w("MainActivity", "Failed to post insets dispatch", t);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Re-request window insets when app regains focus
+        // This ensures safe areas are correctly applied after the app was backgrounded
+        try {
+            this.getWindow().getDecorView().requestApplyInsets();
+            Log.d("MainActivity", "onResume: requested window insets");
+
+            // Also re-dispatch cached insets after a short delay
+            // This ensures the JS layer receives the insets even if the system doesn't re-send them
+            if (cachedWebView != null && (lastInsetTop > 0 || lastInsetBottom > 0)) {
+                cachedWebView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d("MainActivity", "onResume: re-dispatching cached insets after delay");
+                        dispatchInsetsToWebView(cachedWebView, lastInsetTop, lastInsetBottom);
+                    }
+                }, 100);
+            }
+        } catch (Throwable t) {
+            Log.w("MainActivity", "onResume: failed to request insets", t);
         }
     }
 

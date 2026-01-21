@@ -32,10 +32,14 @@ import {
 import { Badge } from '../ui/badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { IconNews } from '@tabler/icons-react'
+import { getAuthConfig, hasAuthConfig } from '@/lib/selector-config-storage'
 import { Input } from '@/components/ui/input'
 import { RenameDialog } from '@/components/rename-dialog'
+import { SelectorConfigDialog } from '@/features/feeds/SelectorConfigDialog'
+import { safeInvoke } from '@/lib/safe-invoke'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
+import { Capacitor } from '@capacitor/core'
 
 // Local looser type for the folders cache shape. The runtime items are not strictly
 // matching the NavItem union used elsewhere, so use a permissive but typed shape
@@ -119,6 +123,70 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
 
   const [feedToDelete, setFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [feedToRename, setFeedToRename] = useState<{ id: string; title: string } | null>(null)
+  const [feedToConfigure, setFeedToConfigure] = useState<{ id: string; title: string } | null>(null)
+
+  const handleFeedLogin = async (feedId: string) => {
+    const authConfig = await getAuthConfig(feedId)
+    if (!authConfig) {
+      toast.error('No authentication config found')
+      return
+    }
+
+    toast.info('Logging in...')
+
+    try {
+      const fields = [
+        { name: authConfig.usernameField, value: authConfig.username },
+        { name: authConfig.passwordField, value: authConfig.password },
+        ...(authConfig.extraFields || []),
+      ]
+
+      // Try Tauri first (desktop)
+      try {
+        const result = await safeInvoke('perform_form_login', {
+          request: {
+            login_url: authConfig.loginUrl,
+            fields,
+            response_selector: authConfig.responseSelector,
+          },
+        }) as { success?: boolean; message?: string; extracted_text?: string }
+
+        if (result?.success) {
+          if (result.extracted_text) {
+            toast.success(`Login successful: ${result.extracted_text}`)
+          } else {
+            toast.success('Login successful')
+          }
+        } else {
+          toast.error(result?.message || 'Login failed')
+        }
+      } catch (_tauriErr) {
+        // Fallback to Capacitor (Android)
+        if (Capacitor.isNativePlatform()) {
+          const { performFormLogin } = await import('@/lib/raw-html')
+          const result = await performFormLogin({
+            loginUrl: authConfig.loginUrl,
+            fields,
+            responseSelector: authConfig.responseSelector,
+          })
+
+          if (result?.success) {
+            if (result.extractedText) {
+              toast.success(`Login successful: ${result.extractedText}`)
+            } else {
+              toast.success('Login successful')
+            }
+          } else {
+            toast.error(result?.message || 'Login failed')
+          }
+        } else {
+          toast.error('Login requires the native app')
+        }
+      }
+    } catch (err) {
+      toast.error(`Login failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
 
   const handleFeedDeleteConfirmed = async (feedId: string) => {
   const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
@@ -186,12 +254,32 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                <DropdownMenuItem onSelect={() => { 
+                <DropdownMenuItem onSelect={() => {
                   setMenuOpen(false);
                   if (feedId) setFeedToRename({ id: feedId, title: item.title })
                 }}>
                   Rename
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => {
+                  setMenuOpen(false);
+                  if (feedId) setFeedToConfigure({ id: feedId, title: item.title })
+                }}>
+                  Configure
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={async () => {
+                  setMenuOpen(false);
+                  if (feedId) {
+                    const hasAuth = await hasAuthConfig(feedId)
+                    if (!hasAuth) {
+                      toast.error('No authentication configured for this feed')
+                      return
+                    }
+                    await handleFeedLogin(feedId)
+                  }
+                }}>
+                  Login
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => { setMenuOpen(false); if (feedId) setFeedToDelete({ id: feedId, title: item.title }) }} variant="destructive">
                   Remove
                 </DropdownMenuItem>
@@ -237,6 +325,13 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
       confirmText="Remove"
       cancelBtnText="Cancel"
       destructive
+    />
+    {/* Selector config dialog */}
+    <SelectorConfigDialog
+      open={!!feedToConfigure}
+      onOpenChange={(open) => { if (!open) setFeedToConfigure(null) }}
+      feedId={feedToConfigure?.id ?? ''}
+      feedTitle={feedToConfigure?.title}
     />
     </>
   )
@@ -582,6 +677,70 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
   }  // rename handled via dialog state (see below)
   const [subFeedToDelete, setSubFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [subFeedToRename, setSubFeedToRename] = useState<{ id: string; title: string } | null>(null)
+  const [subFeedToConfigure, setSubFeedToConfigure] = useState<{ id: string; title: string } | null>(null)
+
+  const handleSubFeedLogin = async (feedId: string) => {
+    const authConfig = await getAuthConfig(feedId)
+    if (!authConfig) {
+      toast.error('No authentication config found')
+      return
+    }
+
+    toast.info('Logging in...')
+
+    try {
+      const fields = [
+        { name: authConfig.usernameField, value: authConfig.username },
+        { name: authConfig.passwordField, value: authConfig.password },
+        ...(authConfig.extraFields || []),
+      ]
+
+      // Try Tauri first (desktop)
+      try {
+        const result = await safeInvoke('perform_form_login', {
+          request: {
+            login_url: authConfig.loginUrl,
+            fields,
+            response_selector: authConfig.responseSelector,
+          },
+        }) as { success?: boolean; message?: string; extracted_text?: string }
+
+        if (result?.success) {
+          if (result.extracted_text) {
+            toast.success(`Login successful: ${result.extracted_text}`)
+          } else {
+            toast.success('Login successful')
+          }
+        } else {
+          toast.error(result?.message || 'Login failed')
+        }
+      } catch (_tauriErr) {
+        // Fallback to Capacitor (Android)
+        if (Capacitor.isNativePlatform()) {
+          const { performFormLogin } = await import('@/lib/raw-html')
+          const result = await performFormLogin({
+            loginUrl: authConfig.loginUrl,
+            fields,
+            responseSelector: authConfig.responseSelector,
+          })
+
+          if (result?.success) {
+            if (result.extractedText) {
+              toast.success(`Login successful: ${result.extractedText}`)
+            } else {
+              toast.success('Login successful')
+            }
+          } else {
+            toast.error(result?.message || 'Login failed')
+          }
+        } else {
+          toast.error('Login requires the native app')
+        }
+      }
+    } catch (err) {
+      toast.error(`Login failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
 
   const handleSubFeedRenameConfirmed = async (feedId: string, newTitle: string) => {
   const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
@@ -660,14 +819,36 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px]">
-                <DropdownMenuItem onSelect={() => { 
+                <DropdownMenuItem onSelect={() => {
                   setMenuOpen(false);
                   const feedId = extractFeedIdFromUrl(subItem.url);
                   if (feedId) setSubFeedToRename({ id: feedId, title: subItem.title })
                 }}>
                   Rename
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { 
+                <DropdownMenuItem onSelect={() => {
+                  setMenuOpen(false);
+                  const feedId = extractFeedIdFromUrl(subItem.url);
+                  if (feedId) setSubFeedToConfigure({ id: feedId, title: subItem.title })
+                }}>
+                  Configure
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={async () => {
+                  setMenuOpen(false);
+                  const feedId = extractFeedIdFromUrl(subItem.url);
+                  if (feedId) {
+                    const hasAuth = await hasAuthConfig(feedId)
+                    if (!hasAuth) {
+                      toast.error('No authentication configured for this feed')
+                      return
+                    }
+                    await handleSubFeedLogin(feedId)
+                  }
+                }}>
+                  Login
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => {
                   setMenuOpen(false);
                   const feedId = extractFeedIdFromUrl(subItem.url);
                   if (feedId) setSubFeedToDelete({ id: feedId, title: subItem.title })
@@ -714,6 +895,13 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
       confirmText="Remove"
       cancelBtnText="Cancel"
       destructive
+    />
+    {/* Selector config dialog */}
+    <SelectorConfigDialog
+      open={!!subFeedToConfigure}
+      onOpenChange={(open) => { if (!open) setSubFeedToConfigure(null) }}
+      feedId={subFeedToConfigure?.id ?? ''}
+      feedTitle={subFeedToConfigure?.title}
     />
     </>
   )

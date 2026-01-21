@@ -1,4 +1,4 @@
-import { IconArrowLeft, IconBook, IconExternalLink, IconEye } from "@tabler/icons-react"
+import { IconArrowLeft, IconBook, IconExternalLink, IconEye, IconFilter } from "@tabler/icons-react"
 import {
     Popover,
     PopoverContent,
@@ -15,8 +15,9 @@ import { Button } from "@/components/ui/button"
 import { FeedFavicon } from "@/components/ui/feed-favicon"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
-export type ArticleViewMode = "original" | "readability"
+export type ArticleViewMode = "original" | "readability" | "configured"
 
 interface ArticleToolbarProps {
     viewMode: ArticleViewMode
@@ -24,6 +25,8 @@ interface ArticleToolbarProps {
     articleUrl?: string
     feedFaviconUrl?: string
     articleTitle?: string
+    feedId?: string
+    hasSelectorConfig?: boolean
     isMobile?: boolean
     isLandscape?: boolean
     onBack?: () => void
@@ -35,24 +38,35 @@ export function ArticleToolbar({
     articleUrl,
     feedFaviconUrl,
     articleTitle,
+    hasSelectorConfig = false,
     isMobile = false,
     isLandscape = false,
     onBack,
 }: ArticleToolbarProps) {
+    const { t } = useTranslation()
     const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
-    const viewModes = [
+    const baseViewModes = [
         {
             mode: "original" as const,
             Icon: IconEye,
-            label: "Original",
+            label: t('article_toolbar.original'),
         },
         {
             mode: "readability" as const,
             Icon: IconBook,
-            label: "Readability",
+            label: t('article_toolbar.readability'),
         },
-    ] as const
+    ]
+
+    // Add configured mode only if selectors are configured
+    const viewModes = hasSelectorConfig
+        ? [...baseViewModes, {
+            mode: "configured" as const,
+            Icon: IconFilter,
+            label: t('article_toolbar.configured'),
+        }]
+        : baseViewModes
 
     const currentMode = viewModes.find((m) => m.mode === viewMode) || viewModes[0]
     const CurrentIcon = currentMode.Icon
@@ -95,7 +109,7 @@ export function ArticleToolbar({
                         variant="ghost"
                         size="icon"
                         onClick={onBack}
-                        aria-label="Retour"
+                        aria-label={t('article_toolbar.back')}
                         className="flex-shrink-0"
                     >
                         <IconArrowLeft className="h-5 w-5" />
@@ -106,7 +120,7 @@ export function ArticleToolbar({
                     isMobile ? (
                         <FeedFavicon
                             src={feedFaviconUrl}
-                            alt={articleTitle || "Article"}
+                            alt={articleTitle || t('article_toolbar.article')}
                             className="size-4 object-contain flex-shrink-0"
                             onError={(e) => {
                                 const target = e.currentTarget as HTMLImageElement
@@ -117,7 +131,7 @@ export function ArticleToolbar({
                         <div className="size-9 rounded-md flex-shrink-0 flex items-center justify-center bg-background/50 border border-border">
                             <FeedFavicon
                                 src={feedFaviconUrl}
-                                alt={articleTitle || "Article"}
+                                alt={articleTitle || t('article_toolbar.article')}
                                 className="size-4 object-contain"
                                 onError={(e) => {
                                     const target = e.currentTarget as HTMLImageElement
@@ -154,13 +168,13 @@ export function ArticleToolbar({
                                         <Button
                                             variant="secondary"
                                             size="icon"
-                                            aria-label="Mode d'affichage"
+                                            aria-label={t('article_toolbar.view_mode')}
                                         >
                                             <CurrentIcon className="h-5 w-5" />
                                         </Button>
                                     </PopoverTrigger>
                                 </TooltipTrigger>
-                                <TooltipContent>Mode d'affichage</TooltipContent>
+                                <TooltipContent>{t('article_toolbar.view_mode')}</TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
                         <PopoverContent className="w-48 p-2" align="start">
@@ -190,14 +204,14 @@ export function ArticleToolbar({
                                     variant="ghost"
                                     size="sm"
                                     onClick={handleSourceClick}
-                                    aria-label="Voir la source"
+                                    aria-label={t('article_toolbar.source')}
                                     className="gap-1"
                                 >
                                     <IconExternalLink className="h-4 w-4" />
-                                    <span className="text-sm">Source</span>
+                                    <span className="text-sm">{t('article_toolbar.source')}</span>
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Ouvrir l'article dans le navigateur</TooltipContent>
+                            <TooltipContent>{t('article_toolbar.open_in_browser')}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 )}

@@ -2,6 +2,7 @@ package net.yawks.feedreader.plugin.rawhtml;
 
 import android.util.Log;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -13,13 +14,30 @@ import java.net.ServerSocket;
 import java.net.URLDecoder;
 
 import fi.iki.elonen.NanoHTTPD;
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
 import okhttp3.Credentials;
+import okhttp3.FormBody;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.Callback;
+import okhttp3.Call;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Capacitor plugin with local HTTP proxy server (like Tauri desktop).
@@ -32,7 +50,66 @@ import java.util.Map;
 public class RawHtmlPlugin extends Plugin {
 
     private static final String TAG = "RawHtmlPlugin";
-    private OkHttpClient client = new OkHttpClient();
+    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+    // Cookie storage for session persistence across requests
+    // Key is the cookie domain (or host if no domain), stores cookies by name to handle updates
+    private final ConcurrentHashMap<String, Map<String, Cookie>> cookieStore = new ConcurrentHashMap<>();
+
+    private final CookieJar cookieJar = new CookieJar() {
+        @Override
+        public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+            if (cookies.isEmpty()) return;
+
+            for (Cookie cookie : cookies) {
+                // Use cookie's domain if set, otherwise use host
+                String domain = cookie.domain();
+
+                // Get or create the cookie map for this domain
+                Map<String, Cookie> domainCookies = cookieStore.computeIfAbsent(domain, k -> new ConcurrentHashMap<>());
+
+                // Store cookie by name (this handles updates correctly)
+                domainCookies.put(cookie.name(), cookie);
+                Log.d(TAG, "Saved cookie '" + cookie.name() + "' for domain: " + domain);
+            }
+        }
+
+        @Override
+        public List<Cookie> loadForRequest(HttpUrl url) {
+            List<Cookie> matchingCookies = new ArrayList<>();
+            String host = url.host();
+
+            // Check all stored domains for matching cookies
+            for (Map.Entry<String, Map<String, Cookie>> entry : cookieStore.entrySet()) {
+                String domain = entry.getKey();
+
+                // Check if this domain matches the request host
+                // A cookie domain ".example.com" should match "www.example.com" and "example.com"
+                if (host.equals(domain) || host.endsWith("." + domain) || domain.equals("." + host) ||
+                    (domain.startsWith(".") && host.endsWith(domain.substring(1)))) {
+
+                    for (Cookie cookie : entry.getValue().values()) {
+                        // Check if cookie is not expired and path matches
+                        if (cookie.expiresAt() >= System.currentTimeMillis() &&
+                            url.encodedPath().startsWith(cookie.path())) {
+                            matchingCookies.add(cookie);
+                        }
+                    }
+                }
+            }
+
+            if (!matchingCookies.isEmpty()) {
+                Log.d(TAG, "Loading " + matchingCookies.size() + " cookies for: " + host);
+            }
+            return matchingCookies;
+        }
+    };
+
+    // Build client with cookie jar for session persistence
+    private OkHttpClient client = new OkHttpClient.Builder()
+            .cookieJar(cookieJar)
+            .build();
+
     private ProxyServer proxyServer;
     private Map<String, String> authCredentials = new HashMap<>();
     private String currentBaseUrl = "";
@@ -164,10 +241,110 @@ public class RawHtmlPlugin extends Plugin {
             call.reject("Missing domain");
             return;
         }
-        
+
         authCredentials.remove(domain);
         Log.d(TAG, "Cleared auth credentials for domain: " + domain);
         call.resolve();
+    }
+
+    @PluginMethod
+    public void performFormLogin(PluginCall call) {
+        String loginUrl = call.getString("loginUrl");
+        JSArray fieldsArray = call.getArray("fields");
+        String responseSelector = call.getString("responseSelector");
+
+        if (loginUrl == null || loginUrl.isEmpty()) {
+            call.reject("Missing loginUrl");
+            return;
+        }
+
+        if (fieldsArray == null) {
+            call.reject("Missing fields");
+            return;
+        }
+
+        try {
+            // Build form body from fields array
+            FormBody.Builder formBuilder = new FormBody.Builder();
+            for (int i = 0; i < fieldsArray.length(); i++) {
+                JSONObject field = fieldsArray.getJSONObject(i);
+                String name = field.getString("name");
+                String value = field.getString("value");
+                formBuilder.add(name, value);
+                Log.d(TAG, "Form field: " + name + " = [hidden]");
+            }
+
+            Request request = new Request.Builder()
+                .url(loginUrl)
+                .post(formBuilder.build())
+                .addHeader("User-Agent", USER_AGENT)
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .addHeader("Accept-Language", "en-US,en;q=0.9")
+                .build();
+
+            Log.d(TAG, "Performing form login to: " + loginUrl);
+
+            // Execute asynchronously
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onResponse(Call httpCall, Response response) {
+                    try {
+                        int statusCode = response.code();
+                        boolean success = response.isSuccessful() || response.isRedirect() ||
+                                          (statusCode >= 300 && statusCode < 400);
+
+                        Log.d(TAG, "Login response: " + statusCode + ", success: " + success);
+
+                        // Log cookies received
+                        String host = HttpUrl.parse(loginUrl).host();
+                        Map<String, Cookie> domainCookies = cookieStore.get(host);
+                        if (domainCookies != null) {
+                            Log.d(TAG, "Cookies stored for " + host + ": " + domainCookies.size());
+                        }
+
+                        // Extract text using CSS selector if provided
+                        String extractedText = null;
+                        if (responseSelector != null && !responseSelector.isEmpty()) {
+                            try {
+                                String html = response.body().string();
+                                Document doc = Jsoup.parse(html);
+                                Elements elements = doc.select(responseSelector);
+                                if (!elements.isEmpty()) {
+                                    extractedText = elements.first().text().trim();
+                                    Log.d(TAG, "Extracted text: " + extractedText);
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error extracting text with selector", e);
+                            }
+                        }
+
+                        JSObject result = new JSObject();
+                        result.put("success", success);
+                        result.put("statusCode", statusCode);
+                        result.put("message", "Status: " + statusCode);
+                        if (extractedText != null) {
+                            result.put("extractedText", extractedText);
+                        }
+                        call.resolve(result);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing login response", e);
+                        call.reject("Error processing response: " + e.getMessage());
+                    } finally {
+                        response.close();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call httpCall, IOException e) {
+                    Log.e(TAG, "Login request failed", e);
+                    call.reject("Login failed: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Error building login request", e);
+            call.reject("Error: " + e.getMessage());
+        }
     }
 
     public String getCurrentBaseUrl() {
