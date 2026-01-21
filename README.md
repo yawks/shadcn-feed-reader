@@ -1,78 +1,79 @@
-# Shadcn Admin - Tauri
+# Shadcn Feed Reader
 
-Ceci est la version de bureau de l'application Shadcn Admin, construite avec [Tauri](https://tauri.app/).
+A complete, modern Nextcloud News client built for Desktop (using Tauri) and Android. This application provides a seamless reading experience with advanced features for article consumption and feed management.
 
-## Prérequis
+## Features
 
-Avant de commencer, vous devez avoir les outils suivants installés sur votre système :
+### Core Capabilities
+- **Complete Feed Management**: View your feeds and articles, organized by folders.
+- **Feed Administration**: Add new feeds, remove existing ones, and move feeds between folders easily.
+- **Filtering**: Advanced filtering options to find the content you care about.
+- **Cross-Platform**: Available for both Desktop (macOS, Windows, Linux via Tauri) and Android.
 
-- [Node.js](https://nodejs.org/) (v18 ou plus récent)
+### Advanced Reading Features
+- **Integrated Article Reader**: Read full article content directly within the application without leaving the app.
+- **Custom View Modes**: Switch between different viewing modes to get the best reading experience.
+- **HTML Element Targeting**: Configure custom view modes by targeting specific HTML elements (CSS selectors) to extract exactly what you want to see from a webpage.
+- **Paywall Access**: Configure authentication credentials for specific websites to access articles behind paywalls directly within the reader.
+- **Settings Management**: Easily export and import your application settings and configurations.
+
+## Prerequisites
+
+Before building the application, ensure you have the following installed:
+
+- [Node.js](https://nodejs.org/) (v18 or newer)
 - [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/tools/install)
 
-### Dépendances spécifiques à la plateforme
+### Platform-Specific Dependencies
 
-#### Pour macOS
-
-Vous devez installer les outils de ligne de commande Xcode :
-
+#### macOS
+Install Xcode Command Line Tools:
 ```bash
 xcode-select --install
 ```
 
-#### Pour Android
-
-Le développement Android nécessite une configuration plus complexe. Vous devrez installer et configurer :
-
-1.  **Android Studio** : Téléchargez et installez [Android Studio](https://developer.android.com/studio).
-2.  **SDK et NDK Android** : Suivez les instructions de la [documentation officielle de Tauri](https://v2.tauri.app/start/prerequisites/#android) pour configurer correctement votre environnement de développement Android. Cela inclut la configuration des variables d'environnement comme `ANDROID_HOME` et `NDK_HOME`.
+#### Android
+Android development requires specific setup:
+1.  **Android Studio**: Download and install [Android Studio](https://developer.android.com/studio).
+2.  **SDK & NDK**: Follow the [Tauri Android Guide](https://v2.tauri.app/start/prerequisites/#android) to configure your environment (`ANDROID_HOME`, `NDK_HOME`, etc.).
 
 ## Installation
 
-Clonez le dépôt et installez les dépendances JavaScript :
+Clone the repository and install dependencies:
 
 ```bash
-git clone <URL_DU_REPO>
-cd shadcn-admin-tauri
+git clone <REPO_URL>
+cd shadcn-feed-reader
 pnpm install
 ```
 
-## Développement
+## Development
 
-Pour lancer l'application en mode développement avec rechargement à chaud :
+Run the application in development mode with hot-reloading:
 
 ```bash
 pnpm tauri dev
 ```
 
-Cela ouvrira une fenêtre de bureau avec votre application.
+## Building
 
-## Construire l'application
-
-### Pour macOS
-
-Pour construire l'application de bureau pour macOS, exécutez la commande suivante :
-
+### Desktop (macOS)
+Build the release bundle:
 ```bash
 pnpm tauri build
 ```
+Output location: `src-tauri/target/release/bundle/macos/`
 
-L'application compilée se trouvera dans le répertoire `src-tauri/target/release/bundle/macos/`.
+### Android
 
-### Pour Android
-
-1.  **Initialiser le projet Android** (à ne faire qu'une seule fois) :
-    Cette commande va générer les fichiers de projet Android nécessaires dans `src-tauri/gen/android`.
-
+1.  **Initialize Android Project** (First time only):
     ```bash
     pnpm tauri android init
     ```
 
-2.  **Construire l'application Android** :
-    Pour construire le paquet APK ou AAB, exécutez :
-
+2.  **Build APK/AAB**:
     ```bash
     pnpm tauri android build
     ```
-
-    Le paquet compilé se trouvera dans `src-tauri/gen/android/app/build/outputs/apk/release/` ou un chemin similaire. Vous pouvez également ouvrir le projet `src-tauri/gen/android` dans Android Studio pour construire et gérer votre application.
+    Output location: `src-tauri/gen/android/app/build/outputs/apk/release/`
