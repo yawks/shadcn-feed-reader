@@ -177,64 +177,67 @@ export function ProfileDropdown() {
   }
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
-          <Avatar className='h-8 w-8'>
-            <AvatarImage src='/avatars/01.png' alt='@shadcn' />
-            <AvatarFallback>{localStorage.getItem('backend-login')?.[0].toLocaleUpperCase()}</AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className='w-56' align='end' forceMount>
-        <DropdownMenuLabel className='font-normal'>
-          <div className='flex flex-col space-y-1'>
-            <p className='text-sm leading-none font-medium'>{localStorage.getItem('backend-login')}</p>
-          </div>
-        </DropdownMenuLabel>
-        {/*<DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link to='/settings'>
-              Profile
-              <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-            </Link>
+    <>
+      {/* Hidden file input - placed outside dropdown to persist after dropdown closes */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
+            <Avatar className='h-8 w-8'>
+              <AvatarImage src='/avatars/01.png' alt='@shadcn' />
+              <AvatarFallback>{localStorage.getItem('backend-login')?.[0].toLocaleUpperCase()}</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className='w-56' align='end' forceMount>
+          <DropdownMenuLabel className='font-normal'>
+            <div className='flex flex-col space-y-1'>
+              <p className='text-sm leading-none font-medium'>{localStorage.getItem('backend-login')}</p>
+            </div>
+          </DropdownMenuLabel>
+          {/*<DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+              <Link to='/settings'>
+                Profile
+                <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to='/settings'>
+                Billing
+                <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to='/settings'>
+                Settings
+                <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem>New Team</DropdownMenuItem>
+          </DropdownMenuGroup>*/}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleExport}>
+            <IconDownload className="mr-2 h-4 w-4" />
+            Export settings
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to='/settings'>
-              Billing
-              <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-            </Link>
+          <DropdownMenuItem onClick={handleImportClick}>
+            <IconUpload className="mr-2 h-4 w-4" />
+            Import settings
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to='/settings'>
-              Settings
-              <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-            </Link>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLogout}>
+            Log out
+            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem>New Team</DropdownMenuItem>
-        </DropdownMenuGroup>*/}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleExport}>
-          <IconDownload className="mr-2 h-4 w-4" />
-          Export settings
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleImportClick}>
-          <IconUpload className="mr-2 h-4 w-4" />
-          Import settings
-        </DropdownMenuItem>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          Log out
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }
