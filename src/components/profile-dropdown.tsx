@@ -149,7 +149,21 @@ export function ProfileDropdown() {
     }
 
     // On web, use the file input
-    fileInputRef.current?.click()
+    // eslint-disable-next-line no-console
+    console.log('[Import] isNativePlatform:', Capacitor.isNativePlatform())
+    // eslint-disable-next-line no-console
+    console.log('[Import] fileInputRef.current:', fileInputRef.current)
+    // eslint-disable-next-line no-console
+    console.log('[Import] About to click file input')
+
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+      // eslint-disable-next-line no-console
+      console.log('[Import] click() called on file input')
+    } else {
+      // eslint-disable-next-line no-console
+      console.error('[Import] fileInputRef.current is null!')
+    }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
