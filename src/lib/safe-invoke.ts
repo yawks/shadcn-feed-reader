@@ -1,6 +1,30 @@
 // A tiny compatibility wrapper around Tauri's `invoke` that falls back to
 // fetching the URL directly when running in non-Tauri environments (browser,
 // capacitor, etc.). This prevents `invoke` being undefined at runtime.
+
+// Helper to check if running in Web/Docker mode (no Tauri, no Capacitor)
+export function isWebMode(): boolean {
+  if (typeof window === 'undefined') return false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const win = window as any
+  const hasTauri = !!(win.__TAURI_INTERNALS__ || win.__TAURI__)
+  const hasCapacitor = !!(win.Capacitor?.isNativePlatform?.())
+  return !hasTauri && !hasCapacitor
+}
+
+// Transform Tauri command args to HTTP API format
+// Tauri commands use named parameters, but HTTP API expects the payload directly
+function transformArgsForHttp(cmd: string, args?: Record<string, unknown>): Record<string, unknown> {
+  if (!args) return {}
+
+  // perform_form_login: Tauri expects { request: LoginRequest }, HTTP expects LoginRequest directly
+  if (cmd === 'perform_form_login' && args.request) {
+    return args.request as Record<string, unknown>
+  }
+
+  return args
+}
+
 export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
   // Check if we are in a Tauri environment
   // @ts-ignore
@@ -30,15 +54,16 @@ export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
   }
 
   // Fallback to HTTP API
-  console.log('[safeInvoke] 🌐 HTTP API fallback:', cmd, args)
-  
+  const httpArgs = transformArgsForHttp(cmd, args)
+  console.log('[safeInvoke] 🌐 HTTP API fallback:', cmd, httpArgs)
+
   try {
     const response = await fetch(`/api/${cmd}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(args || {}),
+      body: JSON.stringify(httpArgs),
     });
 
     if (!response.ok) {

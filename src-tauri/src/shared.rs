@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::io::Cursor;
 use url::Url;
 use reqwest::header::USER_AGENT;
-use reqwest::cookie::Jar;
+use reqwest::cookie::{Jar, CookieStore};
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
@@ -58,6 +58,10 @@ pub struct LoginResponse {
 // --- Core Logic Functions (Tauri/Axum Agnostic) ---
 
 pub async fn logic_fetch_raw_html(url: String, state: &ProxyState) -> Result<String, String> {
+    println!("[shared::fetch_raw_html] ========================================");
+    println!("[shared::fetch_raw_html] Fetching URL: {}", url);
+    println!("[shared::fetch_raw_html] ========================================");
+
     let url_obj = Url::parse(&url).map_err(|e| e.to_string())?;
 
     // Extract domain for auth lookup
@@ -84,11 +88,15 @@ pub async fn logic_fetch_raw_html(url: String, state: &ProxyState) -> Result<Str
         .build()
         .map_err(|e| e.to_string())?;
 
+    // Headers matching the working Python implementation - no Sec-Fetch-* headers
     let mut request_builder = client
         .get(url_obj.clone())
-        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .header("Accept-Language", "en-US,en;q=0.5")
+        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:75.0) Gecko/20100101 Firefox/75.0")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
         .header("Connection", "keep-alive")
         .header("Upgrade-Insecure-Requests", "1");
 
@@ -103,6 +111,8 @@ pub async fn logic_fetch_raw_html(url: String, state: &ProxyState) -> Result<Str
         .await
         .map_err(|e| e.to_string())?;
 
+    println!("[shared::fetch_raw_html] Response status: {} for URL: {}", response.status(), url);
+
     // Check for 401 Unauthorized
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         println!("fetch_raw_html: 401 Unauthorized for URL: {}", url);
@@ -110,6 +120,11 @@ pub async fn logic_fetch_raw_html(url: String, state: &ProxyState) -> Result<Str
     }
 
     let html = response.text().await.map_err(|e| e.to_string())?;
+
+    // Log cookies after fetching (they should be stored in the jar now)
+    let cookies_after = state.cookie_jar.cookies(&url_obj);
+    println!("[shared::fetch_raw_html] Cookies in jar after fetch for {}: {:?}", url_obj, cookies_after);
+
     Ok(html)
 }
 
@@ -125,11 +140,15 @@ pub async fn logic_fetch_article(url: String) -> Result<String, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
+    // Headers matching the working Python implementation - no Sec-Fetch-* headers
     let response = client
         .get(url_obj.clone())
-        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .header("Accept-Language", "en-US,en;q=0.5")
+        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:75.0) Gecko/20100101 Firefox/75.0")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
         .header("Connection", "keep-alive")
         .header("Upgrade-Insecure-Requests", "1")
         .send()
@@ -233,13 +252,31 @@ pub async fn logic_fetch_article(url: String) -> Result<String, String> {
 pub async fn logic_perform_form_login(request: LoginRequest, state: &ProxyState) -> Result<LoginResponse, String> {
     let login_url = Url::parse(&request.login_url).map_err(|e| e.to_string())?;
 
-    println!("[shared::perform_form_login] Logging in to: {}", login_url);
+    println!("[shared::perform_form_login] ========================================");
+    println!("[shared::perform_form_login] POST URL: {}", login_url);
+    println!("[shared::perform_form_login] ========================================");
 
     // Build form data
     let form_data: Vec<(String, String)> = request.fields
         .into_iter()
-        .map(|f| (f.name, f.value))
+        .map(|f| {
+            println!("[shared::perform_form_login]   Field: {} = {}", f.name, if f.name.contains("password") { "[HIDDEN]" } else { &f.value });
+            (f.name, f.value)
+        })
         .collect();
+
+    // Log cookies in jar for this URL and its domain
+    let cookies_for_url = state.cookie_jar.cookies(&login_url);
+    println!("[shared::perform_form_login] Cookies in jar for POST URL: {:?}", cookies_for_url);
+
+    // Also check cookies for the base domain (in case they're stored there)
+    if let Some(host) = login_url.host_str() {
+        let base_url = Url::parse(&format!("{}://{}", login_url.scheme(), host)).ok();
+        if let Some(base) = base_url {
+            let base_cookies = state.cookie_jar.cookies(&base);
+            println!("[shared::perform_form_login] Cookies for base domain {}: {:?}", host, base_cookies);
+        }
+    }
 
     // Create client with shared cookie jar
     let client = reqwest::Client::builder()
@@ -250,13 +287,31 @@ pub async fn logic_perform_form_login(request: LoginRequest, state: &ProxyState)
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Perform POST request
+    // Perform POST request with headers matching the working Python implementation
+    // Note: Do NOT use Sec-Fetch-* headers - they can cause 406 errors on some sites like Le Monde
+    let host = login_url.host_str().unwrap_or("");
+    // Origin should NOT have trailing slash for most sites
+    let origin = format!("{}://{}", login_url.scheme(), host);
+
+    println!("[shared::perform_form_login] Host: {}", host);
+    println!("[shared::perform_form_login] Origin: {}", origin);
+    println!("[shared::perform_form_login] Referer: {}", login_url);
+    println!("[shared::perform_form_login] Content-Type: application/x-www-form-urlencoded");
+    println!("[shared::perform_form_login] Form data count: {} fields", form_data.len());
+
     let response = client
         .post(login_url.clone())
-        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:75.0) Gecko/20100101 Firefox/75.0")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
+        .header("Cache-Control", "no-cache")
         .header("Content-Type", "application/x-www-form-urlencoded")
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-        .header("Origin", format!("{}://{}", login_url.scheme(), login_url.host_str().unwrap_or("")))
+        .header("Origin", &origin)
+        .header("Host", host)
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Connection", "keep-alive")
+        .header("Pragma", "no-cache")
         .header("Referer", login_url.to_string())
         .form(&form_data)
         .send()
@@ -266,38 +321,51 @@ pub async fn logic_perform_form_login(request: LoginRequest, state: &ProxyState)
     let status = response.status();
     let status_code = status.as_u16();
 
+    // Log response details for debugging
+    println!("[shared::perform_form_login] Response status: {}", status);
+    println!("[shared::perform_form_login] Response headers:");
+    for (name, value) in response.headers().iter() {
+        println!("[shared::perform_form_login]   {}: {:?}", name, value);
+    }
+
     // Consider 2xx and 3xx (redirects) as success
     let success = status.is_success() || status.is_redirection();
+    println!("[shared::perform_form_login] Success: {} (2xx or 3xx)", success);
 
-    println!("[shared::perform_form_login] Response status: {} (success: {})", status, success);
+    // Get response body for processing
+    let response_body = response.text().await.unwrap_or_else(|e| {
+        println!("[shared::perform_form_login] Failed to read response body: {}", e);
+        String::new()
+    });
+
+    // For 4xx errors, log a preview of the response body for debugging
+    if status.is_client_error() {
+        println!("[shared::perform_form_login] ⚠️ Client error! Response body preview (first 500 chars):");
+        println!("{}", &response_body.chars().take(500).collect::<String>());
+    }
 
     // Extract text from response if selector is provided
     let extracted_text = if let Some(selector) = request.response_selector {
         if !selector.is_empty() {
-            match response.text().await {
-                Ok(html) => {
-                    // Use scraper to extract text from CSS selector
-                    match scraper::Selector::parse(&selector) {
-                        Ok(css_selector) => {
-                            let document = scraper::Html::parse_document(&html);
-                            let mut extracted = String::new();
-                            for element in document.select(&css_selector) {
-                                extracted.push_str(&element.text().collect::<String>());
-                            }
-                            if extracted.is_empty() {
-                                None
-                            } else {
-                                println!("[shared::perform_form_login] Extracted text: {}", extracted.trim());
-                                Some(extracted.trim().to_string())
-                            }
-                        }
-                        Err(e) => {
-                            println!("[shared::perform_form_login] Invalid CSS selector '{}': {:?}", selector, e);
-                            None
-                        }
+            // Use scraper to extract text from CSS selector
+            match scraper::Selector::parse(&selector) {
+                Ok(css_selector) => {
+                    let document = scraper::Html::parse_document(&response_body);
+                    let mut extracted = String::new();
+                    for element in document.select(&css_selector) {
+                        extracted.push_str(&element.text().collect::<String>());
+                    }
+                    if extracted.is_empty() {
+                        None
+                    } else {
+                        println!("[shared::perform_form_login] Extracted text: {}", extracted.trim());
+                        Some(extracted.trim().to_string())
                     }
                 }
-                Err(_) => None
+                Err(e) => {
+                    println!("[shared::perform_form_login] Invalid CSS selector '{}': {:?}", selector, e);
+                    None
+                }
             }
         } else {
             None

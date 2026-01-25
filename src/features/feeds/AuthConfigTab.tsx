@@ -228,28 +228,9 @@ export function AuthConfigTab({ feedId, initialConfig, onConfigSaved }: AuthConf
 				...resolvedExtraFields,
 			]
 
-			// Try Tauri first (desktop)
-			try {
-				const result = (await safeInvoke('perform_form_login', {
-					request: {
-						login_url: configToUse.loginUrl,
-						fields,
-						response_selector: configToUse.responseSelector,
-					},
-				})) as { success?: boolean; message?: string; extracted_text?: string }
-
-				if (result?.success) {
-					if (result.extracted_text) {
-						toast.success(t('auth_config.login_success_with_text', { text: result.extracted_text }))
-					} else {
-						toast.success(t('auth_config.login_success'))
-					}
-				} else {
-					toast.error(result?.message || t('auth_config.login_fail'))
-				}
-			} catch (_tauriErr) {
-				// Fallback to Capacitor (Android)
-				if (Capacitor.isNativePlatform()) {
+			// Try Capacitor first (Android native)
+			if (Capacitor.isNativePlatform()) {
+				try {
 					const { performFormLogin } = await import('@/lib/raw-html')
 					const result = await performFormLogin({
 						loginUrl: configToUse.loginUrl,
@@ -266,9 +247,30 @@ export function AuthConfigTab({ feedId, initialConfig, onConfigSaved }: AuthConf
 					} else {
 						toast.error(result?.message || t('auth_config.login_fail'))
 					}
-				} else {
-					toast.error(t('auth_config.native_app_required'))
+					return
+				} catch (capacitorErr) {
+					// eslint-disable-next-line no-console
+					console.warn('[AuthConfigTab] Capacitor failed, trying safeInvoke:', capacitorErr)
 				}
+			}
+
+			// Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
+			const result = (await safeInvoke('perform_form_login', {
+				request: {
+					login_url: configToUse.loginUrl,
+					fields,
+					response_selector: configToUse.responseSelector,
+				},
+			})) as { success?: boolean; message?: string; extracted_text?: string }
+
+			if (result?.success) {
+				if (result.extracted_text) {
+					toast.success(t('auth_config.login_success_with_text', { text: result.extracted_text }))
+				} else {
+					toast.success(t('auth_config.login_success'))
+				}
+			} else {
+				toast.error(result?.message || t('auth_config.login_fail'))
 			}
 		} catch (err) {
 			toast.error(t('auth_config.login_fail_with_error', { message: err instanceof Error ? err.message : String(err) }))

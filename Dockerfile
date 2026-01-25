@@ -28,7 +28,7 @@ COPY --from=frontend-builder /app/dist ./dist
 # Copy backend binary
 COPY --from=backend-builder /app/src-tauri/target/release/shadcn-feed-server ./server
 
-ENV PORT=3000
-EXPOSE 3000
+ENV PORT=3005
+EXPOSE 3005
 
 CMD ["./server"]

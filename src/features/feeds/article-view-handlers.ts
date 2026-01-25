@@ -612,27 +612,177 @@ function applySelectorConfig(html: string, selectors: SelectorItem[]): string {
 }
 
 /**
+ * Result from fetching login page - includes field values and form action URL
+ */
+interface LoginPageData {
+    fieldValues: Map<string, string>
+    formAction: string | null
+}
+
+/**
+ * Fetch dynamic field values (like CSRF tokens) from the login page
+ * Also extracts the form's action URL for POST
+ */
+async function fetchDynamicFieldValues(
+    loginUrl: string,
+    fieldNames: string[]
+): Promise<LoginPageData> {
+    const result: LoginPageData = {
+        fieldValues: new Map<string, string>(),
+        formAction: null
+    }
+
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ Fetching login page to extract form data', 'color: #22c55e')
+
+    try {
+        // Fetch login page HTML
+        const html = await fetchRawHtml(loginUrl)
+
+        // Parse HTML and extract form field values
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+
+        // Find the login form - look for form containing password field
+        const forms = doc.querySelectorAll('form')
+        let loginForm: Element | null = null
+        for (const form of forms) {
+            if (form.querySelector('input[type="password"]')) {
+                loginForm = form
+                break
+            }
+        }
+
+        // Extract form action URL
+        if (loginForm) {
+            const action = loginForm.getAttribute('action')
+            if (action) {
+                // Resolve relative URLs against the login page URL
+                try {
+                    const actionUrl = new URL(action, loginUrl)
+                    result.formAction = actionUrl.href
+                    // eslint-disable-next-line no-console
+                    console.log('%c[AUTH]       └─ Form action URL:', 'color: #22c55e', result.formAction)
+                } catch {
+                    // If URL parsing fails, use the action as-is if it's absolute
+                    if (action.startsWith('http')) {
+                        result.formAction = action
+                        // eslint-disable-next-line no-console
+                        console.log('%c[AUTH]       └─ Form action URL (raw):', 'color: #22c55e', result.formAction)
+                    }
+                }
+            } else {
+                // eslint-disable-next-line no-console
+                console.log('%c[AUTH]       └─ No form action attribute, will POST to page URL', 'color: #eab308')
+            }
+        } else {
+            // eslint-disable-next-line no-console
+            console.warn('%c[AUTH]       └─ Could not find login form with password field', 'color: #eab308')
+        }
+
+        // Extract field values
+        if (fieldNames.length > 0) {
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH]       └─ Looking for dynamic fields:', 'color: #22c55e', fieldNames.join(', '))
+        }
+
+        for (const fieldName of fieldNames) {
+            // Try to find input with this name
+            const input = doc.querySelector(
+                `input[name="${fieldName}"], textarea[name="${fieldName}"], select[name="${fieldName}"]`
+            ) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null
+            if (input) {
+                const value = input.value || input.getAttribute('value') || ''
+                result.fieldValues.set(fieldName, value)
+                // eslint-disable-next-line no-console
+                console.log('%c[AUTH]       └─ Found "' + fieldName + '":', 'color: #22c55e', value ? '[value found]' : '(empty)')
+            } else {
+                // eslint-disable-next-line no-console
+                console.warn('%c[AUTH]       └─ Field "' + fieldName + '" not found in form', 'color: #eab308')
+            }
+        }
+    } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('%c[AUTH]    └─ Error fetching dynamic values:', 'color: #ef4444', err)
+    }
+
+    return result
+}
+
+/**
  * Perform form-based login using the auth config
  * Returns true if login was successful (or no login needed), false otherwise
  */
 async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
     // eslint-disable-next-line no-console
-    console.log('[performAuthLogin] Starting login to:', authConfig.loginUrl)
+    console.log('%c[AUTH] 🔐 STEP 1: LOGIN', 'color: #22c55e; font-weight: bold; font-size: 12px')
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ Page URL:', 'color: #22c55e', authConfig.loginUrl)
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ User:', 'color: #22c55e', authConfig.username)
+
+    // Find fields that need dynamic values (empty value) - typically CSRF tokens
+    const dynamicFieldNames = (authConfig.extraFields || [])
+        .filter(f => f.name.trim() && !f.value.trim())
+        .map(f => f.name.trim())
+
+    // Fetch login page to get dynamic values (e.g., CSRF tokens) and form action URL
+    // We always fetch the page to get the form action URL, even if no dynamic fields
+    const loginPageData = await fetchDynamicFieldValues(authConfig.loginUrl, dynamicFieldNames)
+    const dynamicValues = loginPageData.fieldValues
+
+    // Use the extracted form action URL, or fall back to the login page URL
+    const postUrl = loginPageData.formAction || authConfig.loginUrl
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ POST URL:', 'color: #22c55e', postUrl)
+
+    // Build final fields list, replacing empty values with dynamic ones
+    const resolvedExtraFields = (authConfig.extraFields || [])
+        .filter(f => f.name.trim())
+        .map(f => ({
+            name: f.name.trim(),
+            value: f.value.trim() || dynamicValues.get(f.name.trim()) || ''
+        }))
 
     const fields = [
         { name: authConfig.usernameField, value: authConfig.username },
         { name: authConfig.passwordField, value: authConfig.password },
-        ...(authConfig.extraFields || []).filter(f => f.name.trim()).map(f => ({
-            name: f.name.trim(),
-            value: f.value.trim()
-        }))
+        ...resolvedExtraFields
     ]
 
-    // Try Tauri first (desktop)
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ Fields:', 'color: #22c55e', fields.map(f => f.name).join(', '))
+
+    // Try Capacitor first (Android native)
+    if (Capacitor.isNativePlatform()) {
+        try {
+            const { performFormLogin } = await import('@/lib/raw-html')
+            const result = await performFormLogin({
+                loginUrl: postUrl,
+                fields,
+                responseSelector: authConfig.responseSelector,
+            })
+
+            if (result?.success) {
+                // eslint-disable-next-line no-console
+                console.log('%c[AUTH]    ✅ Login successful (Capacitor)', 'color: #22c55e; font-weight: bold')
+                return true
+            } else {
+                // eslint-disable-next-line no-console
+                console.warn('%c[AUTH]    ⚠️ Login failed (Capacitor):', 'color: #eab308', result?.message)
+                return false
+            }
+        } catch (capErr) {
+            // eslint-disable-next-line no-console
+            console.warn('%c[AUTH]    Capacitor failed, trying safeInvoke:', 'color: #eab308', capErr)
+        }
+    }
+
+    // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
     try {
         const result = await safeInvoke('perform_form_login', {
             request: {
-                login_url: authConfig.loginUrl,
+                login_url: postUrl,
                 fields,
                 response_selector: authConfig.responseSelector,
             },
@@ -640,41 +790,16 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
 
         if (result?.success) {
             // eslint-disable-next-line no-console
-            console.log('[performAuthLogin] Tauri login successful')
+            console.log('%c[AUTH]    ✅ Login successful (Tauri/HTTP)', 'color: #22c55e; font-weight: bold')
             return true
         } else {
             // eslint-disable-next-line no-console
-            console.warn('[performAuthLogin] Tauri login failed:', result?.message)
+            console.warn('%c[AUTH]    ⚠️ Login failed:', 'color: #eab308', result?.message)
             return false
         }
-    } catch (_tauriErr) {
-        // Fallback to Capacitor (Android)
-        if (Capacitor.isNativePlatform()) {
-            try {
-                const { performFormLogin } = await import('@/lib/raw-html')
-                const result = await performFormLogin({
-                    loginUrl: authConfig.loginUrl,
-                    fields,
-                    responseSelector: authConfig.responseSelector,
-                })
-
-                if (result?.success) {
-                    // eslint-disable-next-line no-console
-                    console.log('[performAuthLogin] Capacitor login successful')
-                    return true
-                } else {
-                    // eslint-disable-next-line no-console
-                    console.warn('[performAuthLogin] Capacitor login failed:', result?.message)
-                    return false
-                }
-            } catch (capErr) {
-                // eslint-disable-next-line no-console
-                console.error('[performAuthLogin] Capacitor login error:', capErr)
-                return false
-            }
-        }
+    } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[performAuthLogin] No native platform available for form login')
+        console.error('%c[AUTH]    ❌ Login error:', 'color: #ef4444', err)
         return false
     }
 }
@@ -684,30 +809,31 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
  */
 async function performAuthLogout(logoutUrl: string): Promise<void> {
     // eslint-disable-next-line no-console
-    console.log('[performAuthLogout] Calling logout URL:', logoutUrl)
+    console.log('%c[AUTH] 🚪 STEP 3: LOGOUT', 'color: #f97316; font-weight: bold; font-size: 12px')
+    // eslint-disable-next-line no-console
+    console.log('%c[AUTH]    └─ URL:', 'color: #f97316', logoutUrl)
 
-    // Try Tauri first (desktop)
+    // Try Capacitor first (Android native)
+    if (Capacitor.isNativePlatform()) {
+        try {
+            await fetchRawHtml(logoutUrl)
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH]    ✅ Logout successful (Capacitor)', 'color: #22c55e; font-weight: bold')
+            return
+        } catch (capErr) {
+            // eslint-disable-next-line no-console
+            console.warn('%c[AUTH]    Capacitor failed, trying safeInvoke:', 'color: #eab308', capErr)
+        }
+    }
+
+    // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
     try {
         await safeInvoke('fetch_raw_html', { url: logoutUrl })
         // eslint-disable-next-line no-console
-        console.log('[performAuthLogout] Tauri logout successful')
-        return
-    } catch (_tauriErr) {
-        // Fallback to Capacitor (Android)
-        if (Capacitor.isNativePlatform()) {
-            try {
-                await fetchRawHtml(logoutUrl)
-                // eslint-disable-next-line no-console
-                console.log('[performAuthLogout] Capacitor logout successful')
-                return
-            } catch (capErr) {
-                // eslint-disable-next-line no-console
-                console.warn('[performAuthLogout] Capacitor logout error (ignored):', capErr)
-                return
-            }
-        }
+        console.log('%c[AUTH]    ✅ Logout successful (Tauri/HTTP)', 'color: #22c55e; font-weight: bold')
+    } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[performAuthLogout] No native platform available for logout')
+        console.warn('%c[AUTH]    ⚠️ Logout failed (ignored):', 'color: #eab308', err)
     }
 }
 
@@ -741,7 +867,15 @@ export async function handleConfiguredView({
 
     try {
         // eslint-disable-next-line no-console
-        console.log('[handleConfiguredView] START for url:', url, 'feedId:', feedId)
+        console.log('%c[AUTH] ═══════════════════════════════════════════════════════', 'color: #3b82f6')
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] 📰 CONFIGURED VIEW - Article fetch with authentication', 'color: #3b82f6; font-weight: bold; font-size: 14px')
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH]    URL:', 'color: #3b82f6', url)
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH]    Feed ID:', 'color: #3b82f6', feedId)
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] ═══════════════════════════════════════════════════════', 'color: #3b82f6')
 
         // 1. Load selector config for this feed
         const config = await getSelectorConfig(feedId)
@@ -756,18 +890,27 @@ export async function handleConfiguredView({
         authConfig = await getAuthConfig(feedId)
         if (authConfig) {
             // eslint-disable-next-line no-console
-            console.log('[handleConfiguredView] Auth config found, performing login')
+            console.log('%c[AUTH] 🔑 Auth config found - will perform login/fetch/logout cycle', 'color: #8b5cf6; font-weight: bold')
+            if (authConfig.logoutUrl) {
+                // eslint-disable-next-line no-console
+                console.log('%c[AUTH]    └─ Logout URL configured:', 'color: #8b5cf6', authConfig.logoutUrl)
+            }
             const loginSuccess = await performAuthLogin(authConfig)
             if (!loginSuccess) {
                 // eslint-disable-next-line no-console
-                console.warn('[handleConfiguredView] Login failed, continuing anyway')
+                console.warn('%c[AUTH]    ⚠️ Login failed, continuing anyway...', 'color: #eab308')
             }
+        } else {
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH] ℹ️ No auth config - fetching without authentication', 'color: #6b7280')
         }
 
         // 3. Check if we have stored credentials and apply them proactively (for HTTP Basic Auth)
         const domain = extractDomain(url)
         const storedCreds = getStoredAuth(domain)
         if (storedCreds) {
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH]    └─ HTTP Basic Auth credentials found for domain:', 'color: #8b5cf6', domain)
             try {
                 await safeInvoke('set_proxy_auth', {
                     domain,
@@ -793,17 +936,28 @@ export async function handleConfiguredView({
         }
 
         // 4. Fetch raw HTML
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] 📥 STEP 2: FETCH ARTICLE', 'color: #3b82f6; font-weight: bold; font-size: 12px')
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH]    └─ URL:', 'color: #3b82f6', url)
+
         let html: string
         try {
             html = await fetchRawHtml(url)
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH]    ✅ Fetch successful (' + html.length + ' bytes)', 'color: #22c55e; font-weight: bold')
         } catch (_invokeErr: unknown) {
             if (_invokeErr instanceof AuthRequiredError) {
+                // eslint-disable-next-line no-console
+                console.error('%c[AUTH]    ❌ Auth required for domain:', 'color: #ef4444', _invokeErr.domain)
                 setAuthDialog({ domain: _invokeErr.domain })
                 setIsLoading(false)
                 return
             }
 
             const msg = _invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr)
+            // eslint-disable-next-line no-console
+            console.error('%c[AUTH]    ❌ Fetch failed:', 'color: #ef4444', msg)
             setError(i18n.t('errors.fetch_failed', { message: msg }))
             setIsLoading(false)
             return
@@ -970,13 +1124,22 @@ export async function handleConfiguredView({
     } catch (_err) {
         const msg = _err instanceof Error ? _err.message : String(_err)
         // eslint-disable-next-line no-console
-        console.error('[handleConfiguredView] FAILED:', msg)
+        console.error('%c[AUTH]    ❌ Error:', 'color: #ef4444', msg)
         setError(`Extraction avec sélecteurs échouée: ${msg}`)
     } finally {
         // 7. Perform logout if configured (always, even on error)
         if (authConfig?.logoutUrl) {
             await performAuthLogout(authConfig.logoutUrl)
+        } else if (authConfig) {
+            // eslint-disable-next-line no-console
+            console.log('%c[AUTH] ℹ️ No logout URL configured - session may persist', 'color: #6b7280')
         }
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] ═══════════════════════════════════════════════════════', 'color: #3b82f6')
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] ✨ CONFIGURED VIEW COMPLETE', 'color: #3b82f6; font-weight: bold')
+        // eslint-disable-next-line no-console
+        console.log('%c[AUTH] ═══════════════════════════════════════════════════════', 'color: #3b82f6')
         setIsLoading(false)
     }
 }

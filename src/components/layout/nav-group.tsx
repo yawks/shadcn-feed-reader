@@ -141,28 +141,9 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
         ...(authConfig.extraFields || []),
       ]
 
-      // Try Tauri first (desktop)
-      try {
-        const result = await safeInvoke('perform_form_login', {
-          request: {
-            login_url: authConfig.loginUrl,
-            fields,
-            response_selector: authConfig.responseSelector,
-          },
-        }) as { success?: boolean; message?: string; extracted_text?: string }
-
-        if (result?.success) {
-          if (result.extracted_text) {
-            toast.success(`Login successful: ${result.extracted_text}`)
-          } else {
-            toast.success('Login successful')
-          }
-        } else {
-          toast.error(result?.message || 'Login failed')
-        }
-      } catch (_tauriErr) {
-        // Fallback to Capacitor (Android)
-        if (Capacitor.isNativePlatform()) {
+      // Try Capacitor first (Android native)
+      if (Capacitor.isNativePlatform()) {
+        try {
           const { performFormLogin } = await import('@/lib/raw-html')
           const result = await performFormLogin({
             loginUrl: authConfig.loginUrl,
@@ -179,9 +160,30 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
           } else {
             toast.error(result?.message || 'Login failed')
           }
-        } else {
-          toast.error('Login requires the native app')
+          return
+        } catch (capacitorErr) {
+          // eslint-disable-next-line no-console
+          console.warn('[handleFeedLogin] Capacitor failed, trying safeInvoke:', capacitorErr)
         }
+      }
+
+      // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
+      const result = await safeInvoke('perform_form_login', {
+        request: {
+          login_url: authConfig.loginUrl,
+          fields,
+          response_selector: authConfig.responseSelector,
+        },
+      }) as { success?: boolean; message?: string; extracted_text?: string }
+
+      if (result?.success) {
+        if (result.extracted_text) {
+          toast.success(`Login successful: ${result.extracted_text}`)
+        } else {
+          toast.success('Login successful')
+        }
+      } else {
+        toast.error(result?.message || 'Login failed')
       }
     } catch (err) {
       toast.error(`Login failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -695,28 +697,9 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
         ...(authConfig.extraFields || []),
       ]
 
-      // Try Tauri first (desktop)
-      try {
-        const result = await safeInvoke('perform_form_login', {
-          request: {
-            login_url: authConfig.loginUrl,
-            fields,
-            response_selector: authConfig.responseSelector,
-          },
-        }) as { success?: boolean; message?: string; extracted_text?: string }
-
-        if (result?.success) {
-          if (result.extracted_text) {
-            toast.success(`Login successful: ${result.extracted_text}`)
-          } else {
-            toast.success('Login successful')
-          }
-        } else {
-          toast.error(result?.message || 'Login failed')
-        }
-      } catch (_tauriErr) {
-        // Fallback to Capacitor (Android)
-        if (Capacitor.isNativePlatform()) {
+      // Try Capacitor first (Android native)
+      if (Capacitor.isNativePlatform()) {
+        try {
           const { performFormLogin } = await import('@/lib/raw-html')
           const result = await performFormLogin({
             loginUrl: authConfig.loginUrl,
@@ -733,9 +716,30 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
           } else {
             toast.error(result?.message || 'Login failed')
           }
-        } else {
-          toast.error('Login requires the native app')
+          return
+        } catch (capacitorErr) {
+          // eslint-disable-next-line no-console
+          console.warn('[handleSubFeedLogin] Capacitor failed, trying safeInvoke:', capacitorErr)
         }
+      }
+
+      // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
+      const result = await safeInvoke('perform_form_login', {
+        request: {
+          login_url: authConfig.loginUrl,
+          fields,
+          response_selector: authConfig.responseSelector,
+        },
+      }) as { success?: boolean; message?: string; extracted_text?: string }
+
+      if (result?.success) {
+        if (result.extracted_text) {
+          toast.success(`Login successful: ${result.extracted_text}`)
+        } else {
+          toast.success('Login successful')
+        }
+      } else {
+        toast.error(result?.message || 'Login failed')
       }
     } catch (err) {
       toast.error(`Login failed: ${err instanceof Error ? err.message : String(err)}`)
