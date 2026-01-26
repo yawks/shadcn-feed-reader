@@ -136,10 +136,14 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 // eslint-disable-next-line no-console
                 console.log('[FeedArticle] Tauri not available, error:', errorMsg)
                 // Check for various Tauri not available error messages
-                const isTauriNotAvailable = 
+                // Also handle network errors from HTTP API fallback (happens on Android)
+                const isTauriNotAvailable =
                     errorMsg.includes('Tauri invoke not available') ||
                     errorMsg.includes('Cannot read properties of undefined') ||
-                    (errorMsg.includes('invoke') && errorMsg.includes('undefined'))
+                    (errorMsg.includes('invoke') && errorMsg.includes('undefined')) ||
+                    errorMsg.includes('Failed to fetch') ||
+                    errorMsg.includes('NetworkError') ||
+                    errorMsg.includes('API Error')
                 
                 if (isTauriNotAvailable) {
                     try {

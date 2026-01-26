@@ -50,8 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RawHtmlPlugin extends Plugin {
 
     private static final String TAG = "RawHtmlPlugin";
-    // Use Firefox User-Agent to match working Python implementation
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:75.0) Gecko/20100101 Firefox/75.0";
+    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
     // Cookie storage for session persistence across requests
     // Key is the cookie domain (or host if no domain), stores cookies by name to handle updates
@@ -136,16 +135,13 @@ public class RawHtmlPlugin extends Plugin {
                 Log.e(TAG, "Error parsing URL for domain in fetchRawHtml", e);
             }
             
-            // Build request with headers matching the working Python implementation
-            // Note: Do NOT use Sec-Fetch-* headers - they can cause 406 errors on some sites like Le Monde
+            // Build request with optional auth
             Request.Builder reqBuilder = new Request.Builder()
                 .url(url)
-                .addHeader("User-Agent", USER_AGENT)
-                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
-                .addHeader("Accept-Encoding", "gzip, deflate, br")
-                .addHeader("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
-                .addHeader("Cache-Control", "no-cache")
-                .addHeader("Pragma", "no-cache")
+                // Use a complete User-Agent that mimics a real Chrome browser on Android
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .addHeader("Accept-Language", "en-US,en;q=0.9")
                 .addHeader("Connection", "keep-alive")
                 .addHeader("Upgrade-Insecure-Requests", "1");
             
@@ -278,35 +274,13 @@ public class RawHtmlPlugin extends Plugin {
                 Log.d(TAG, "Form field: " + name + " = [hidden]");
             }
 
-            // Extract host for Origin and Host headers (matching Python implementation)
-            // Note: Origin should NOT have trailing slash
-            String host = "";
-            String origin = "";
-            try {
-                java.net.URL urlObj = new java.net.URL(loginUrl);
-                host = urlObj.getHost();
-                origin = urlObj.getProtocol() + "://" + host;
-            } catch (Exception e) {
-                Log.e(TAG, "Error parsing login URL for origin", e);
-            }
-
-            // Build request with headers matching the working Python implementation
-            // Note: Do NOT use Sec-Fetch-* headers - they can cause 406 errors on some sites like Le Monde
             Request request = new Request.Builder()
                 .url(loginUrl)
                 .post(formBuilder.build())
                 .addHeader("User-Agent", USER_AGENT)
-                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
-                .addHeader("Accept-Encoding", "gzip, deflate, br")
-                .addHeader("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
-                .addHeader("Cache-Control", "no-cache")
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                .addHeader("Origin", origin)
-                .addHeader("Host", host)
-                .addHeader("Upgrade-Insecure-Requests", "1")
-                .addHeader("Connection", "keep-alive")
-                .addHeader("Pragma", "no-cache")
-                .addHeader("Referer", loginUrl)
+                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .addHeader("Accept-Language", "en-US,en;q=0.9")
                 .build();
 
             Log.d(TAG, "Performing form login to: " + loginUrl);
@@ -444,14 +418,13 @@ public class RawHtmlPlugin extends Plugin {
                             Log.e(TAG, "Error parsing URL for domain", e);
                         }
                         
-                        // Build request with headers matching the working Python implementation
-                        // Note: Do NOT use Sec-Fetch-* headers - they can cause issues
+                        // Build request with optional auth
                         Request.Builder reqBuilder = new Request.Builder()
                             .url(targetUrl)
-                            .addHeader("User-Agent", USER_AGENT)
-                            .addHeader("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
-                            .addHeader("Accept-Encoding", "gzip, deflate, br")
-                            .addHeader("Accept-Language", "fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4")
+                            // Use a complete User-Agent that mimics a real Chrome browser on Android
+                            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                            .addHeader("Accept", "*/*")
+                            .addHeader("Accept-Language", "en-US,en;q=0.9")
                             .addHeader("Connection", "keep-alive");
                         
                         // For images and other resources, use the base_url (article URL) as Referer
