@@ -46,6 +46,9 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         const feedId = item.feed?.id || 'default'
         return getArticleViewModeSync(feedId)
     })
+    // Track which feedId the current viewMode corresponds to
+    // This prevents race conditions when switching between feeds with different viewModes
+    const [viewModeFeedId, setViewModeFeedId] = useState<string>(() => item.feed?.id || 'default')
     const [viewModeLoaded, setViewModeLoaded] = useState<boolean>(() => {
         // On web, we can load synchronously, so it's already loaded
         // On Capacitor, we need to load async, so it's not loaded yet
@@ -60,6 +63,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     const [proxyPort, setProxyPort] = useState<number | null>(null)
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+    const [scrollProgress, setScrollProgress] = useState(0)
 
     // Selector configuration state
     const [selectorConfigExists, setSelectorConfigExists] = useState<boolean>(() => {
@@ -78,10 +82,18 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     // This MUST complete before the article loading useEffect runs
     useEffect(() => {
         const feedId = item.feed?.id || 'default'
-        
+
         // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}, current mode: ${viewMode}`)
-        
+        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}, current mode: ${viewMode}, currentFeedId: ${viewModeFeedId}`)
+
+        // IMPORTANT: Mark viewMode as not ready for THIS feed yet
+        // This prevents race conditions when switching feeds
+        if (feedId !== viewModeFeedId) {
+            // eslint-disable-next-line no-console
+            console.log(`[FeedArticle] Feed changed from ${viewModeFeedId} to ${feedId}, marking viewMode as not loaded`)
+            setViewModeLoaded(false)
+        }
+
         // On Capacitor, we need to load async, so mark as not loaded yet
         if (typeof window !== 'undefined') {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +102,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 setViewModeLoaded(false)
             }
         }
-        
+
         // Load saved mode asynchronously (needed for Capacitor)
         getArticleViewMode(feedId).then((savedMode) => {
             // eslint-disable-next-line no-console
@@ -101,16 +113,19 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 console.log(`[FeedArticle] Setting viewMode to ${savedMode} (was ${viewMode})`)
                 setViewMode(savedMode)
             }
+            // Update the feedId for which the viewMode is valid
+            setViewModeFeedId(feedId)
             // Mark as loaded - this will allow the article loading useEffect to run
             setViewModeLoaded(true)
         }).catch((err) => {
             // eslint-disable-next-line no-console
             console.error('[FeedArticle] Failed to load view mode:', err)
             // On error, use current mode and mark as loaded
+            setViewModeFeedId(feedId)
             setViewModeLoaded(true)
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.feed?.id, item.url]) // Don't include viewMode to avoid loop - we only want to load when feed/article changes
+    }, [item.feed?.id, item.url]) // Don't include viewMode/viewModeFeedId to avoid loop - we only want to load when feed/article changes
 
     // Check if selector config exists when feed changes
     useEffect(() => {
@@ -191,7 +206,16 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             console.log('⏳ [FeedArticle] Waiting for viewMode to load before loading article...')
             return
         }
-        
+
+        // CRITICAL: Don't load article if viewMode is for a different feed
+        // This prevents using stale viewMode from previous feed (race condition fix)
+        const currentFeedId = item.feed?.id || 'default'
+        if (viewModeFeedId !== currentFeedId) {
+            // eslint-disable-next-line no-console
+            console.log(`⏳ [FeedArticle] viewMode is for feed ${viewModeFeedId}, waiting for feed ${currentFeedId}...`)
+            return
+        }
+
         // Skip reload if URL, viewMode, theme, and fontSize haven't changed
         // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
         const urlChanged = lastLoadedUrlRef.current !== item.url
@@ -303,7 +327,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded, item.feed?.id]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
+    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded, viewModeFeedId, item.feed?.id]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
 
     useEffect(() => {
         const iframe = iframeRef.current
@@ -804,6 +828,64 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
         }
     }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, setSelectedImageUrl])
 
+    // Track scroll progress in iframe for readability/configured modes
+    useEffect(() => {
+        const iframe = iframeRef.current
+        if (!iframe || (viewMode !== 'readability' && viewMode !== 'configured')) {
+            setScrollProgress(0)
+            return
+        }
+
+        const updateScrollProgress = () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+                if (iframeDoc) {
+                    const scrollTop = iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop
+                    const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight
+                    const clientHeight = iframeDoc.documentElement.clientHeight || iframeDoc.body.clientHeight
+                    const maxScroll = scrollHeight - clientHeight
+                    if (maxScroll > 0) {
+                        const progress = (scrollTop / maxScroll) * 100
+                        setScrollProgress(Math.min(100, Math.max(0, progress)))
+                    } else {
+                        setScrollProgress(0)
+                    }
+                }
+            } catch (_e) {
+                // Cross-origin access denied - ignore
+            }
+        }
+
+        const handleLoad = () => {
+            try {
+                const iframeWindow = iframe.contentWindow
+                if (iframeWindow) {
+                    iframeWindow.addEventListener('scroll', updateScrollProgress)
+                    // Initial progress check
+                    updateScrollProgress()
+                }
+            } catch (_e) {
+                // Cross-origin access denied - ignore
+            }
+        }
+
+        iframe.addEventListener('load', handleLoad)
+        // Also try to attach immediately in case iframe is already loaded
+        handleLoad()
+
+        return () => {
+            iframe.removeEventListener('load', handleLoad)
+            try {
+                const iframeWindow = iframe.contentWindow
+                if (iframeWindow) {
+                    iframeWindow.removeEventListener('scroll', updateScrollProgress)
+                }
+            } catch (_e) {
+                // Cross-origin access denied - ignore
+            }
+        }
+    }, [viewMode, isLoading])
+
     // Ensure iframe viewport doesn't extend under native system UI.
     // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
     useEffect(() => {
@@ -909,6 +991,18 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                         onBack={onBack}
                     />
                 </div>
+                {/* Scroll progress bar - only visible in readability/configured modes */}
+                {(viewMode === 'readability' || viewMode === 'configured') && (
+                    <div className="h-[2px] w-full flex-none" style={{ backgroundColor: 'transparent' }}>
+                        <div
+                            className={cn(
+                                "h-full transition-all duration-150 ease-out",
+                                theme === 'dark' ? "bg-white/70" : "bg-black/70"
+                            )}
+                            style={{ width: `${scrollProgress}%` }}
+                        />
+                    </div>
+                )}
                 {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
                 <div 
                     data-article-container 
