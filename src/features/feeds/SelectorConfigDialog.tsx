@@ -62,14 +62,23 @@ export function SelectorConfigDialog({
 			const config = await getSelectorConfig(feedId)
 			setSelectors(config?.selectors || [])
 			setCustomCss(config?.customCss || '')
+		} catch (e) {
+			console.error('[SelectorConfigDialog] Failed to load config:', e)
+			setSelectors([])
+			setCustomCss('')
 		} finally {
 			setIsLoading(false)
 		}
 	}, [feedId])
 
 	const loadAuthConfig = useCallback(async () => {
-		const auth = await getAuthConfig(feedId)
-		setAuthConfig(auth)
+		try {
+			const auth = await getAuthConfig(feedId)
+			setAuthConfig(auth)
+		} catch (e) {
+			console.error('[SelectorConfigDialog] Failed to load auth config:', e)
+			setAuthConfig(null)
+		}
 	}, [feedId])
 
 	// Load existing config on open
