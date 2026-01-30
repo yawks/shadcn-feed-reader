@@ -722,7 +722,8 @@ pub async fn proxy_resource_handler(
         let base_url_guard = state.base_url.lock().unwrap();
         base_url_guard.to_string()
     };
-    
+    println!("Proxy resource handler - Referer: {} -> Target: {}", referer_url, target_url);
+
     let client_req = client_req_builder
         .header(
             header::USER_AGENT,
@@ -745,7 +746,10 @@ pub async fn proxy_resource_handler(
             StatusCode::BAD_GATEWAY
         })?;
 
-    println!("Proxy resource handler - response status: {} for URL: {}", response.status(), target_url);
+    println!("Proxy resource handler - response status: {} for URL: {} (content-length: {:?})",
+        response.status(),
+        target_url,
+        response.headers().get(header::CONTENT_LENGTH));
     
     // Check for 401 Unauthorized
     if response.status() == StatusCode::UNAUTHORIZED {

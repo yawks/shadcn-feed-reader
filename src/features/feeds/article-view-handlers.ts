@@ -140,49 +140,64 @@ export async function handleReadabilityView({
         // Rewrite image URLs to go through proxy to avoid hotlinking issues
         // This ensures images from CDNs that check Referer headers will work
         const effectiveProxyPort = proxyPort || javaProxyPort
-        
+
         // Detect Web Mode (no Tauri, no Capacitor)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isWeb = typeof window !== 'undefined' && 
-                      !(window as any).__TAURI_INTERNALS__ && 
+        const isWeb = typeof window !== 'undefined' &&
+                      !(window as any).__TAURI_INTERNALS__ &&
                       !(window as any).__TAURI__ &&
                       !Capacitor.isNativePlatform();
+
+        // In web mode, set the proxy URL so the server knows the Referer to use
+        if (isWeb) {
+            try {
+                await safeInvoke('set_proxy_url', { url })
+                // eslint-disable-next-line no-console
+                console.log('[handleReadabilityView] Set proxy URL for Referer:', url)
+            } catch (_err) {
+                // eslint-disable-next-line no-console
+                console.warn('[handleReadabilityView] Failed to set proxy URL:', _err)
+            }
+        }
+
+        // Build the proxy base URL - must be absolute for blob iframes
+        const webProxyBase = isWeb ? window.location.origin : ''
 
         if (effectiveProxyPort || isWeb) {
             // Parse the HTML and rewrite all image src attributes
             const parser = new DOMParser()
             const doc = parser.parseFromString(summary, 'text/html')
-            
+
             // Rewrite all img src attributes
             doc.querySelectorAll('img').forEach((img) => {
                 const src = img.getAttribute('src')
-                if (src && 
-                    !src.startsWith('data:') && 
-                    !src.startsWith('blob:') && 
+                if (src &&
+                    !src.startsWith('data:') &&
+                    !src.startsWith('blob:') &&
                     !src.startsWith('http://localhost:') &&
                     (src.startsWith('http://') || src.startsWith('https://'))) {
-                    const proxyUrl = effectiveProxyPort 
+                    const proxyUrl = effectiveProxyPort
                         ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
-                        : `/proxy?url=${encodeURIComponent(src)}`
+                        : `${webProxyBase}/proxy?url=${encodeURIComponent(src)}`
                     img.setAttribute('src', proxyUrl)
                 }
             })
-            
+
             // Rewrite srcset attributes
             doc.querySelectorAll('img[srcset]').forEach((img) => {
                 const srcset = img.getAttribute('srcset')
                 if (srcset) {
                     const rewrittenSrcset = srcset.split(',').map(entry => {
                         const parts = entry.trim().split(/\s+/)
-                        const url = parts[0]
-                        if (url && 
-                            !url.startsWith('data:') && 
-                            !url.startsWith('blob:') && 
-                            !url.startsWith('http://localhost:') &&
-                            (url.startsWith('http://') || url.startsWith('https://'))) {
-                            const proxyUrl = effectiveProxyPort 
-                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
-                                : `/proxy?url=${encodeURIComponent(url)}`
+                        const imgUrl = parts[0]
+                        if (imgUrl &&
+                            !imgUrl.startsWith('data:') &&
+                            !imgUrl.startsWith('blob:') &&
+                            !imgUrl.startsWith('http://localhost:') &&
+                            (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
+                            const proxyUrl = effectiveProxyPort
+                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(imgUrl)}`
+                                : `${webProxyBase}/proxy?url=${encodeURIComponent(imgUrl)}`
                             return proxyUrl + (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
                         }
                         return entry.trim()
@@ -984,7 +999,30 @@ export async function handleConfiguredView({
         }
 
         const effectiveProxyPort = proxyPort || javaProxyPort
-        if (effectiveProxyPort) {
+
+        // Detect Web Mode (no Tauri, no Capacitor)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isWeb = typeof window !== 'undefined' &&
+                      !(window as any).__TAURI_INTERNALS__ &&
+                      !(window as any).__TAURI__ &&
+                      !Capacitor.isNativePlatform();
+
+        // In web mode, set the proxy URL so the server knows the Referer to use
+        if (isWeb) {
+            try {
+                await safeInvoke('set_proxy_url', { url })
+                // eslint-disable-next-line no-console
+                console.log('[handleConfiguredView] Set proxy URL for Referer:', url)
+            } catch (_err) {
+                // eslint-disable-next-line no-console
+                console.warn('[handleConfiguredView] Failed to set proxy URL:', _err)
+            }
+        }
+
+        // Build the proxy base URL - must be absolute for blob iframes
+        const webProxyBase = isWeb ? window.location.origin : ''
+
+        if (effectiveProxyPort || isWeb) {
             const parser = new DOMParser()
             const doc = parser.parseFromString(extractedContent, 'text/html')
 
@@ -996,7 +1034,9 @@ export async function handleConfiguredView({
                     !src.startsWith('blob:') &&
                     !src.startsWith('http://localhost:') &&
                     (src.startsWith('http://') || src.startsWith('https://'))) {
-                    const proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
+                    const proxyUrl = effectiveProxyPort
+                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
+                        : `${webProxyBase}/proxy?url=${encodeURIComponent(src)}`
                     img.setAttribute('src', proxyUrl)
                 }
             })
@@ -1013,7 +1053,9 @@ export async function handleConfiguredView({
                             !imgUrl.startsWith('blob:') &&
                             !imgUrl.startsWith('http://localhost:') &&
                             (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
-                            const proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(imgUrl)}`
+                            const proxyUrl = effectiveProxyPort
+                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(imgUrl)}`
+                                : `${webProxyBase}/proxy?url=${encodeURIComponent(imgUrl)}`
                             return proxyUrl + (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
                         }
                         return entry.trim()

@@ -503,6 +503,10 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             // This will cause the useEffect to re-run and retry fetchRawHtml with auth
             setViewMode('original')
             setTimeout(() => setViewMode('readability'), 10)
+        } else if (viewMode === 'configured') {
+            // Same approach for configured mode
+            setViewMode('original')
+            setTimeout(() => setViewMode('configured'), 10)
         } else if (viewMode === 'original') {
             // Force reload iframe
             if (iframeRef.current) {

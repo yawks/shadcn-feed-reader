@@ -30,6 +30,10 @@ export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
   // @ts-ignore
   const isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
+  // Check if we are in a Capacitor environment
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
+
   if (isTauri) {
     let tauriInvoke: any
     try {
@@ -53,7 +57,14 @@ export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
     }
   }
 
-  // Fallback to HTTP API
+  // On Capacitor, throw an error so the caller can use the Capacitor plugin fallback
+  // The HTTP API is only available in Docker/Web mode, not in Capacitor
+  if (isCapacitor) {
+    console.log('[safeInvoke] ⚠️ Capacitor detected, throwing to trigger plugin fallback:', cmd)
+    throw new Error('Tauri invoke not available (Capacitor platform)')
+  }
+
+  // Fallback to HTTP API (only for Docker/Web mode)
   const httpArgs = transformArgsForHttp(cmd, args)
   console.log('[safeInvoke] 🌐 HTTP API fallback:', cmd, httpArgs)
 
