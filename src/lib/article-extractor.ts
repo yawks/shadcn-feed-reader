@@ -213,10 +213,211 @@ function fixNoscriptImages(doc: Document): void {
 function fixLazyIframes(doc: Document): void {
   doc.querySelectorAll('iframe').forEach((ifr) => {
     if (ifr.getAttribute('src')) return;
-    
+
     const ds = ifr.getAttribute('data-src') || ifr.getAttribute('data-lazy-src');
     if (ds) {
       ifr.setAttribute('src', ds);
+    }
+  });
+}
+
+/**
+ * Creates a YouTube video thumbnail element that opens in an in-app modal
+ * Sends postMessage to parent window to open YouTube player modal
+ */
+function createYouTubeLink(doc: Document, videoId: string, title?: string): HTMLElement {
+  const container = doc.createElement('div');
+  container.className = 'youtube-video-link';
+  container.dataset.videoId = videoId;
+  container.dataset.videoTitle = title || '';
+  container.style.cssText = `
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    aspect-ratio: 16/9;
+    margin: 1rem auto;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+  `;
+
+  // Thumbnail image
+  const thumbnail = doc.createElement('img');
+  thumbnail.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  thumbnail.alt = title || 'YouTube video';
+  thumbnail.style.cssText = `
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  `;
+  // Fallback to hqdefault if maxresdefault doesn't exist
+  thumbnail.onerror = function() {
+    (this as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  };
+
+  // Play button overlay
+  const playButton = doc.createElement('div');
+  playButton.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 48px;
+    background: rgba(255, 0, 0, 0.8);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  `;
+  playButton.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>`;
+
+  // "Play video" text
+  const watchText = doc.createElement('div');
+  watchText.textContent = '▶ Play video';
+  watchText.style.cssText = `
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: none;
+  `;
+
+  container.appendChild(thumbnail);
+  container.appendChild(playButton);
+  container.appendChild(watchText);
+
+  return container;
+}
+
+/**
+ * Extracts YouTube video ID from various URL formats
+ */
+function extractYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+
+  // Match embed URLs: youtube.com/embed/VIDEO_ID or youtube-nocookie.com/embed/VIDEO_ID
+  const embedMatch = url.match(/youtube(?:-nocookie)?\.com\/embed\/([a-zA-Z0-9_-]+)/);
+  if (embedMatch) return embedMatch[1];
+
+  // Match watch URLs: youtube.com/watch?v=VIDEO_ID
+  const watchMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return watchMatch[1];
+
+  // Match short URLs: youtu.be/VIDEO_ID
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return shortMatch[1];
+
+  return null;
+}
+
+/**
+ * Converts YouTube placeholder divs and iframes to clickable YouTube links
+ * Handles lazy-loaded YouTube players like rll-youtube-player
+ * Also extracts iframes from noscript fallbacks
+ *
+ * Note: We convert to links instead of iframes because YouTube embeds
+ * don't work properly when nested inside blob: URL iframes (error 153)
+ */
+export function convertYouTubePlaceholders(doc: Document): void {
+  // First, handle existing YouTube iframes - convert them to links
+  doc.querySelectorAll('iframe[src*="youtube"]').forEach((iframe) => {
+    const src = iframe.getAttribute('src') || '';
+    const videoId = extractYouTubeVideoId(src);
+    if (!videoId) return;
+
+    const title = iframe.getAttribute('title') || undefined;
+    const link = createYouTubeLink(doc, videoId, title);
+    iframe.parentNode?.replaceChild(link, iframe);
+  });
+
+  // Handle noscript tags containing YouTube iframes
+  doc.querySelectorAll('noscript').forEach((noscript) => {
+    const html = noscript.textContent || noscript.innerHTML || '';
+    if (!html.includes('youtube') && !html.includes('iframe')) return;
+
+    try {
+      const parser = new DOMParser();
+      const noscriptDoc = parser.parseFromString(html, 'text/html');
+      const iframe = noscriptDoc.querySelector('iframe[src*="youtube"]');
+
+      if (iframe) {
+        const src = iframe.getAttribute('src') || '';
+        const videoId = extractYouTubeVideoId(src);
+        if (!videoId) return;
+
+        // Check if parent has a placeholder sibling (rll-youtube-player, etc.)
+        const parent = noscript.parentElement;
+        if (parent) {
+          const placeholder = parent.querySelector('.rll-youtube-player, [data-id][data-src*="youtube"]');
+          if (placeholder) {
+            // Replace the placeholder with a YouTube link
+            const title = iframe.getAttribute('title') || undefined;
+            const link = createYouTubeLink(doc, videoId, title);
+            placeholder.parentNode?.replaceChild(link, placeholder);
+            noscript.remove();
+            return;
+          }
+        }
+
+        // No placeholder found, replace noscript with a YouTube link
+        const title = iframe.getAttribute('title') || undefined;
+        const link = createYouTubeLink(doc, videoId, title);
+        noscript.parentNode?.replaceChild(link, noscript);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  });
+
+  // Handle remaining placeholder divs without noscript fallbacks
+  const placeholderSelectors = [
+    '.rll-youtube-player',
+    '[data-youtube-id]',
+    '[data-video-id]',
+    '.youtube-player[data-id]',
+    '.lazy-youtube[data-id]',
+    '[data-src*="youtube"]',
+    '[data-src*="youtube-nocookie"]',
+  ];
+
+  placeholderSelectors.forEach((selector) => {
+    try {
+      doc.querySelectorAll(selector).forEach((elem) => {
+        // Skip if already processed (is a link) or is an iframe
+        if (elem.tagName === 'IFRAME' || elem.tagName === 'A') return;
+        if (elem.classList.contains('youtube-video-link')) return;
+
+        // Extract video ID from various attributes
+        let videoId = elem.getAttribute('data-id') ||
+                      elem.getAttribute('data-youtube-id') ||
+                      elem.getAttribute('data-video-id');
+
+        // Try to extract from data-src if no direct ID
+        if (!videoId) {
+          const dataSrc = elem.getAttribute('data-src');
+          if (dataSrc) {
+            videoId = extractYouTubeVideoId(dataSrc);
+          }
+        }
+
+        if (!videoId) return;
+
+        // Create YouTube link
+        const link = createYouTubeLink(doc, videoId);
+
+        // Replace the placeholder with the YouTube link
+        elem.parentNode?.replaceChild(link, elem);
+      });
+    } catch {
+      // Ignore selector errors
     }
   });
 }
@@ -1309,7 +1510,9 @@ function postProcessContent(content: string, title: string, originalImages: HTML
   removeDuplicateTextContent(doc);
   
   fixLazyIframes(doc);
-  
+
+  convertYouTubePlaceholders(doc);
+
   const h1 = doc.createElement('h1');
   h1.textContent = title;
   doc.body.insertBefore(h1, doc.body.firstChild);
@@ -1382,6 +1585,11 @@ export function extractArticle(
   const documentClone = doc.cloneNode(true) as Document;
 
   removeAsides(documentClone);
+
+  // Convert YouTube placeholders to iframes BEFORE Readability processes the content
+  // This ensures Readability preserves the video embeds
+  convertYouTubePlaceholders(documentClone);
+  fixLazyIframes(documentClone);
 
   const reader = new Readability(documentClone, {
     maxElemsToParse: 0,

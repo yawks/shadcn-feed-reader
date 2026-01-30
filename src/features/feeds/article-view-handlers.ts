@@ -1,7 +1,7 @@
 import { AuthRequiredError, fetchRawHtml } from "@/lib/raw-html"
 import i18n from '@/i18n'
 import { extractDomain, getStoredAuth } from '@/lib/auth-storage'
-import { extractArticle } from "@/lib/article-extractor"
+import { extractArticle, convertYouTubePlaceholders } from "@/lib/article-extractor"
 import { safeInvoke } from '@/lib/safe-invoke'
 import { getIframeZoomScript } from './article-zoom-scripts'
 import type { SelectorItem, FeedAuthConfig } from './selector-config-types'
@@ -398,6 +398,45 @@ export async function handleReadabilityView({
                         processImages();
                     });
                     imageObserver.observe(document.body, { childList: true, subtree: true });
+                });
+            }
+        })();
+
+        // Handle YouTube video clicks - open in parent modal
+        (function() {
+            function handleYouTubeClick(container) {
+                var videoId = container.dataset.videoId;
+                var videoTitle = container.dataset.videoTitle || '';
+                if (videoId && window.parent) {
+                    window.parent.postMessage({
+                        type: 'YOUTUBE_VIDEO_CLICK',
+                        videoId: videoId,
+                        videoTitle: videoTitle
+                    }, '*');
+                }
+            }
+
+            function setupYouTubeListeners() {
+                document.querySelectorAll('.youtube-video-link').forEach(function(container) {
+                    if (container.dataset.youtubeListenerAdded) return;
+                    container.dataset.youtubeListenerAdded = 'true';
+                    container.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleYouTubeClick(container);
+                    });
+                });
+            }
+
+            if (document.body) {
+                setupYouTubeListeners();
+                var ytObserver = new MutationObserver(setupYouTubeListeners);
+                ytObserver.observe(document.body, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setupYouTubeListeners();
+                    var ytObserver = new MutationObserver(setupYouTubeListeners);
+                    ytObserver.observe(document.body, { childList: true, subtree: true });
                 });
             }
         })();
@@ -980,7 +1019,12 @@ export async function handleConfiguredView({
             extractedContent = doc.body.innerHTML
         }
 
-        // 5. Fix lazy-loaded images and rewrite URLs for proxy
+        // 5. Convert YouTube placeholders to iframes and fix lazy-loaded images
+        const parser = new DOMParser()
+        const contentDoc = parser.parseFromString(extractedContent, 'text/html')
+        convertYouTubePlaceholders(contentDoc)
+        extractedContent = contentDoc.body.innerHTML
+
         let rewrittenContent = fixLazyLoadedImages(extractedContent)
 
         // On Android/Capacitor: use proxy port if available
@@ -1100,6 +1144,45 @@ export async function handleConfiguredView({
     <meta http-equiv="Permissions-Policy" content="accelerometer=*, gyroscope=*, magnetometer=*">
     <script>
         ${getIframeZoomScript()}
+
+        // Handle YouTube video clicks - open in parent modal
+        (function() {
+            function handleYouTubeClick(container) {
+                var videoId = container.dataset.videoId;
+                var videoTitle = container.dataset.videoTitle || '';
+                if (videoId && window.parent) {
+                    window.parent.postMessage({
+                        type: 'YOUTUBE_VIDEO_CLICK',
+                        videoId: videoId,
+                        videoTitle: videoTitle
+                    }, '*');
+                }
+            }
+
+            function setupYouTubeListeners() {
+                document.querySelectorAll('.youtube-video-link').forEach(function(container) {
+                    if (container.dataset.youtubeListenerAdded) return;
+                    container.dataset.youtubeListenerAdded = 'true';
+                    container.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleYouTubeClick(container);
+                    });
+                });
+            }
+
+            if (document.body) {
+                setupYouTubeListeners();
+                var ytObserver = new MutationObserver(setupYouTubeListeners);
+                ytObserver.observe(document.body, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setupYouTubeListeners();
+                    var ytObserver = new MutationObserver(setupYouTubeListeners);
+                    ytObserver.observe(document.body, { childList: true, subtree: true });
+                });
+            }
+        })();
     </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }

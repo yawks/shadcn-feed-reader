@@ -64,6 +64,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
     const [scrollProgress, setScrollProgress] = useState(0)
+    const [youtubeVideo, setYoutubeVideo] = useState<{ videoId: string; title: string } | null>(null)
 
     // Selector configuration state
     const [selectorConfigExists, setSelectorConfigExists] = useState<boolean>(() => {
@@ -452,6 +453,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
 
     // Listen for auth requests from proxy via postMessage
     // Also listen for image long press events from iframe
+    // Also listen for YouTube video clicks from iframe
     useEffect(() => {
         const handleMessage = async (event: MessageEvent) => {
             if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
@@ -462,6 +464,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 if (Capacitor.getPlatform() === 'android') {
                     setSelectedImageUrl(event.data.imageUrl)
                 }
+            } else if (event.data?.type === 'YOUTUBE_VIDEO_CLICK' && event.data?.videoId) {
+                // Open YouTube video in modal
+                setYoutubeVideo({
+                    videoId: event.data.videoId,
+                    title: event.data.videoTitle || ''
+                })
             }
         }
 
@@ -1129,6 +1137,43 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 imageUrl={selectedImageUrl}
                 onClose={() => setSelectedImageUrl(null)}
             />
+
+            {/* YouTube Video Modal */}
+            {youtubeVideo && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
+                    onClick={() => setYoutubeVideo(null)}
+                >
+                    <div
+                        className="relative w-full max-w-4xl mx-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Close button */}
+                        <button
+                            className="absolute -top-10 right-0 text-white hover:text-gray-300 text-xl p-2"
+                            onClick={() => setYoutubeVideo(null)}
+                            aria-label="Close video"
+                        >
+                            ✕
+                        </button>
+                        {/* Video title */}
+                        {youtubeVideo.title && (
+                            <p className="text-white text-sm mb-2 truncate">{youtubeVideo.title}</p>
+                        )}
+                        {/* YouTube iframe - rendered at app level, not nested in blob iframe */}
+                        <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                            <iframe
+                                className="absolute inset-0 w-full h-full"
+                                src={`https://www.youtube-nocookie.com/embed/${youtubeVideo.videoId}?autoplay=1&rel=0`}
+                                title={youtubeVideo.title || 'YouTube video'}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                                style={{ border: 0 }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     )
