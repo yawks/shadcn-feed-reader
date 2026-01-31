@@ -19,8 +19,8 @@ export function ResizeHandle({ onMouseDown, className, style }: ResizeHandleProp
       onMouseDown={onMouseDown}
       aria-label="Redimensionner le panneau"
     >
-      {/* Ligne de séparation visible */}
-      <div className="absolute inset-y-0 left-1/2 w-px bg-border transform -translate-x-1/2" />
+      {/* Ligne de séparation visible uniquement au hover */}
+      <div className="absolute inset-y-0 left-1/2 w-px bg-transparent group-hover:bg-border transform -translate-x-1/2 transition-colors" />
       
       {/* Zone de survol plus large pour faciliter l'interaction */}
       <div className="absolute inset-y-0 -left-2 -right-2 z-10" />

@@ -35,13 +35,10 @@ function RouteComponent() {
           <div
             id='content'
             className={cn(
-              'w-full max-w-full', // suppression de ml-auto
-              'peer-data-[state=collapsed]:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
-              'peer-data-[state=expanded]:w-[calc(100%-var(--sidebar-width))]',
+              'flex-1 min-w-0', // utilise flex-1 pour prendre l'espace restant
               'flex flex-col',
               'group-data-[scroll-locked=1]/body:h-full',
               'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh',
-              'pl-0', // padding-left forcé à 0
             )}
             style={{
               // Use inline styles for safe area to ensure they're always recalculated

@@ -4,17 +4,19 @@ import { useSidebarResize } from '@/hooks/use-sidebar-resize'
 
 export function SidebarResizeHandle() {
   const { state } = useSidebar()
-  
+  const isCollapsed = state === 'collapsed'
+
   // Hook pour gérer le redimensionnement de la sidebar
   const { handleMouseDown, sidebarWidth } = useSidebarResize({
     sidebarWidthKey: 'sidebar-width',
     defaultSidebarWidth: 280,
     minSidebarWidth: 200,
-    maxSidebarWidth: 400
+    maxSidebarWidth: 400,
+    isCollapsed
   })
 
   // Ne pas afficher le handle si la sidebar est réduite
-  if (state === 'collapsed') {
+  if (isCollapsed) {
     return null
   }
 

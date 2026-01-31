@@ -245,12 +245,12 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
                   ) : (
                     item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
                       item.iconUrl ? (
-                        <img 
-                          src={item.iconUrl} 
-                          alt={item.title} 
+                        <img
+                          src={item.iconUrl}
+                          alt={item.title}
                           className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
                         />
-                      ) : null
+                      ) : <IconNews className="w-4 h-4 text-muted-foreground" />
                     )
                   )}
                 </button>
@@ -455,91 +455,90 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
   );
 
   return (
-    <Collapsible
-      asChild
-      defaultOpen={isActive}
-      className='group/collapsible'
-    >
-      <SidebarMenuItem
-        className={`relative transition-colors ${isDragOver ? 'bg-accent/50 ring-2 ring-accent' : ''}`}
-        onDragOver={(e) => { 
-          e.preventDefault(); 
-          e.dataTransfer.dropEffect = 'move'; 
-          setIsDragOver(true);
-        }}
-        onDragLeave={(e) => {
-          // Only hide if we're leaving the entire folder area
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setIsDragOver(false);
-          }
-        }}
-        onDrop={async (e) => {
-          e.preventDefault()
-          setIsDragOver(false)
-          const feedId = e.dataTransfer.getData('application/x-feed-id')
-          if (!feedId) return
-          // Determine folderId from this item's url
-          const itemUrl = (item as { url?: string }).url
-          const folderId = itemUrl ? (itemUrl as string).split('/').pop() ?? null : null
-          const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
-          try {
-            // optimistic move: remove from any folder and add to this folder
-            queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
-              if (!old) return old
-              
-              // First, find the feed being moved and its unreadCount
-              let movedFeed: { title: string; url: string; badge?: string } | null = null
-              let feedUnreadCount = 0
-              
-              // Remove from previous folders and capture feed data
-              const without = old.map((f) => {
-                if (!f.items) return f
-                const feedToMove = f.items.find((s) => s.url === `/feed/${feedId}`)
-                if (feedToMove && feedToMove.url) {
-                  movedFeed = { ...feedToMove, url: feedToMove.url }
-                  // Parse badge as unread count
-                  feedUnreadCount = feedToMove.badge ? parseInt(feedToMove.badge) || 0 : 0
-                  
-                  // Update folder's badge (subtract moved feed's unread count)
-                  const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
-                  const newFolderUnread = Math.max(0, currentFolderUnread - feedUnreadCount)
-                  
-                  return { 
-                    ...f, 
-                    items: f.items.filter((s) => s.url !== `/feed/${feedId}`),
-                    badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
-                  }
+    <SidebarMenuItem
+      className={`relative transition-colors ${isDragOver ? 'bg-accent/50 ring-2 ring-accent' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        // Only hide if we're leaving the entire folder area
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragOver(false);
+        }
+      }}
+      onDrop={async (e) => {
+        e.preventDefault()
+        setIsDragOver(false)
+        const feedId = e.dataTransfer.getData('application/x-feed-id')
+        if (!feedId) return
+        // Determine folderId from this item's url
+        const itemUrl = (item as { url?: string }).url
+        const folderId = itemUrl ? (itemUrl as string).split('/').pop() ?? null : null
+        const prev = queryClient.getQueryData<FolderCacheItem[]>(['folders'])
+        try {
+          // optimistic move: remove from any folder and add to this folder
+          queryClient.setQueryData<FolderCacheItem[]>(['folders'], (old) => {
+            if (!old) return old
+
+            // First, find the feed being moved and its unreadCount
+            let movedFeed: { title: string; url: string; badge?: string } | null = null
+            let feedUnreadCount = 0
+
+            // Remove from previous folders and capture feed data
+            const without = old.map((f) => {
+              if (!f.items) return f
+              const feedToMove = f.items.find((s) => s.url === `/feed/${feedId}`)
+              if (feedToMove && feedToMove.url) {
+                movedFeed = { ...feedToMove, url: feedToMove.url }
+                // Parse badge as unread count
+                feedUnreadCount = feedToMove.badge ? parseInt(feedToMove.badge) || 0 : 0
+
+                // Update folder's badge (subtract moved feed's unread count)
+                const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+                const newFolderUnread = Math.max(0, currentFolderUnread - feedUnreadCount)
+
+                return {
+                  ...f,
+                  items: f.items.filter((s) => s.url !== `/feed/${feedId}`),
+                  badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
                 }
-                return f
-              })
-              
-              // Add to target folder and update its badge
-              return without.map((f) => {
-                if (!f.items) return f
-                const id = f.id ?? f.url
-                if ((f.url ?? '').endsWith(`/folder/${folderId}`) || String(id) === String(folderId)) {
-                  // Update target folder's badge (add moved feed's unread count)
-                  const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
-                  const newFolderUnread = currentFolderUnread + feedUnreadCount
-                  
-                  return { 
-                    ...f, 
-                    items: [...f.items, movedFeed || { url: `/feed/${feedId}`, title: 'Moved Feed' }],
-                    badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
-                  }
-                }
-                return f
-              })
+              }
+              return f
             })
-            // call backend
-            const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
-            const backend = new FeedBackend()
-            await backend.moveFeed(feedId, folderId)
-          } catch (_error) {
-            // revert on error
-            queryClient.setQueryData(['folders'], prev)
-          }
-        }}
+
+            // Add to target folder and update its badge
+            return without.map((f) => {
+              if (!f.items) return f
+              const id = f.id ?? f.url
+              if ((f.url ?? '').endsWith(`/folder/${folderId}`) || String(id) === String(folderId)) {
+                // Update target folder's badge (add moved feed's unread count)
+                const currentFolderUnread = f.badge ? parseInt(f.badge) || 0 : 0
+                const newFolderUnread = currentFolderUnread + feedUnreadCount
+
+                return {
+                  ...f,
+                  items: [...f.items, movedFeed || { url: `/feed/${feedId}`, title: 'Moved Feed' }],
+                  badge: newFolderUnread > 0 ? String(newFolderUnread) : undefined
+                }
+              }
+              return f
+            })
+          })
+          // call backend
+          const FeedBackend = (await import('@/backends/nextcloud-news/nextcloud-news')).default
+          const backend = new FeedBackend()
+          await backend.moveFeed(feedId, folderId)
+        } catch (_error) {
+          // revert on error
+          queryClient.setQueryData(['folders'], prev)
+        }
+      }}
+    >
+      <Collapsible
+        defaultOpen={isActive}
+        className='group/collapsible'
       >
         <div className="flex items-center gap-0">
           <div
@@ -581,12 +580,12 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
               ) : (
                 item.icon ? <item.icon className={`transition-colors duration-200 ${isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} /> : (
                   item.iconUrl ? (
-                    <img 
-                      src={item.iconUrl} 
-                      alt={item.title} 
+                    <img
+                      src={item.iconUrl}
+                      alt={item.title}
                       className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
                     />
-                  ) : null
+                  ) : <IconNews className="w-4 h-4 text-muted-foreground" />
                 )
               )}
             </div>
@@ -639,8 +638,8 @@ function SidebarMenuCollapsible({ item, href, onDragStateChange }: { item: NavCo
             )) || []}
           </SidebarMenuSub>
         </CollapsibleContent>
-      </SidebarMenuItem>
-    </Collapsible>
+      </Collapsible>
+    </SidebarMenuItem>
   )
 }
 
@@ -914,26 +913,27 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
 function getSubItemIcon(subItem: NavItem, parentItem: NavCollapsible) {
   if (subItem.iconUrl) {
     return (
-      <img 
-        src={subItem.iconUrl} 
-        alt={subItem.title} 
+      <img
+        src={subItem.iconUrl}
+        alt={subItem.title}
         className="w-4 h-4 rounded-sm ring-1 ring-border/10 transition-transform duration-200 group-hover:scale-110"
       />
     )
   }
-  
+
   if (parentItem.iconUrl) {
     return (
-      <img 
-        src={parentItem.iconUrl} 
-        alt={parentItem.title} 
+      <img
+        src={parentItem.iconUrl}
+        alt={parentItem.title}
         className="w-4 h-4 rounded-sm ring-1 ring-border/10 opacity-60 transition-all duration-200 group-hover:opacity-80 group-hover:scale-110"
       />
     )
   }
-  
-  return null
-};
+
+  // Return a placeholder icon instead of null to avoid potential issues with Slot components
+  return <IconNews className="w-4 h-4 text-muted-foreground" />
+}
 
 const SidebarMenuCollapsedDropdown = ({
   item,
@@ -945,14 +945,17 @@ const SidebarMenuCollapsedDropdown = ({
   return (
     <SidebarMenuItem>
       <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenuTrigger asChild>
           <SidebarMenuButton
-            asChild
             tooltip={item.title}
             isActive={checkIsActive(href, item)}
           >
-            {item.icon && typeof (item.icon) == "string" ? <img src={item.icon} alt={item.title} className='w-4 h-4'></img> : (
-              item.icon && <item.icon />
+            {item.icon && typeof (item.icon) == "string" ? (
+              <img src={item.icon} alt={item.title} className='w-4 h-4' />
+            ) : item.icon ? (
+              <item.icon />
+            ) : (
+              <IconNews className="w-4 h-4 text-muted-foreground" />
             )}
             <span className='text-xs'>{item.title}</span>
             {item.badge && <NavBadge>{item.badge}</NavBadge>}
@@ -970,10 +973,14 @@ const SidebarMenuCollapsedDropdown = ({
                 to={sub.url}
                 className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
               >
-                {item.icon && typeof (item.icon) == "string" ? <><img src={item.icon} alt={item.title} className='w-4 h-4'></img><IconNews className="hidden" /></> : (
-                  item.icon && <item.icon />
+                {item.icon && typeof (item.icon) == "string" ? (
+                  <img src={item.icon} alt={item.title} className='w-4 h-4' />
+                ) : item.icon ? (
+                  <item.icon />
+                ) : (
+                  <IconNews className="w-4 h-4 text-muted-foreground" />
                 )}
-                <span className='max-w-52 text-wra text-xs'>{sub.title}</span>
+                <span className='max-w-52 text-wrap text-xs'>{sub.title}</span>
                 {sub.badge && (
                   <span className='ml-auto text-xs'>{sub.badge}</span>
                 )}

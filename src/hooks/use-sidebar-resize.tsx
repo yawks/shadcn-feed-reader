@@ -5,13 +5,15 @@ interface UseSidebarResizeOptions {
   defaultSidebarWidth: number
   minSidebarWidth?: number
   maxSidebarWidth?: number
+  isCollapsed?: boolean
 }
 
 export function useSidebarResize({
   sidebarWidthKey,
   defaultSidebarWidth,
   minSidebarWidth = 200,
-  maxSidebarWidth = 400
+  maxSidebarWidth = 400,
+  isCollapsed = false
 }: UseSidebarResizeOptions) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(sidebarWidthKey)
@@ -23,11 +25,23 @@ export function useSidebarResize({
   // Sauvegarder dans localStorage et mettre à jour la variable CSS
   useEffect(() => {
     localStorage.setItem(sidebarWidthKey, sidebarWidth.toString())
-    
-    // Mettre à jour immédiatement sans animation
+
     const sidebarContainer = document.querySelector('[data-slot="sidebar-container"]') as HTMLElement
     const sidebarGap = document.querySelector('[data-slot="sidebar-gap"]') as HTMLElement
-    
+
+    // Si collapsed, supprimer les styles inline pour laisser les classes Tailwind gérer la largeur
+    if (isCollapsed) {
+      if (sidebarContainer) {
+        sidebarContainer.style.width = ''
+      }
+      if (sidebarGap) {
+        sidebarGap.style.width = ''
+      }
+      document.documentElement.style.removeProperty('--sidebar-width')
+      return
+    }
+
+    // Mettre à jour immédiatement sans animation
     // Désactiver temporairement les transitions
     if (sidebarContainer) {
       sidebarContainer.style.transition = 'none'
@@ -37,10 +51,10 @@ export function useSidebarResize({
       sidebarGap.style.transition = 'none'
       sidebarGap.style.width = `${sidebarWidth}px`
     }
-    
+
     // Mettre à jour la variable CSS globale
     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    
+
     // Forcer un reflow puis réactiver les transitions (pour les futures interactions)
     setTimeout(() => {
       if (sidebarContainer) {
@@ -50,7 +64,7 @@ export function useSidebarResize({
         sidebarGap.style.transition = ''
       }
     }, 0)
-  }, [sidebarWidth, sidebarWidthKey])
+  }, [sidebarWidth, sidebarWidthKey, isCollapsed])
 
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
