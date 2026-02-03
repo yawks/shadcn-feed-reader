@@ -27,6 +27,8 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
   const initialScaleRef = useRef(1)
   const lastTouchCenterRef = useRef({ x: 0, y: 0 })
   const lastPanRef = useRef({ x: 0, y: 0 })
+  const pinchStartPanRef = useRef({ x: 0, y: 0 })
+  const pinchStartCenterRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     const container = containerRef.current
@@ -40,11 +42,11 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
 
     const applyZoom = (newScale: number, panX: number, panY: number) => {
       const clampedScale = Math.max(1.0, Math.min(5, newScale))
-      
+
       // Reset pan when zoom returns to 100%
       const finalPanX = clampedScale === 1.0 ? 0 : panX
       const finalPanY = clampedScale === 1.0 ? 0 : panY
-      
+
       setScale(clampedScale)
       setPan({ x: finalPanX, y: finalPanY })
       lastPanRef.current = { x: finalPanX, y: finalPanY }
@@ -65,10 +67,13 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
           touch2.clientY - touch1.clientY
         )
         initialScaleRef.current = scale
-        lastTouchCenterRef.current = getTouchCenter(touch1, touch2)
+        pinchStartPanRef.current = { x: lastPanRef.current.x, y: lastPanRef.current.y }
+        pinchStartCenterRef.current = getTouchCenter(touch1, touch2)
+        lastTouchCenterRef.current = pinchStartCenterRef.current
         // eslint-disable-next-line no-console
-        console.log('[ZOOM-DIAG] Fullscreen image: Pinch start')
+        console.log('[ZOOM-DIAG] Fullscreen image: Pinch start, center:', pinchStartCenterRef.current)
       } else if (e.touches.length === 1 && scale > 1) {
+        lastTouchCenterRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
         e.preventDefault()
       }
     }
@@ -84,13 +89,14 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
         )
 
         if (initialDistanceRef.current > 0) {
-          const newScale = initialScaleRef.current * (currentDistance / initialDistanceRef.current)
+          const newScale = Math.max(1.0, Math.min(5, initialScaleRef.current * (currentDistance / initialDistanceRef.current)))
           const touchCenter = getTouchCenter(touch1, touch2)
-          const deltaX = touchCenter.x - lastTouchCenterRef.current.x
-          const deltaY = touchCenter.y - lastTouchCenterRef.current.y
 
-          const newPanX = lastPanRef.current.x + deltaX * (1 - 1 / newScale)
-          const newPanY = lastPanRef.current.y + deltaY * (1 - 1 / newScale)
+          // Calculate pan to keep the pinch center point fixed on content
+          // Formula: newPan = touchCenter - (pinchStartCenter - pinchStartPan) * newScale / initialScale
+          const scaleRatio = newScale / initialScaleRef.current
+          const newPanX = touchCenter.x - (pinchStartCenterRef.current.x - pinchStartPanRef.current.x) * scaleRatio
+          const newPanY = touchCenter.y - (pinchStartCenterRef.current.y - pinchStartPanRef.current.y) * scaleRatio
 
           applyZoom(newScale, newPanX, newPanY)
           lastTouchCenterRef.current = touchCenter
@@ -98,8 +104,8 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
       } else if (e.touches.length === 1 && scale > 1) {
         e.preventDefault()
         const touch = e.touches[0]
-        const deltaX = touch.clientX - (lastTouchCenterRef.current.x || touch.clientX)
-        const deltaY = touch.clientY - (lastTouchCenterRef.current.y || touch.clientY)
+        const deltaX = touch.clientX - lastTouchCenterRef.current.x
+        const deltaY = touch.clientY - lastTouchCenterRef.current.y
 
         const newPanX = lastPanRef.current.x + deltaX
         const newPanY = lastPanRef.current.y + deltaY
@@ -115,8 +121,14 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
         console.log('[ZOOM-DIAG] Fullscreen image: Pinch end, final scale:', scale.toFixed(2))
         initialDistanceRef.current = 0
         initialScaleRef.current = scale
+        // Update pinchStartPan for potential next pinch
+        pinchStartPanRef.current = { x: lastPanRef.current.x, y: lastPanRef.current.y }
       }
-      if (e.touches.length === 0) {
+      // When one finger remains, update lastTouchCenter to that finger's position
+      // to prevent a jump when transitioning from pinch to pan
+      if (e.touches.length === 1) {
+        lastTouchCenterRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      } else if (e.touches.length === 0) {
         lastTouchCenterRef.current = { x: 0, y: 0 }
       }
     }

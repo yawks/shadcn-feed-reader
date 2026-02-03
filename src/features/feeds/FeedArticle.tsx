@@ -623,7 +623,8 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             // This is needed because scripts may use async callbacks (like DOMContentLoaded)
             document.getElementById = function(id: string) {
                 // ShadowRoot doesn't have getElementById, use querySelector instead
-                const shadowElement = shadowRoot.querySelector('#' + id)
+                // Use CSS.escape to handle IDs starting with digits (e.g., '85' -> '#\35 85')
+                const shadowElement = shadowRoot.querySelector('#' + CSS.escape(id))
                 if (shadowElement) {
                     // eslint-disable-next-line no-console
                     console.log('[FeedArticle] Found element in shadow DOM:', id)
@@ -632,12 +633,38 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 return originalGetElementById.call(document, id)
             }
             document.querySelector = function(selector: string) {
-                const shadowElement = shadowRoot.querySelector(selector)
-                return shadowElement || originalQuerySelector.call(document, selector)
+                try {
+                    const shadowElement = shadowRoot.querySelector(selector)
+                    return shadowElement || originalQuerySelector.call(document, selector)
+                } catch (e) {
+                    // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
+                    // Try to escape the ID if it looks like an ID selector
+                    if (selector.startsWith('#') && !selector.includes(' ')) {
+                        const id = selector.slice(1)
+                        const escapedSelector = '#' + CSS.escape(id)
+                        const shadowElement = shadowRoot.querySelector(escapedSelector)
+                        return shadowElement || originalQuerySelector.call(document, escapedSelector)
+                    }
+                    // Re-throw if we can't handle it
+                    throw e
+                }
             }
             document.querySelectorAll = function(selector: string) {
-                const shadowResults = shadowRoot.querySelectorAll(selector)
-                return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, selector)
+                try {
+                    const shadowResults = shadowRoot.querySelectorAll(selector)
+                    return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, selector)
+                } catch (e) {
+                    // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
+                    // Try to escape the ID if it looks like an ID selector
+                    if (selector.startsWith('#') && !selector.includes(' ')) {
+                        const id = selector.slice(1)
+                        const escapedSelector = '#' + CSS.escape(id)
+                        const shadowResults = shadowRoot.querySelectorAll(escapedSelector)
+                        return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, escapedSelector)
+                    }
+                    // Re-throw if we can't handle it
+                    throw e
+                }
             }
             document.getElementsByClassName = function(className: string) {
                 const shadowResults = shadowRoot.querySelectorAll('.' + className)
