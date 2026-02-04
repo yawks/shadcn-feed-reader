@@ -168,17 +168,32 @@ export async function handleReadabilityView({
             const parser = new DOMParser()
             const doc = parser.parseFromString(summary, 'text/html')
 
+            // Helper to resolve relative URLs to absolute
+            const resolveUrl = (src: string): string | null => {
+                if (!src || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://localhost:')) {
+                    return null
+                }
+                // Already absolute
+                if (src.startsWith('http://') || src.startsWith('https://')) {
+                    return src
+                }
+                // Resolve relative URL using article URL as base
+                try {
+                    const resolved = new URL(src, url).href
+                    return resolved
+                } catch {
+                    return null
+                }
+            }
+
             // Rewrite all img src attributes
             doc.querySelectorAll('img').forEach((img) => {
                 const src = img.getAttribute('src')
-                if (src &&
-                    !src.startsWith('data:') &&
-                    !src.startsWith('blob:') &&
-                    !src.startsWith('http://localhost:') &&
-                    (src.startsWith('http://') || src.startsWith('https://'))) {
+                const absoluteSrc = resolveUrl(src || '')
+                if (absoluteSrc) {
                     const proxyUrl = effectiveProxyPort
-                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
-                        : `${webProxyBase}/proxy?url=${encodeURIComponent(src)}`
+                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteSrc)}`
+                        : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteSrc)}`
                     img.setAttribute('src', proxyUrl)
                 }
             })
@@ -190,14 +205,11 @@ export async function handleReadabilityView({
                     const rewrittenSrcset = srcset.split(',').map(entry => {
                         const parts = entry.trim().split(/\s+/)
                         const imgUrl = parts[0]
-                        if (imgUrl &&
-                            !imgUrl.startsWith('data:') &&
-                            !imgUrl.startsWith('blob:') &&
-                            !imgUrl.startsWith('http://localhost:') &&
-                            (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
+                        const absoluteImgUrl = resolveUrl(imgUrl || '')
+                        if (absoluteImgUrl) {
                             const proxyUrl = effectiveProxyPort
-                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(imgUrl)}`
-                                : `${webProxyBase}/proxy?url=${encodeURIComponent(imgUrl)}`
+                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                                : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
                             return proxyUrl + (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
                         }
                         return entry.trim()
@@ -205,7 +217,7 @@ export async function handleReadabilityView({
                     img.setAttribute('srcset', rewrittenSrcset)
                 }
             })
-            
+
             rewrittenSummary = doc.body.innerHTML
         }
 
@@ -1070,17 +1082,32 @@ export async function handleConfiguredView({
             const parser = new DOMParser()
             const doc = parser.parseFromString(extractedContent, 'text/html')
 
+            // Helper to resolve relative URLs to absolute
+            const resolveUrl = (src: string): string | null => {
+                if (!src || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://localhost:')) {
+                    return null
+                }
+                // Already absolute
+                if (src.startsWith('http://') || src.startsWith('https://')) {
+                    return src
+                }
+                // Resolve relative URL using article URL as base
+                try {
+                    const resolved = new URL(src, url).href
+                    return resolved
+                } catch {
+                    return null
+                }
+            }
+
             // Rewrite all img src attributes
             doc.querySelectorAll('img').forEach((img) => {
                 const src = img.getAttribute('src')
-                if (src &&
-                    !src.startsWith('data:') &&
-                    !src.startsWith('blob:') &&
-                    !src.startsWith('http://localhost:') &&
-                    (src.startsWith('http://') || src.startsWith('https://'))) {
+                const absoluteSrc = resolveUrl(src || '')
+                if (absoluteSrc) {
                     const proxyUrl = effectiveProxyPort
-                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(src)}`
-                        : `${webProxyBase}/proxy?url=${encodeURIComponent(src)}`
+                        ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteSrc)}`
+                        : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteSrc)}`
                     img.setAttribute('src', proxyUrl)
                 }
             })
@@ -1092,14 +1119,11 @@ export async function handleConfiguredView({
                     const rewrittenSrcset = srcset.split(',').map(entry => {
                         const parts = entry.trim().split(/\s+/)
                         const imgUrl = parts[0]
-                        if (imgUrl &&
-                            !imgUrl.startsWith('data:') &&
-                            !imgUrl.startsWith('blob:') &&
-                            !imgUrl.startsWith('http://localhost:') &&
-                            (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
+                        const absoluteImgUrl = resolveUrl(imgUrl || '')
+                        if (absoluteImgUrl) {
                             const proxyUrl = effectiveProxyPort
-                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(imgUrl)}`
-                                : `${webProxyBase}/proxy?url=${encodeURIComponent(imgUrl)}`
+                                ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                                : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
                             return proxyUrl + (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
                         }
                         return entry.trim()

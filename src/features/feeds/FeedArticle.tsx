@@ -1010,12 +1010,12 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
             style={isMobile && isLandscape ? { width: '100vw', maxWidth: '100vw' } : undefined}
         >
             <div className={cn(
-                "mb-1 flex h-full flex-none flex-col rounded-t-md bg-secondary shadow-lg",
+                "mb-1 flex h-full flex-none flex-col rounded-t-md bg-background shadow-lg",
                 {
                     // In landscape mode, remove margins to maximize width
                     "mb-0": isMobile && isLandscape,
                 }
-            )} style={{ backgroundColor: 'rgb(34, 34, 34)' }}>
+            )}>
                 <div className="flex items-center justify-between p-2 h-12 flex-none">
                     <ArticleToolbar
                         viewMode={viewMode}

@@ -6,7 +6,7 @@ use axum::{
     http::StatusCode,
 };
 use std::sync::{Arc, Mutex};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::CorsLayer;
 use serde::Deserialize;
 use shadcn_feed_reader::shared::{
@@ -74,7 +74,7 @@ async fn main() {
         .route("/proxy", get(proxy::proxy_resource_handler).options(proxy::cors_options_handler))
         .with_state(app_state.proxy_state.clone())
         // Serve frontend static files
-        .fallback_service(ServeDir::new("dist").fallback(ServeDir::new("dist/index.html")))
+        .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .layer(CorsLayer::permissive());
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
