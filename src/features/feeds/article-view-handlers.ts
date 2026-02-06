@@ -307,6 +307,15 @@ export async function handleReadabilityView({
 
         /* Ensure last line visible on mobile safe areas */
         body::after { content: ''; display: block; height: 0; }
+
+        /* Dark theme scrollbar */
+        ${isDark ? `
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+        * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1); }
+        ` : ''}
     </style>
     <script>
         // Ensure videos have controls and iframes have fullscreen attributes for native fullscreen
@@ -451,6 +460,41 @@ export async function handleReadabilityView({
                     ytObserver.observe(document.body, { childList: true, subtree: true });
                 });
             }
+        })();
+
+        // Report scroll progress to parent via postMessage (works on Android WebView)
+        (function() {
+            console.log('[SCROLL_PROGRESS_IFRAME] Script initialized');
+            var lastProgress = -1;
+            function reportScrollProgress() {
+                var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+                var clientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+                var maxScroll = scrollHeight - clientHeight;
+                var progress = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
+                // Only send if changed (avoid flooding)
+                var rounded = Math.round(progress);
+                if (rounded !== lastProgress) {
+                    lastProgress = rounded;
+                    console.log('[SCROLL_PROGRESS_IFRAME] Sending progress:', progress, 'parent:', !!window.parent);
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'SCROLL_PROGRESS', progress: progress }, '*');
+                    }
+                }
+            }
+            // Multiple event sources for maximum compatibility on Android WebView
+            window.addEventListener('scroll', reportScrollProgress, { passive: true });
+            document.addEventListener('scroll', reportScrollProgress, { passive: true });
+            document.addEventListener('touchmove', reportScrollProgress, { passive: true });
+            document.addEventListener('touchend', function() {
+                // Delayed check after touch ends (momentum scroll)
+                setTimeout(reportScrollProgress, 100);
+                setTimeout(reportScrollProgress, 300);
+            }, { passive: true });
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[SCROLL_PROGRESS_IFRAME] DOMContentLoaded');
+                reportScrollProgress();
+            });
         })();
     </script>
 </head>
@@ -1207,6 +1251,41 @@ export async function handleConfiguredView({
                 });
             }
         })();
+
+        // Report scroll progress to parent via postMessage (works on Android WebView)
+        (function() {
+            console.log('[SCROLL_PROGRESS_IFRAME] Script initialized (configured)');
+            var lastProgress = -1;
+            function reportScrollProgress() {
+                var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+                var clientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+                var maxScroll = scrollHeight - clientHeight;
+                var progress = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
+                // Only send if changed (avoid flooding)
+                var rounded = Math.round(progress);
+                if (rounded !== lastProgress) {
+                    lastProgress = rounded;
+                    console.log('[SCROLL_PROGRESS_IFRAME] Sending progress:', progress, 'parent:', !!window.parent);
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'SCROLL_PROGRESS', progress: progress }, '*');
+                    }
+                }
+            }
+            // Multiple event sources for maximum compatibility on Android WebView
+            window.addEventListener('scroll', reportScrollProgress, { passive: true });
+            document.addEventListener('scroll', reportScrollProgress, { passive: true });
+            document.addEventListener('touchmove', reportScrollProgress, { passive: true });
+            document.addEventListener('touchend', function() {
+                // Delayed check after touch ends (momentum scroll)
+                setTimeout(reportScrollProgress, 100);
+                setTimeout(reportScrollProgress, 300);
+            }, { passive: true });
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[SCROLL_PROGRESS_IFRAME] DOMContentLoaded (configured)');
+                reportScrollProgress();
+            });
+        })();
     </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1243,6 +1322,15 @@ export async function handleConfiguredView({
             margin: 1em auto !important;
         }
         body::after { content: ''; display: block; height: 0; }
+
+        /* Dark theme scrollbar */
+        ${isDark ? `
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+        * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1); }
+        ` : ''}
     </style>
     ${config.customCss ? `<style id="custom-css">\n        ${config.customCss}\n    </style>` : ''}
 </head>

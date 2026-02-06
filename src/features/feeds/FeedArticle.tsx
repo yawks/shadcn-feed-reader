@@ -868,16 +868,31 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, setSelectedImageUrl])
 
     // Track scroll progress in iframe for readability/configured modes
+    // Uses both direct iframe scroll events (web/desktop) and postMessage (Android WebView)
     useEffect(() => {
-        const iframe = iframeRef.current
-        if (!iframe || (viewMode !== 'readability' && viewMode !== 'configured')) {
+        if (viewMode !== 'readability' && viewMode !== 'configured') {
             setScrollProgress(0)
             return
         }
 
+        const iframe = iframeRef.current
+
+        // Listen for SCROLL_PROGRESS postMessage from iframe (works on Android WebView)
+        const handleMessage = (event: MessageEvent) => {
+            // eslint-disable-next-line no-console
+            console.log('[SCROLL_PROGRESS] Received message:', event.data?.type, event.data?.progress)
+            if (event.data?.type === 'SCROLL_PROGRESS' && typeof event.data.progress === 'number') {
+                setScrollProgress(Math.min(100, Math.max(0, event.data.progress)))
+            }
+        }
+        window.addEventListener('message', handleMessage)
+        // eslint-disable-next-line no-console
+        console.log('[SCROLL_PROGRESS] Listener registered for viewMode:', viewMode)
+
+        // Also try direct iframe scroll events as fallback (works on web/desktop)
         const updateScrollProgress = () => {
             try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+                const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document
                 if (iframeDoc) {
                     const scrollTop = iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop
                     const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight
@@ -891,36 +906,84 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                     }
                 }
             } catch (_e) {
-                // Cross-origin access denied - ignore
+                // Cross-origin access denied - ignore, postMessage will handle it
             }
         }
 
         const handleLoad = () => {
+            // eslint-disable-next-line no-console
+            console.log('[SCROLL_PROGRESS] handleLoad called, iframe:', !!iframe, 'contentWindow:', !!iframe?.contentWindow)
             try {
-                const iframeWindow = iframe.contentWindow
-                if (iframeWindow) {
+                const iframeWindow = iframe?.contentWindow
+                const iframeDoc = iframe?.contentDocument || iframeWindow?.document
+                // eslint-disable-next-line no-console
+                console.log('[SCROLL_PROGRESS] iframeDoc:', !!iframeDoc, 'body:', !!iframeDoc?.body)
+                if (iframeWindow && iframeDoc && iframeDoc.body) {
+                    // Direct scroll listener (works on web/desktop)
                     iframeWindow.addEventListener('scroll', updateScrollProgress)
-                    // Initial progress check
                     updateScrollProgress()
+
+                    // Inject scroll progress script into iframe for Android WebView
+                    // This ensures postMessage works from iframe to parent
+                    const script = iframeDoc.createElement('script')
+                    script.textContent = `
+                        (function() {
+                            var lastProgress = -1;
+                            function reportScrollProgress() {
+                                var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                                var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+                                var clientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+                                var maxScroll = scrollHeight - clientHeight;
+                                var progress = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
+                                var rounded = Math.round(progress);
+                                if (rounded !== lastProgress && window.parent && window.parent !== window) {
+                                    lastProgress = rounded;
+                                    window.parent.postMessage({ type: 'SCROLL_PROGRESS', progress: progress }, '*');
+                                }
+                            }
+                            window.addEventListener('scroll', reportScrollProgress, { passive: true });
+                            document.addEventListener('scroll', reportScrollProgress, { passive: true });
+                            document.addEventListener('touchmove', reportScrollProgress, { passive: true });
+                            document.addEventListener('touchend', function() {
+                                setTimeout(reportScrollProgress, 100);
+                                setTimeout(reportScrollProgress, 300);
+                            }, { passive: true });
+                            reportScrollProgress();
+                        })();
+                    `
+                    iframeDoc.body.appendChild(script)
+                    // eslint-disable-next-line no-console
+                    console.log('[SCROLL_PROGRESS] Injected scroll script into iframe')
+                } else {
+                    // eslint-disable-next-line no-console
+                    console.log('[SCROLL_PROGRESS] iframe not ready yet')
                 }
             } catch (_e) {
-                // Cross-origin access denied - ignore
+                // eslint-disable-next-line no-console
+                console.log('[SCROLL_PROGRESS] Could not inject script into iframe:', _e)
             }
         }
 
-        iframe.addEventListener('load', handleLoad)
-        // Also try to attach immediately in case iframe is already loaded
-        handleLoad()
+        // eslint-disable-next-line no-console
+        console.log('[SCROLL_PROGRESS] Setting up iframe listener, iframe ref:', !!iframe)
+        if (iframe) {
+            iframe.addEventListener('load', handleLoad)
+            // Try immediately in case already loaded
+            handleLoad()
+        }
 
         return () => {
-            iframe.removeEventListener('load', handleLoad)
-            try {
-                const iframeWindow = iframe.contentWindow
-                if (iframeWindow) {
-                    iframeWindow.removeEventListener('scroll', updateScrollProgress)
+            window.removeEventListener('message', handleMessage)
+            if (iframe) {
+                iframe.removeEventListener('load', handleLoad)
+                try {
+                    const iframeWindow = iframe.contentWindow
+                    if (iframeWindow) {
+                        iframeWindow.removeEventListener('scroll', updateScrollProgress)
+                    }
+                } catch (_e) {
+                    // Cross-origin access denied - ignore
                 }
-            } catch (_e) {
-                // Cross-origin access denied - ignore
             }
         }
     }, [viewMode, isLoading])
@@ -998,7 +1061,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
     return (
         <div
             className={cn(
-                "flex h-full w-full flex-col rounded-md border bg-primary-foreground shadow-sm",
+                "flex h-full w-full flex-col items-start",
                 {
                     flex: isMobile,
                     "absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex":
@@ -1008,6 +1071,16 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 },
             )}
             style={isMobile && isLandscape ? { width: '100vw', maxWidth: '100vw' } : undefined}
+        >
+        <div
+            className={cn(
+                "flex h-full w-full flex-col rounded-md border bg-primary-foreground shadow-sm",
+                {
+                    // In landscape mobile mode, remove borders, padding, and margins to maximize width
+                    "rounded-none border-0 m-0 p-0": isMobile && isLandscape,
+                },
+            )}
+            style={{ maxWidth: isMobile ? undefined : '800px' }}
         >
             <div className={cn(
                 "mb-1 flex h-full flex-none flex-col rounded-t-md bg-background shadow-lg",
@@ -1202,6 +1275,7 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                 </div>
             )}
 
+        </div>
         </div>
     )
 }

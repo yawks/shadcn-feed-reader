@@ -85,7 +85,6 @@ export default function Feeds() {
   // Hook to manage resizable panels (desktop only)
   const {
     leftFlex,
-    rightFlex,
     isResizing,
     handleMouseDown
   } = useResizablePanelsFlex({
@@ -402,6 +401,7 @@ export default function Feeds() {
                 style={{
                   width: `${leftFlex * 100}%`,
                   minWidth: 0,
+                  maxWidth: '500px',
                   flexShrink: 0,
                   paddingLeft: 0,
                 }}
@@ -449,11 +449,9 @@ export default function Feeds() {
 
               {/* Right Side - Article Content */}
               <div
-                className="flex flex-col h-full bg-background"
+                className="flex flex-col h-full bg-background flex-1"
                 style={{
-                  width: `${rightFlex * 100}%`,
                   minWidth: 0,
-                  flexShrink: 0
                 }}
               >
                 {currentSelectedArticle != null ? (
