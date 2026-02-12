@@ -3,7 +3,7 @@
  * Uses native browser pinch-to-zoom instead of custom implementation
  */
 export function getIframeZoomScript(): string {
-    return `
+  return `
         (function() {
             console.log('[ZOOM] Iframe: Native zoom enabled');
 
@@ -11,8 +11,8 @@ export function getIframeZoomScript(): string {
             const style = document.createElement('style');
             style.textContent = \`
                 html, body {
-                    /* Allow native touch zoom */
-                    touch-action: pan-x pan-y pinch-zoom;
+                    /* Allow native touch zoom - use manipulation for better Android compatibility */
+                    touch-action: manipulation;
                     /* Ensure content is scrollable */
                     overflow: auto;
                     /* Prevent body::after from adding extra space */
@@ -38,7 +38,7 @@ export function getIframeZoomScript(): string {
  * Uses native browser pinch-to-zoom instead of custom implementation
  */
 export function getShadowDomZoomScript(): string {
-    return `
+  return `
         (function() {
             console.log('[ZOOM] Shadow DOM: Native zoom enabled');
 
@@ -46,8 +46,8 @@ export function getShadowDomZoomScript(): string {
             const style = document.createElement('style');
             style.textContent = \`
                 html, body {
-                    /* Allow native touch zoom */
-                    touch-action: pan-x pan-y pinch-zoom;
+                    /* Allow native touch zoom - use manipulation for better Android compatibility */
+                    touch-action: manipulation;
                     /* Ensure content is scrollable */
                     overflow: auto;
                     /* Prevent horizontal overflow */

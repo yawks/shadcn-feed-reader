@@ -1,932 +1,1133 @@
-import { ArticleToolbar, ArticleViewMode } from "./ArticleToolbar"
-import { getArticleViewMode, getArticleViewModeSync, setArticleViewMode } from '@/lib/article-view-storage'
-import { handleOriginalView, handleReadabilityView, handleConfiguredView } from './article-view-handlers'
-import { memo, useEffect, useRef, useState } from "react"
-
-import { AuthDialog } from "@/components/auth-dialog"
-import { Capacitor } from "@capacitor/core"
-import { FeedItem } from "@/backends/types"
-import { FloatingActionButton } from "./FloatingActionButton"
-import { ImageContextMenu } from "@/components/image-context-menu"
-import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
-import { getShadowDomZoomScript } from './article-zoom-scripts'
-import { hasSelectorConfig, hasSelectorConfigSync } from '@/lib/selector-config-storage'
-import { prepareHtmlForShadowDom } from './article-html-preparation'
-import { safeInvoke } from '@/lib/safe-invoke'
+import { memo, useEffect, useRef, useState } from 'react'
+import { FeedItem } from '@/backends/types'
+import { Capacitor } from '@capacitor/core'
+import {
+  getArticleViewMode,
+  getArticleViewModeSync,
+  setArticleViewMode,
+} from '@/lib/article-view-storage'
 import { storeAuth } from '@/lib/auth-storage'
+import { safeInvoke } from '@/lib/safe-invoke'
+import {
+  hasSelectorConfig,
+  hasSelectorConfigSync,
+} from '@/lib/selector-config-storage'
+import { cn } from '@/lib/utils'
 import { useFontSize } from '@/context/font-size-context'
+import { useTheme } from '@/context/theme-context'
 import { useOrientation } from '@/hooks/use-orientation'
-import { useTheme } from "@/context/theme-context"
+import { Skeleton } from '@/components/ui/skeleton'
+import { AuthDialog } from '@/components/auth-dialog'
+import { ImageContextMenu } from '@/components/image-context-menu'
+import { ArticleToolbar, ArticleViewMode } from './ArticleToolbar'
+import { FloatingActionButton } from './FloatingActionButton'
+import { prepareHtmlForShadowDom } from './article-html-preparation'
+import {
+  handleOriginalView,
+  handleReadabilityView,
+  handleConfiguredView,
+} from './article-view-handlers'
+import { getShadowDomZoomScript } from './article-zoom-scripts'
 
 type FeedArticleProps = {
-    item: FeedItem
-    isMobile?: boolean
-    onBack?: () => void
+  item: FeedItem
+  isMobile?: boolean
+  onBack?: () => void
 }
 
-function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticleProps) {
-    const { theme } = useTheme()
-    const { fontSize } = useFontSize()
-    const isLandscape = useOrientation()
+function FeedArticleComponent({
+  item,
+  isMobile = false,
+  onBack,
+}: FeedArticleProps) {
+  const { theme } = useTheme()
+  const { fontSize } = useFontSize()
+  const isLandscape = useOrientation()
 
-    const [isLoading, setIsLoading] = useState(true)
-    const [articleContent, setArticleContent] = useState("")
-    const [error, setError] = useState<string | null>(null)
-    const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original mode)
-    const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
-    const [injectedExternalScripts, setInjectedExternalScripts] = useState<string[]>([]) // External scripts (with src) to load
-    const [injectedExternalStylesheets, setInjectedExternalStylesheets] = useState<string[]>([]) // External stylesheets to load
-    
-    // Initialize viewMode from storage (per feed), default to "readability"
-    // Use a state to track if viewMode is loaded (to avoid loading article before mode is known)
-    const [viewMode, setViewMode] = useState<ArticleViewMode>(() => {
-        // Try to load synchronously from storage on initial render
-        // For Capacitor, this will return 'readability' and we'll load async in useEffect
-        const feedId = item.feed?.id || 'default'
-        return getArticleViewModeSync(feedId)
-    })
-    // Track which feedId the current viewMode corresponds to
-    // This prevents race conditions when switching between feeds with different viewModes
-    const [viewModeFeedId, setViewModeFeedId] = useState<string>(() => item.feed?.id || 'default')
-    const [viewModeLoaded, setViewModeLoaded] = useState<boolean>(() => {
-        // On web, we can load synchronously, so it's already loaded
-        // On Capacitor, we need to load async, so it's not loaded yet
-        if (typeof window !== 'undefined') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const win = window as any
-            return win.Capacitor?.getPlatform?.() !== 'android'
-        }
-        return true
-    })
-    
-    const [proxyPort, setProxyPort] = useState<number | null>(null)
-    const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
-    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
-    const [scrollProgress, setScrollProgress] = useState(0)
-    const [youtubeVideo, setYoutubeVideo] = useState<{ videoId: string; title: string } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [articleContent, setArticleContent] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original mode)
+  const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
+  const [injectedExternalScripts, setInjectedExternalScripts] = useState<
+    string[]
+  >([]) // External scripts (with src) to load
+  const [injectedExternalStylesheets, setInjectedExternalStylesheets] =
+    useState<string[]>([]) // External stylesheets to load
 
-    // Selector configuration state
-    const [selectorConfigExists, setSelectorConfigExists] = useState<boolean>(() => {
-        const feedId = item.feed?.id || 'default'
-        return hasSelectorConfigSync(feedId)
-    })
+  // Initialize viewMode from storage (per feed), default to "readability"
+  // Use a state to track if viewMode is loaded (to avoid loading article before mode is known)
+  const [viewMode, setViewMode] = useState<ArticleViewMode>(() => {
+    // Try to load synchronously from storage on initial render
+    // For Capacitor, this will return 'readability' and we'll load async in useEffect
+    const feedId = item.feed?.id || 'default'
+    return getArticleViewModeSync(feedId)
+  })
+  // Track which feedId the current viewMode corresponds to
+  // This prevents race conditions when switching between feeds with different viewModes
+  const [viewModeFeedId, setViewModeFeedId] = useState<string>(
+    () => item.feed?.id || 'default'
+  )
+  const [viewModeLoaded, setViewModeLoaded] = useState<boolean>(() => {
+    // On web, we can load synchronously, so it's already loaded
+    // On Capacitor, we need to load async, so it's not loaded yet
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = window as any
+      return win.Capacitor?.getPlatform?.() !== 'android'
+    }
+    return true
+  })
 
+  const [proxyPort, setProxyPort] = useState<number | null>(null)
+  const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const [youtubeVideo, setYoutubeVideo] = useState<{
+    videoId: string
+    title: string
+  } | null>(null)
 
-    const iframeRef = useRef<HTMLIFrameElement>(null)
-    const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
+  // Selector configuration state
+  const [selectorConfigExists, setSelectorConfigExists] = useState<boolean>(
+    () => {
+      const feedId = item.feed?.id || 'default'
+      return hasSelectorConfigSync(feedId)
+    }
+  )
 
-    // Now all view modes use iframe for isolated scroll context
-    const isIframeView = true
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
 
-    // Load view mode from storage when feed or article changes (for Capacitor)
-    // This MUST complete before the article loading useEffect runs
-    useEffect(() => {
-        const feedId = item.feed?.id || 'default'
+  // Now all view modes use iframe for isolated scroll context
+  const isIframeView = true
 
+  // Load view mode from storage when feed or article changes (for Capacitor)
+  // This MUST complete before the article loading useEffect runs
+  useEffect(() => {
+    const feedId = item.feed?.id || 'default'
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}, current mode: ${viewMode}, currentFeedId: ${viewModeFeedId}`
+    )
+
+    // IMPORTANT: Mark viewMode as not ready for THIS feed yet
+    // This prevents race conditions when switching feeds
+    if (feedId !== viewModeFeedId) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[FeedArticle] Feed changed from ${viewModeFeedId} to ${feedId}, marking viewMode as not loaded`
+      )
+      setViewModeLoaded(false)
+    }
+
+    // On Capacitor, we need to load async, so mark as not loaded yet
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = window as any
+      if (win.Capacitor?.getPlatform?.() === 'android') {
+        setViewModeLoaded(false)
+      }
+    }
+
+    // Load saved mode asynchronously (needed for Capacitor)
+    getArticleViewMode(feedId)
+      .then((savedMode) => {
         // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] Loading view mode for feed ${feedId}, article ${item.url}, current mode: ${viewMode}, currentFeedId: ${viewModeFeedId}`)
-
-        // IMPORTANT: Mark viewMode as not ready for THIS feed yet
-        // This prevents race conditions when switching feeds
-        if (feedId !== viewModeFeedId) {
-            // eslint-disable-next-line no-console
-            console.log(`[FeedArticle] Feed changed from ${viewModeFeedId} to ${feedId}, marking viewMode as not loaded`)
-            setViewModeLoaded(false)
+        console.log(
+          `[FeedArticle] Loaded saved mode: ${savedMode}, current: ${viewMode}`
+        )
+        // Update mode if different
+        if (savedMode !== viewMode) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[FeedArticle] Setting viewMode to ${savedMode} (was ${viewMode})`
+          )
+          setViewMode(savedMode)
         }
-
-        // On Capacitor, we need to load async, so mark as not loaded yet
-        if (typeof window !== 'undefined') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const win = window as any
-            if (win.Capacitor?.getPlatform?.() === 'android') {
-                setViewModeLoaded(false)
-            }
-        }
-
-        // Load saved mode asynchronously (needed for Capacitor)
-        getArticleViewMode(feedId).then((savedMode) => {
-            // eslint-disable-next-line no-console
-            console.log(`[FeedArticle] Loaded saved mode: ${savedMode}, current: ${viewMode}`)
-            // Update mode if different
-            if (savedMode !== viewMode) {
-                // eslint-disable-next-line no-console
-                console.log(`[FeedArticle] Setting viewMode to ${savedMode} (was ${viewMode})`)
-                setViewMode(savedMode)
-            }
-            // Update the feedId for which the viewMode is valid
-            setViewModeFeedId(feedId)
-            // Mark as loaded - this will allow the article loading useEffect to run
-            setViewModeLoaded(true)
-        }).catch((err) => {
-            // eslint-disable-next-line no-console
-            console.error('[FeedArticle] Failed to load view mode:', err)
-            // On error, use current mode and mark as loaded
-            setViewModeFeedId(feedId)
-            setViewModeLoaded(true)
-        })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.feed?.id, item.url]) // Don't include viewMode/viewModeFeedId to avoid loop - we only want to load when feed/article changes
-
-    // Check if selector config exists when feed changes
-    useEffect(() => {
-        const feedId = item.feed?.id || 'default'
-        hasSelectorConfig(feedId).then(setSelectorConfigExists)
-    }, [item.feed?.id])
-
-    useEffect(() => {
-        // Start the proxy (Tauri or Capacitor) if available; ignore errors in browser dev
-        const startProxy = async () => {
-            // eslint-disable-next-line no-console
-            console.log('[FeedArticle] Starting proxy initialization...')
-            // Try Tauri first (desktop)
-            try {
-                const port = await safeInvoke("start_proxy")
-                setProxyPort(Number(port))
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] ✓ Tauri proxy started on port:', port)
-                return
-            } catch (tauriErr) {
-                // Tauri not available, try Capacitor (Android)
-                const errorMsg = tauriErr instanceof Error ? tauriErr.message : String(tauriErr)
-                // eslint-disable-next-line no-console
-                console.log('[FeedArticle] Tauri not available, error:', errorMsg)
-                // Check for various Tauri not available error messages
-                // Also handle network errors from HTTP API fallback (happens on Android)
-                const isTauriNotAvailable =
-                    errorMsg.includes('Tauri invoke not available') ||
-                    errorMsg.includes('Cannot read properties of undefined') ||
-                    (errorMsg.includes('invoke') && errorMsg.includes('undefined')) ||
-                    errorMsg.includes('Failed to fetch') ||
-                    errorMsg.includes('NetworkError') ||
-                    errorMsg.includes('API Error')
-                
-                if (isTauriNotAvailable) {
-                    try {
-                        // eslint-disable-next-line no-console
-                        console.log('[FeedArticle] Attempting to start Capacitor proxy...')
-                        const { startProxyServer } = await import('@/lib/raw-html')
-                        const port = await startProxyServer()
-                        if (port) {
-                            setProxyPort(port)
-                            // eslint-disable-next-line no-console
-                            console.log('[FeedArticle] ✓ Capacitor proxy started on port:', port)
-                        } else {
-                            // eslint-disable-next-line no-console
-                            console.warn('[FeedArticle] Capacitor proxy returned null port')
-                        }
-                    } catch (capErr) {
-                        // eslint-disable-next-line no-console
-                        console.error('[FeedArticle] ✗ Capacitor proxy failed:', capErr)
-                        const errorDetails = capErr instanceof Error ? capErr.message : String(capErr)
-                        // eslint-disable-next-line no-console
-                        console.error('[FeedArticle] Error details:', errorDetails)
-                    }
-                } else {
-                    // eslint-disable-next-line no-console
-                    console.debug('[FeedArticle] Tauri proxy not available or failed (dev):', tauriErr)
-                }
-            }
-        }
-        
-        startProxy()
-    }, [])
-
-
-    // Use ref to track the last loaded URL to prevent unnecessary reloads
-    const lastLoadedUrlRef = useRef<string | null>(null)
-    const lastViewModeRef = useRef<ArticleViewMode | null>(null)
-    const lastThemeRef = useRef<string | null>(null)
-    const lastFontSizeRef = useRef<string | null>(null)
-
-    useEffect(() => {
-        // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
-        // This prevents double loading (readability -> original)
-        if (!viewModeLoaded) {
-            // eslint-disable-next-line no-console
-            console.log('⏳ [FeedArticle] Waiting for viewMode to load before loading article...')
-            return
-        }
-
-        // CRITICAL: Don't load article if viewMode is for a different feed
-        // This prevents using stale viewMode from previous feed (race condition fix)
-        const currentFeedId = item.feed?.id || 'default'
-        if (viewModeFeedId !== currentFeedId) {
-            // eslint-disable-next-line no-console
-            console.log(`⏳ [FeedArticle] viewMode is for feed ${viewModeFeedId}, waiting for feed ${currentFeedId}...`)
-            return
-        }
-
-        // Skip reload if URL, viewMode, theme, and fontSize haven't changed
-        // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
-        const urlChanged = lastLoadedUrlRef.current !== item.url
-        const viewModeChanged = lastViewModeRef.current !== viewMode
-        const themeChanged = lastThemeRef.current !== theme
-        const fontSizeChanged = lastFontSizeRef.current !== fontSize
-        
+        // Update the feedId for which the viewMode is valid
+        setViewModeFeedId(feedId)
+        // Mark as loaded - this will allow the article loading useEffect to run
+        setViewModeLoaded(true)
+      })
+      .catch((err) => {
         // eslint-disable-next-line no-console
-        console.log('🟡 [FeedArticle] useEffect triggered', {
-            urlChanged,
-            viewModeChanged,
-            themeChanged,
-            fontSizeChanged,
-            currentUrl: item.url,
-            lastUrl: lastLoadedUrlRef.current,
-            currentViewMode: viewMode,
-            lastViewMode: lastViewModeRef.current,
-            isMobile,
-            isLandscape,
-            viewModeLoaded,
-        })
-        // Log séparé pour faciliter le grep
+        console.error('[FeedArticle] Failed to load view mode:', err)
+        // On error, use current mode and mark as loaded
+        setViewModeFeedId(feedId)
+        setViewModeLoaded(true)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.feed?.id, item.url]) // Don't include viewMode/viewModeFeedId to avoid loop - we only want to load when feed/article changes
+
+  // Check if selector config exists when feed changes
+  useEffect(() => {
+    const feedId = item.feed?.id || 'default'
+    hasSelectorConfig(feedId).then(setSelectorConfigExists)
+  }, [item.feed?.id])
+
+  useEffect(() => {
+    // Start the proxy (Tauri or Capacitor) if available; ignore errors in browser dev
+    const startProxy = async () => {
+      // eslint-disable-next-line no-console
+      console.log('[FeedArticle] Starting proxy initialization...')
+      // Try Tauri first (desktop)
+      try {
+        const port = await safeInvoke('start_proxy')
+        setProxyPort(Number(port))
         // eslint-disable-next-line no-console
-        console.log('[FeedArticle] urlChanged=' + urlChanged + ' viewModeChanged=' + viewModeChanged + ' viewModeLoaded=' + viewModeLoaded)
-        
-        // For readability mode, theme and fontSize changes should update the blob without full reload
-        // For other modes, only reload if URL or viewMode changes
-        if (!urlChanged && !viewModeChanged) {
-            // If only theme/fontSize changed and we're in readability mode, update the iframe content
-            if (viewMode === 'readability' && (themeChanged || fontSizeChanged)) {
-                // Update refs
-                lastThemeRef.current = theme
-                lastFontSizeRef.current = fontSize
-                // eslint-disable-next-line no-console
-                console.log('🟠 [FeedArticle] Only theme/fontSize changed, updating blob')
-                // Recreate the blob with new theme/fontSize (this will be handled by the effect below)
-                // But we need to trigger it, so we'll let it continue
+        console.log('[FeedArticle] ✓ Tauri proxy started on port:', port)
+        return
+      } catch (tauriErr) {
+        // Tauri not available, try Capacitor (Android)
+        const errorMsg =
+          tauriErr instanceof Error ? tauriErr.message : String(tauriErr)
+        // eslint-disable-next-line no-console
+        console.log('[FeedArticle] Tauri not available, error:', errorMsg)
+        // Check for various Tauri not available error messages
+        // Also handle network errors from HTTP API fallback (happens on Android)
+        const isTauriNotAvailable =
+          errorMsg.includes('Tauri invoke not available') ||
+          errorMsg.includes('Cannot read properties of undefined') ||
+          (errorMsg.includes('invoke') && errorMsg.includes('undefined')) ||
+          errorMsg.includes('Failed to fetch') ||
+          errorMsg.includes('NetworkError') ||
+          errorMsg.includes('API Error')
+
+        if (isTauriNotAvailable) {
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[FeedArticle] Attempting to start Capacitor proxy...')
+            const { startProxyServer } = await import('@/lib/raw-html')
+            const port = await startProxyServer()
+            if (port) {
+              setProxyPort(port)
+              // eslint-disable-next-line no-console
+              console.log(
+                '[FeedArticle] ✓ Capacitor proxy started on port:',
+                port
+              )
             } else {
-                // No changes needed
-                // eslint-disable-next-line no-console
-                console.log('✅ [FeedArticle] No changes needed, skipping reload')
-                return
+              // eslint-disable-next-line no-console
+              console.warn('[FeedArticle] Capacitor proxy returned null port')
             }
+          } catch (capErr) {
+            // eslint-disable-next-line no-console
+            console.error('[FeedArticle] ✗ Capacitor proxy failed:', capErr)
+            const errorDetails =
+              capErr instanceof Error ? capErr.message : String(capErr)
+            // eslint-disable-next-line no-console
+            console.error('[FeedArticle] Error details:', errorDetails)
+          }
+        } else {
+          // eslint-disable-next-line no-console
+          console.debug(
+            '[FeedArticle] Tauri proxy not available or failed (dev):',
+            tauriErr
+          )
         }
+      }
+    }
 
+    startProxy()
+  }, [])
+
+  // Use ref to track the last loaded URL to prevent unnecessary reloads
+  const lastLoadedUrlRef = useRef<string | null>(null)
+  const lastViewModeRef = useRef<ArticleViewMode | null>(null)
+  const lastThemeRef = useRef<string | null>(null)
+  const lastFontSizeRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
+    // This prevents double loading (readability -> original)
+    if (!viewModeLoaded) {
+      // eslint-disable-next-line no-console
+      console.log(
+        '⏳ [FeedArticle] Waiting for viewMode to load before loading article...'
+      )
+      return
+    }
+
+    // CRITICAL: Don't load article if viewMode is for a different feed
+    // This prevents using stale viewMode from previous feed (race condition fix)
+    const currentFeedId = item.feed?.id || 'default'
+    if (viewModeFeedId !== currentFeedId) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `⏳ [FeedArticle] viewMode is for feed ${viewModeFeedId}, waiting for feed ${currentFeedId}...`
+      )
+      return
+    }
+
+    // Skip reload if URL, viewMode, theme, and fontSize haven't changed
+    // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
+    const urlChanged = lastLoadedUrlRef.current !== item.url
+    const viewModeChanged = lastViewModeRef.current !== viewMode
+    const themeChanged = lastThemeRef.current !== theme
+    const fontSizeChanged = lastFontSizeRef.current !== fontSize
+
+    // eslint-disable-next-line no-console
+    console.log('🟡 [FeedArticle] useEffect triggered', {
+      urlChanged,
+      viewModeChanged,
+      themeChanged,
+      fontSizeChanged,
+      currentUrl: item.url,
+      lastUrl: lastLoadedUrlRef.current,
+      currentViewMode: viewMode,
+      lastViewMode: lastViewModeRef.current,
+      isMobile,
+      isLandscape,
+      viewModeLoaded,
+    })
+    // Log séparé pour faciliter le grep
+    // eslint-disable-next-line no-console
+    console.log(
+      '[FeedArticle] urlChanged=' +
+        urlChanged +
+        ' viewModeChanged=' +
+        viewModeChanged +
+        ' viewModeLoaded=' +
+        viewModeLoaded
+    )
+
+    // For readability mode, theme and fontSize changes should update the blob without full reload
+    // For other modes, only reload if URL or viewMode changes
+    if (!urlChanged && !viewModeChanged) {
+      // If only theme/fontSize changed and we're in readability mode, update the iframe content
+      if (viewMode === 'readability' && (themeChanged || fontSizeChanged)) {
         // Update refs
-        lastLoadedUrlRef.current = item.url || null
-        lastViewModeRef.current = viewMode
         lastThemeRef.current = theme
         lastFontSizeRef.current = fontSize
-        
         // eslint-disable-next-line no-console
-        console.log('🔴 [FeedArticle] Reloading article', {
-            url: item.url,
-            viewMode,
-            viewModeLoaded,
-        })
+        console.log(
+          '🟠 [FeedArticle] Only theme/fontSize changed, updating blob'
+        )
+        // Recreate the blob with new theme/fontSize (this will be handled by the effect below)
+        // But we need to trigger it, so we'll let it continue
+      } else {
+        // No changes needed
         // eslint-disable-next-line no-console
-        console.log('[FeedArticle] RELOADING url=' + item.url + ' viewMode=' + viewMode)
+        console.log('✅ [FeedArticle] No changes needed, skipping reload')
+        return
+      }
+    }
 
-        const setIframeUrl = (url: string) => {
-            if (iframeRef.current) iframeRef.current.src = url
-        }
+    // Update refs
+    lastLoadedUrlRef.current = item.url || null
+    lastViewModeRef.current = viewMode
+    lastThemeRef.current = theme
+    lastFontSizeRef.current = fontSize
 
-        // eslint-disable-next-line no-console
-        console.log('[FeedArticle] About to load article, proxyPort:', proxyPort)
-        
-        if (viewMode === "readability") {
-            handleReadabilityView({
-                url: item.url || '',
-                proxyPort,
-                theme,
-                fontSize,
-                setArticleContent,
-                setError,
-                setIsLoading,
-                setAuthDialog,
-                setIframeUrl,
-            })
-        } else if (viewMode === "original") {
-            // eslint-disable-next-line no-console
-            console.log('[FeedArticle] Calling handleOriginalView with proxyPort:', proxyPort)
-            handleOriginalView({
-                url: item.url || '',
-                proxyPort,
-                setInjectedHtml,
-                setInjectedScripts,
-                setInjectedExternalScripts,
-                setInjectedExternalStylesheets,
-                setError,
-                setIsLoading,
-                prepareHtmlForShadowDom,
-            })
-        } else if (viewMode === "configured") {
-            const feedId = item.feed?.id || 'default'
-            // eslint-disable-next-line no-console
-            console.log('[FeedArticle] Calling handleConfiguredView with proxyPort:', proxyPort, 'feedId:', feedId)
-            handleConfiguredView({
-                url: item.url || '',
-                proxyPort,
-                feedId,
-                theme,
-                fontSize,
-                setArticleContent,
-                setError,
-                setIsLoading,
-                setAuthDialog,
-                setIframeUrl,
-            })
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.url, viewMode, proxyPort, theme, fontSize, viewModeLoaded, viewModeFeedId, item.feed?.id]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
+    // eslint-disable-next-line no-console
+    console.log('🔴 [FeedArticle] Reloading article', {
+      url: item.url,
+      viewMode,
+      viewModeLoaded,
+    })
+    // eslint-disable-next-line no-console
+    console.log(
+      '[FeedArticle] RELOADING url=' + item.url + ' viewMode=' + viewMode
+    )
 
-    useEffect(() => {
-        const iframe = iframeRef.current
-        if (!isIframeView || !iframe) {
-            return
-        }
+    const setIframeUrl = (url: string) => {
+      if (iframeRef.current) iframeRef.current.src = url
+    }
 
-        const handleLoad = () => {
-            setIsLoading(false)
-            
-            if (iframe.contentWindow) {
-                // Check iframe document for diagnostics (same-origin only, for blob URLs in readability mode)
-                try {
-                    const doc = iframe.contentDocument || iframe.contentWindow?.document
-                    if (doc) {
-                        const h = doc.documentElement?.scrollHeight || doc.body?.scrollHeight
-                        // eslint-disable-next-line no-console
-                        console.debug('[DIAG] FeedArticle: iframe document scrollHeight (same-origin):', h)
-                        
-                        // Check viewport meta for zoom support
-                        const viewportMeta = doc.querySelector('meta[name="viewport"]')
-                        if (viewportMeta) {
-                            // eslint-disable-next-line no-console
-                            console.debug('[DIAG] FeedArticle: iframe viewport meta:', viewportMeta.getAttribute('content'))
-                        } else {
-                            // eslint-disable-next-line no-console
-                            console.warn('[DIAG] FeedArticle: iframe viewport meta NOT FOUND - zoom may not work!')
-                        }
-                        
-                        // Log touch-action styles
-                        const htmlEl = doc.documentElement
-                        const bodyEl = doc.body
-                        if (htmlEl) {
-                            const htmlStyle = window.getComputedStyle(htmlEl)
-                            // eslint-disable-next-line no-console
-                            console.debug('[DIAG] FeedArticle: iframe html touch-action:', htmlStyle.touchAction)
-                        }
-                        if (bodyEl) {
-                            const bodyStyle = window.getComputedStyle(bodyEl)
-                            // eslint-disable-next-line no-console
-                            console.debug('[DIAG] FeedArticle: iframe body touch-action:', bodyStyle.touchAction)
-                        }
-                    }
-                } catch (_e) {
-                    // eslint-disable-next-line no-console
-                    console.debug('[DIAG] FeedArticle: iframe same-origin access denied (cross-origin)')
-                }
-            }
-        }
+    // eslint-disable-next-line no-console
+    console.log('[FeedArticle] About to load article, proxyPort:', proxyPort)
 
-        iframe.addEventListener("load", handleLoad)
-        return () => {
-            iframe.removeEventListener("load", handleLoad)
-        }
-    }, [isIframeView, viewMode, theme, proxyPort, item.url])
+    if (viewMode === 'readability') {
+      handleReadabilityView({
+        url: item.url || '',
+        proxyPort,
+        theme,
+        fontSize,
+        setArticleContent,
+        setError,
+        setIsLoading,
+        setAuthDialog,
+        setIframeUrl,
+      })
+    } else if (viewMode === 'original') {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[FeedArticle] Calling handleOriginalView with proxyPort:',
+        proxyPort
+      )
+      handleOriginalView({
+        url: item.url || '',
+        proxyPort,
+        setInjectedHtml,
+        setInjectedScripts,
+        setInjectedExternalScripts,
+        setInjectedExternalStylesheets,
+        setError,
+        setIsLoading,
+        prepareHtmlForShadowDom,
+      })
+    } else if (viewMode === 'configured') {
+      const feedId = item.feed?.id || 'default'
+      // eslint-disable-next-line no-console
+      console.log(
+        '[FeedArticle] Calling handleConfiguredView with proxyPort:',
+        proxyPort,
+        'feedId:',
+        feedId
+      )
+      handleConfiguredView({
+        url: item.url || '',
+        proxyPort,
+        feedId,
+        theme,
+        fontSize,
+        setArticleContent,
+        setError,
+        setIsLoading,
+        setAuthDialog,
+        setIframeUrl,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    item.url,
+    viewMode,
+    proxyPort,
+    theme,
+    fontSize,
+    viewModeLoaded,
+    viewModeFeedId,
+    item.feed?.id,
+  ]) // isMobile and isLandscape are intentionally excluded - they shouldn't trigger reload
 
-    // Layout probes: measure viewport and article/iframe sizes and padding so we can
-    // understand why content is ending up underneath the Android navigation area.
-    useEffect(() => {
-        const logMeasurements = () => {
-            try {
-                // Basic viewport metrics
-                const windowInnerHeight = typeof window !== 'undefined' ? window.innerHeight : undefined
-                // Use a typed-safe access to visualViewport to satisfy lint rules
-                const visualViewport = typeof window !== 'undefined' && (window as unknown as Window & { visualViewport?: { height?: number } }).visualViewport
-                const visualViewportHeight = visualViewport ? visualViewport.height : undefined
+  useEffect(() => {
+    const iframe = iframeRef.current
+    if (!isIframeView || !iframe) {
+      return
+    }
 
-                // Container scroll area that holds iframe
-                const containerEl = document.querySelector('.relative.h-full.w-full.overflow-auto') as HTMLElement | null
-                let containerRect = null
-                if (containerEl) {
-                    const cr = containerEl.getBoundingClientRect()
-                    containerRect = { top: cr.top, bottom: cr.bottom, height: cr.height }
-                }
+    const handleLoad = () => {
+      setIsLoading(false)
 
-                // Iframe metrics (if present)
-                const iframe = iframeRef.current
-                let iframeRect = null
-                if (iframe) {
-                    const ir = iframe.getBoundingClientRect()
-                    iframeRect = { top: ir.top, bottom: ir.bottom, height: ir.height }
-                }
-
-                // Probe safe-area-inset-bottom via env() by creating a temporary element.
-                let measuredSafeAreaInsetBottom: number | string = 'n/a'
-                try {
-                    const probe = document.createElement('div')
-                    probe.style.position = 'absolute'
-                    probe.style.left = '-9999px'
-                    probe.style.height = 'env(safe-area-inset-bottom, 0px)'
-                    document.body.appendChild(probe)
-                    measuredSafeAreaInsetBottom = probe.offsetHeight
-                    document.body.removeChild(probe)
-                } catch (_e) {
-                    measuredSafeAreaInsetBottom = 'err'
-                }
-
-                // eslint-disable-next-line no-console
-                console.debug('[DIAG] FeedArticle: layout', JSON.stringify({
-                    viewMode,
-                    windowInnerHeight,
-                    visualViewportHeight,
-                    containerRect,
-                    iframeRect,
-                    measuredSafeAreaInsetBottom,
-                    articleContentLength: articleContent?.length,
-                }))
-            } catch (err) {
-                // eslint-disable-next-line no-console
-                console.debug('[DIAG] FeedArticle: layout probe failed', err)
-            }
-        }
-
-        logMeasurements()
-        window.addEventListener('resize', logMeasurements)
-        window.addEventListener('orientationchange', logMeasurements)
-        return () => {
-            window.removeEventListener('resize', logMeasurements)
-            window.removeEventListener('orientationchange', logMeasurements)
-        }
-    }, [viewMode, articleContent])
-
-    // Listen for auth requests from proxy via postMessage
-    // Also listen for image long press events from iframe
-    // Also listen for YouTube video clicks from iframe
-    useEffect(() => {
-        const handleMessage = async (event: MessageEvent) => {
-            if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
-                const { domain } = event.data
-                setAuthDialog({ domain })
-            } else if (event.data?.type === 'IMAGE_LONG_PRESS' && event.data?.imageUrl) {
-                // Only show menu on Android
-                if (Capacitor.getPlatform() === 'android') {
-                    setSelectedImageUrl(event.data.imageUrl)
-                }
-            } else if (event.data?.type === 'YOUTUBE_VIDEO_CLICK' && event.data?.videoId) {
-                // Open YouTube video in modal
-                setYoutubeVideo({
-                    videoId: event.data.videoId,
-                    title: event.data.videoTitle || ''
-                })
-            }
-        }
-
-        window.addEventListener('message', handleMessage)
-        return () => window.removeEventListener('message', handleMessage)
-    }, [])
-
-    // Handle auth dialog submission
-    const handleAuthSubmit = async (username: string, password: string) => {
-        if (!authDialog) return
-        
-        const { domain } = authDialog
-        
-        // Store credentials in localStorage
-        storeAuth(domain, username, password)
-        
-        // Set auth for Tauri (desktop)
+      if (iframe.contentWindow) {
+        // Check iframe document for diagnostics (same-origin only, for blob URLs in readability mode)
         try {
-            await safeInvoke('set_proxy_auth', { domain, username, password })
-        } catch (_e) {
-            // Try Capacitor (Android)
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const win = window as any
-                const Plugins = win?.Capacitor?.Plugins
-                if (Plugins?.RawHtml?.setProxyAuth) {
-                    await Plugins.RawHtml.setProxyAuth({ domain, username, password })
-                }
-            } catch (_e2) {
-                // Ignore
-            }
-        }
-        
-        setAuthDialog(null)
-        
-        // Reload the current view to retry with auth
-        if (viewMode === 'readability') {
-            // Trigger a re-render by changing view mode temporarily
-            // This will cause the useEffect to re-run and retry fetchRawHtml with auth
-            setViewMode('original')
-            setTimeout(() => setViewMode('readability'), 10)
-        } else if (viewMode === 'configured') {
-            // Same approach for configured mode
-            setViewMode('original')
-            setTimeout(() => setViewMode('configured'), 10)
-        } else if (viewMode === 'original') {
-            // Force reload iframe
-            if (iframeRef.current) {
-                const currentSrc = iframeRef.current.src
-                iframeRef.current.src = 'about:blank'
-                setTimeout(() => {
-                    if (iframeRef.current) iframeRef.current.src = currentSrc
-                }, 100)
-            }
-        }
-    }
+          const doc = iframe.contentDocument || iframe.contentWindow?.document
+          if (doc) {
+            const h =
+              doc.documentElement?.scrollHeight || doc.body?.scrollHeight
+            // eslint-disable-next-line no-console
+            console.debug(
+              '[DIAG] FeedArticle: iframe document scrollHeight (same-origin):',
+              h
+            )
 
-    const handleAuthCancel = () => {
-        setAuthDialog(null)
-    }
-
-    // Inject HTML into Shadow DOM when injectedHtml changes (for original mode)
-    useEffect(() => {
-        if (injectedHtml && injectedHtmlRef.current) {
-            // Clear any existing shadow root
-            if (injectedHtmlRef.current.shadowRoot) {
-                injectedHtmlRef.current.shadowRoot.innerHTML = ''
+            // Check viewport meta for zoom support
+            const viewportMeta = doc.querySelector('meta[name="viewport"]')
+            if (viewportMeta) {
+              // eslint-disable-next-line no-console
+              console.debug(
+                '[DIAG] FeedArticle: iframe viewport meta:',
+                viewportMeta.getAttribute('content')
+              )
             } else {
-                // Create shadow root with open mode (allows JS to access it)
-                injectedHtmlRef.current.attachShadow({ mode: 'open' })
+              // eslint-disable-next-line no-console
+              console.warn(
+                '[DIAG] FeedArticle: iframe viewport meta NOT FOUND - zoom may not work!'
+              )
             }
-            
-            const shadowRoot = injectedHtmlRef.current.shadowRoot
-            if (!shadowRoot) return
-            
-            const hostElement = shadowRoot.host as HTMLElement
-            // Ensure the host element has proper positioning context for fixed elements inside Shadow DOM
-            hostElement.style.position = 'relative'
-            hostElement.style.isolation = 'isolate' // Create a new stacking context
-            
-            // Load external stylesheets first (they need to be loaded before content renders)
-            // Load them IN the Shadow DOM to maintain style isolation
-            const loadExternalStylesheets = async () => {
-                const stylesheetPromises = injectedExternalStylesheets.map((href) => {
-                    return new Promise<void>((resolve) => {
-                        // Check if stylesheet is already loaded in shadow root
-                        const existingLink = shadowRoot.querySelector(`link[href="${href}"]`)
-                        if (existingLink) {
-                            resolve()
-                            return
-                        }
-                        
-                        const link = document.createElement('link')
-                        link.rel = 'stylesheet'
-                        link.href = href
-                        link.onload = () => {
-                            resolve()
-                        }
-                        link.onerror = () => {
-                            // eslint-disable-next-line no-console
-                            console.warn('[FeedArticle] Failed to load external stylesheet:', href)
-                            resolve() // Continue even if stylesheet fails to load
-                        }
-                        // Append to shadow root, not document.head, to maintain isolation
-                        shadowRoot.appendChild(link)
-                    })
-                })
-                
-                await Promise.all(stylesheetPromises)
-            }
-            
-            // Store original document methods for restoration (before any modifications)
-            const originalGetElementById = document.getElementById.bind(document)
-            const originalQuerySelector = document.querySelector.bind(document)
-            const originalQuerySelectorAll = document.querySelectorAll.bind(document)
-            const originalGetElementsByClassName = document.getElementsByClassName.bind(document)
-            const originalGetElementsByTagName = document.getElementsByTagName.bind(document)
-            
-            // Load external scripts (they need to be loaded before inline scripts can use them)
-            const loadExternalScripts = async () => {
-                const scriptPromises = injectedExternalScripts.map((scriptSrc) => {
-                    return new Promise<void>((resolve) => {
-                        // Check if script is already loaded
-                        const existingScript = document.querySelector(`script[src="${scriptSrc}"]`)
-                        if (existingScript) {
-                            resolve()
-                            return
-                        }
-                        
-                        const script = document.createElement('script')
-                        script.src = scriptSrc
-                        script.async = true
-                        script.onload = () => {
-                            // eslint-disable-next-line no-console
-                            console.log('[FeedArticle] External script loaded:', scriptSrc)
-                            resolve()
-                        }
-                        script.onerror = () => {
-                            // eslint-disable-next-line no-console
-                            console.warn('[FeedArticle] Failed to load external script:', scriptSrc)
-                            resolve() // Continue even if script fails to load
-                        }
-                        document.head.appendChild(script)
-                    })
-                })
-                
-                await Promise.all(scriptPromises)
-            }
-            
-            // Permanently redirect document methods to search in shadow root first
-            // This is needed because scripts may use async callbacks (like DOMContentLoaded)
-            document.getElementById = function(id: string) {
-                // ShadowRoot doesn't have getElementById, use querySelector instead
-                // Use CSS.escape to handle IDs starting with digits (e.g., '85' -> '#\35 85')
-                const shadowElement = shadowRoot.querySelector('#' + CSS.escape(id))
-                if (shadowElement) {
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Found element in shadow DOM:', id)
-                    return shadowElement as HTMLElement | null
-                }
-                return originalGetElementById.call(document, id)
-            }
-            document.querySelector = function(selector: string) {
-                try {
-                    const shadowElement = shadowRoot.querySelector(selector)
-                    return shadowElement || originalQuerySelector.call(document, selector)
-                } catch (e) {
-                    // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
-                    // Try to escape the ID if it looks like an ID selector
-                    if (selector.startsWith('#') && !selector.includes(' ')) {
-                        const id = selector.slice(1)
-                        const escapedSelector = '#' + CSS.escape(id)
-                        const shadowElement = shadowRoot.querySelector(escapedSelector)
-                        return shadowElement || originalQuerySelector.call(document, escapedSelector)
-                    }
-                    // Re-throw if we can't handle it
-                    throw e
-                }
-            }
-            document.querySelectorAll = function(selector: string) {
-                try {
-                    const shadowResults = shadowRoot.querySelectorAll(selector)
-                    return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, selector)
-                } catch (e) {
-                    // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
-                    // Try to escape the ID if it looks like an ID selector
-                    if (selector.startsWith('#') && !selector.includes(' ')) {
-                        const id = selector.slice(1)
-                        const escapedSelector = '#' + CSS.escape(id)
-                        const shadowResults = shadowRoot.querySelectorAll(escapedSelector)
-                        return shadowResults.length > 0 ? shadowResults : originalQuerySelectorAll.call(document, escapedSelector)
-                    }
-                    // Re-throw if we can't handle it
-                    throw e
-                }
-            }
-            document.getElementsByClassName = function(className: string) {
-                const shadowResults = shadowRoot.querySelectorAll('.' + className)
-                return shadowResults.length > 0 ? (shadowResults as unknown as HTMLCollectionOf<Element>) : originalGetElementsByClassName.call(document, className)
-            }
-            document.getElementsByTagName = function(tagName: string) {
-                const shadowResults = shadowRoot.querySelectorAll(tagName)
-                return shadowResults.length > 0 ? (shadowResults as unknown as HTMLCollectionOf<Element>) : originalGetElementsByTagName.call(document, tagName)
-            }
-            
-            // Load stylesheets first, then inject HTML, then load scripts
-            // Use .then() since useEffect callback cannot be async
-            loadExternalStylesheets().then(() => {
 
-                
-                // Inject HTML into shadow root (without scripts - they're executed separately)
-                // Security: This is intentional - we're injecting proxied HTML content from trusted sources
-                shadowRoot.innerHTML = injectedHtml
-                
-                // Add zoom implementation script to shadow DOM
-                const zoomScript = shadowRoot.ownerDocument.createElement('script')
-                zoomScript.textContent = getShadowDomZoomScript()
-                shadowRoot.appendChild(zoomScript)
-                
-                // Setup image long press handlers for Android
-                if (Capacitor.getPlatform() === 'android') {
-                    const setupImageLongPress = () => {
-                        const images = shadowRoot.querySelectorAll('img')
-                        images.forEach((img) => {
-                            // Prevent default context menu
-                            img.addEventListener('contextmenu', (e) => {
-                                e.preventDefault()
-                                const imageUrl = (img as HTMLImageElement).src || 
-                                               img.getAttribute('data-src') || 
-                                               img.getAttribute('data-lazy-src')
-                                if (imageUrl) {
-                                    // eslint-disable-next-line no-console
-                                    console.log('[FeedArticle] Image long press detected, setting selectedImageUrl:', imageUrl)
-                                    setSelectedImageUrl(imageUrl)
-                                }
-                            })
-                            
-                            // Touch events for mobile
-                            let touchStartTime: number | null = null
-                            let touchStartPos: { x: number; y: number } | null = null
-                            img.addEventListener('touchstart', (e) => {
-                                touchStartTime = Date.now()
-                                if (e.touches.length === 1) {
-                                    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-                                }
-                            })
-                            
-                            img.addEventListener('touchend', (e) => {
-                                if (touchStartTime && Date.now() - touchStartTime >= 500) {
-                                    // Check if finger didn't move much (long press, not drag)
-                                    const moved = touchStartPos && e.changedTouches[0] && 
-                                                 (Math.abs(e.changedTouches[0].clientX - touchStartPos.x) > 10 ||
-                                                  Math.abs(e.changedTouches[0].clientY - touchStartPos.y) > 10)
-                                    if (!moved) {
-                                        e.preventDefault()
-                                        const imageUrl = (img as HTMLImageElement).src || 
-                                                       img.getAttribute('data-src') || 
-                                                       img.getAttribute('data-lazy-src')
-                                        if (imageUrl) {
-                                            // eslint-disable-next-line no-console
-                                            console.log('[FeedArticle] Image long press detected (touch), setting selectedImageUrl:', imageUrl)
-                                            setSelectedImageUrl(imageUrl)
-                                        }
-                                    }
-                                }
-                                touchStartTime = null
-                                touchStartPos = null
-                            })
-                            
-                            img.addEventListener('touchmove', () => {
-                                touchStartTime = null
-                                touchStartPos = null
-                            })
-                        })
-                    }
-                    
-                    setupImageLongPress()
-                    
-                    // Watch for dynamically added images
-                    const imageObserver = new MutationObserver(() => {
-                        setupImageLongPress()
-                    })
-                    imageObserver.observe(shadowRoot, { childList: true, subtree: true })
-                    
-                    // Store observer for cleanup
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    ;(shadowRoot as any)._imageObserver = imageObserver
-                }
-                
-                // Function to convert position:fixed to position:absolute for all elements
-                // This ensures fixed elements stay contained within the Shadow DOM
-                const convertFixedToAbsolute = () => {
-                    const allElements = shadowRoot.querySelectorAll('*')
-                    allElements.forEach((element) => {
-                        const el = element as HTMLElement
-                        // Check computed style (this catches both inline styles and CSS classes)
-                        const computedStyle = window.getComputedStyle(el)
-                        if (computedStyle.position === 'fixed') {
-                            // Preserve the original top, left, right, bottom values
-                            const top = computedStyle.top
-                            const left = computedStyle.left
-                            const right = computedStyle.right
-                            const bottom = computedStyle.bottom
-                            
-                            // Convert to absolute
-                            el.style.position = 'absolute'
-                            if (top && top !== 'auto') el.style.top = top
-                            if (left && left !== 'auto') el.style.left = left
-                            if (right && right !== 'auto') el.style.right = right
-                            if (bottom && bottom !== 'auto') el.style.bottom = bottom
-                        }
-                    })
-                }
-                
-                // Convert fixed to absolute immediately after HTML injection
-                convertFixedToAbsolute()
-                
-                // Also use a MutationObserver to catch dynamically added elements with position:fixed
-                const observer = new MutationObserver(() => {
-                    convertFixedToAbsolute()
-                })
-                observer.observe(shadowRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
-                
-                // Store observer reference for cleanup
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ;(shadowRoot as any)._positionObserver = observer
-                
-                // Continue with script loading after HTML is injected
-                loadExternalScripts().then(() => {
-                // Wait a bit to ensure DOM is fully parsed
-                setTimeout(() => {
-                    // Verify elements are in shadow DOM before executing scripts
-                    const testElement = shadowRoot.querySelector('#tweet_1986189869287170303') || 
-                                        shadowRoot.querySelector('[id^="tweet_"]') ||
-                                        shadowRoot.querySelector('div[id]')
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Shadow DOM test element:', testElement ? 'found' : 'not found')
-                    // eslint-disable-next-line no-console
-                    console.log('[FeedArticle] Shadow DOM HTML length:', shadowRoot.innerHTML.length)
-                    
-                    // Execute inline scripts (document methods are already redirected)
-                    injectedScripts.forEach((scriptContent, index) => {
-                        try {
-                            // eslint-disable-next-line no-console
-                            console.log('[FeedArticle] Executing script', index + 1, 'of', injectedScripts.length)
-                            // Execute script directly - document methods are already redirected
-                            const scriptFunction = new Function('document', 'window', scriptContent)
-                            scriptFunction(document, window)
-                        } catch (err) {
-                            // eslint-disable-next-line no-console
-                            console.error('[FeedArticle] Error executing script in Shadow DOM:', err)
-                        }
-                    })
-                    
-                    // Trigger DOMContentLoaded event AFTER scripts are executed
-                    // This ensures that async callbacks can use the redirected document methods
-                    const domContentLoadedEvent = new Event('DOMContentLoaded', {
-                        bubbles: true,
-                        cancelable: true
-                    })
-                    window.dispatchEvent(domContentLoadedEvent)
-                    document.dispatchEvent(domContentLoadedEvent)
-                    
-                    // Log videos found in Shadow DOM after scripts have executed
-                    const videos = shadowRoot.querySelectorAll('video')
-                    if (videos && videos.length > 0) {
-                        // eslint-disable-next-line no-console
-                        console.log('[FeedArticle] Found videos in Shadow DOM:', videos.length)
-                    }
-                }, 200) // Increased delay to ensure DOM is fully parsed
-                })
-            })
-            
-            // Cleanup: restore original methods and disconnect observer when component unmounts or HTML changes
-            return () => {
-                // Disconnect MutationObserver
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const obs = (shadowRoot as any)?._positionObserver
-                if (obs) {
-                    obs.disconnect()
-                }
-                // Disconnect image observer
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const imgObs = (shadowRoot as any)?._imageObserver
-                if (imgObs) {
-                    imgObs.disconnect()
-                }
-                // Restore original document methods
-                document.getElementById = originalGetElementById
-                document.querySelector = originalQuerySelector
-                document.querySelectorAll = originalQuerySelectorAll
-                document.getElementsByClassName = originalGetElementsByClassName
-                document.getElementsByTagName = originalGetElementsByTagName
+            // Log touch-action styles
+            const htmlEl = doc.documentElement
+            const bodyEl = doc.body
+            if (htmlEl) {
+              const htmlStyle = window.getComputedStyle(htmlEl)
+              // eslint-disable-next-line no-console
+              console.debug(
+                '[DIAG] FeedArticle: iframe html touch-action:',
+                htmlStyle.touchAction
+              )
             }
+            if (bodyEl) {
+              const bodyStyle = window.getComputedStyle(bodyEl)
+              // eslint-disable-next-line no-console
+              console.debug(
+                '[DIAG] FeedArticle: iframe body touch-action:',
+                bodyStyle.touchAction
+              )
+            }
+          }
+        } catch (_e) {
+          // eslint-disable-next-line no-console
+          console.debug(
+            '[DIAG] FeedArticle: iframe same-origin access denied (cross-origin)'
+          )
         }
-    }, [injectedHtml, injectedScripts, injectedExternalScripts, injectedExternalStylesheets, setSelectedImageUrl])
+      }
+    }
 
-    // Track scroll progress in iframe for readability/configured modes
-    // Uses both direct iframe scroll events (web/desktop) and postMessage (Android WebView)
-    useEffect(() => {
-        if (viewMode !== 'readability' && viewMode !== 'configured') {
-            setScrollProgress(0)
-            return
+    iframe.addEventListener('load', handleLoad)
+    return () => {
+      iframe.removeEventListener('load', handleLoad)
+    }
+  }, [isIframeView, viewMode, theme, proxyPort, item.url])
+
+  // Layout probes: measure viewport and article/iframe sizes and padding so we can
+  // understand why content is ending up underneath the Android navigation area.
+  useEffect(() => {
+    const logMeasurements = () => {
+      try {
+        // Basic viewport metrics
+        const windowInnerHeight =
+          typeof window !== 'undefined' ? window.innerHeight : undefined
+        // Use a typed-safe access to visualViewport to satisfy lint rules
+        const visualViewport =
+          typeof window !== 'undefined' &&
+          (
+            window as unknown as Window & {
+              visualViewport?: { height?: number }
+            }
+          ).visualViewport
+        const visualViewportHeight = visualViewport
+          ? visualViewport.height
+          : undefined
+
+        // Container scroll area that holds iframe
+        const containerEl = document.querySelector(
+          '.relative.h-full.w-full.overflow-auto'
+        ) as HTMLElement | null
+        let containerRect = null
+        if (containerEl) {
+          const cr = containerEl.getBoundingClientRect()
+          containerRect = { top: cr.top, bottom: cr.bottom, height: cr.height }
         }
 
+        // Iframe metrics (if present)
         const iframe = iframeRef.current
-
-        // Listen for SCROLL_PROGRESS postMessage from iframe (works on Android WebView)
-        const handleMessage = (event: MessageEvent) => {
-            // eslint-disable-next-line no-console
-            console.log('[SCROLL_PROGRESS] Received message:', event.data?.type, event.data?.progress)
-            if (event.data?.type === 'SCROLL_PROGRESS' && typeof event.data.progress === 'number') {
-                setScrollProgress(Math.min(100, Math.max(0, event.data.progress)))
-            }
+        let iframeRect = null
+        if (iframe) {
+          const ir = iframe.getBoundingClientRect()
+          iframeRect = { top: ir.top, bottom: ir.bottom, height: ir.height }
         }
-        window.addEventListener('message', handleMessage)
+
+        // Probe safe-area-inset-bottom via env() by creating a temporary element.
+        let measuredSafeAreaInsetBottom: number | string = 'n/a'
+        try {
+          const probe = document.createElement('div')
+          probe.style.position = 'absolute'
+          probe.style.left = '-9999px'
+          probe.style.height = 'env(safe-area-inset-bottom, 0px)'
+          document.body.appendChild(probe)
+          measuredSafeAreaInsetBottom = probe.offsetHeight
+          document.body.removeChild(probe)
+        } catch (_e) {
+          measuredSafeAreaInsetBottom = 'err'
+        }
+
         // eslint-disable-next-line no-console
-        console.log('[SCROLL_PROGRESS] Listener registered for viewMode:', viewMode)
+        console.debug(
+          '[DIAG] FeedArticle: layout',
+          JSON.stringify({
+            viewMode,
+            windowInnerHeight,
+            visualViewportHeight,
+            containerRect,
+            iframeRect,
+            measuredSafeAreaInsetBottom,
+            articleContentLength: articleContent?.length,
+          })
+        )
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.debug('[DIAG] FeedArticle: layout probe failed', err)
+      }
+    }
 
-        // Also try direct iframe scroll events as fallback (works on web/desktop)
-        const updateScrollProgress = () => {
-            try {
-                const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document
-                if (iframeDoc) {
-                    const scrollTop = iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop
-                    const scrollHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight
-                    const clientHeight = iframeDoc.documentElement.clientHeight || iframeDoc.body.clientHeight
-                    const maxScroll = scrollHeight - clientHeight
-                    if (maxScroll > 0) {
-                        const progress = (scrollTop / maxScroll) * 100
-                        setScrollProgress(Math.min(100, Math.max(0, progress)))
-                    } else {
-                        setScrollProgress(0)
-                    }
-                }
-            } catch (_e) {
-                // Cross-origin access denied - ignore, postMessage will handle it
+    logMeasurements()
+    window.addEventListener('resize', logMeasurements)
+    window.addEventListener('orientationchange', logMeasurements)
+    return () => {
+      window.removeEventListener('resize', logMeasurements)
+      window.removeEventListener('orientationchange', logMeasurements)
+    }
+  }, [viewMode, articleContent])
+
+  // Listen for auth requests from proxy via postMessage
+  // Also listen for image long press events from iframe
+  // Also listen for YouTube video clicks from iframe
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
+        const { domain } = event.data
+        setAuthDialog({ domain })
+      } else if (
+        event.data?.type === 'IMAGE_LONG_PRESS' &&
+        event.data?.imageUrl
+      ) {
+        // Only show menu on Android
+        if (Capacitor.getPlatform() === 'android') {
+          setSelectedImageUrl(event.data.imageUrl)
+        }
+      } else if (
+        event.data?.type === 'YOUTUBE_VIDEO_CLICK' &&
+        event.data?.videoId
+      ) {
+        // Open YouTube video in modal
+        setYoutubeVideo({
+          videoId: event.data.videoId,
+          title: event.data.videoTitle || '',
+        })
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+  // Handle auth dialog submission
+  const handleAuthSubmit = async (username: string, password: string) => {
+    if (!authDialog) return
+
+    const { domain } = authDialog
+
+    // Store credentials in localStorage
+    storeAuth(domain, username, password)
+
+    // Set auth for Tauri (desktop)
+    try {
+      await safeInvoke('set_proxy_auth', { domain, username, password })
+    } catch (_e) {
+      // Try Capacitor (Android)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const win = window as any
+        const Plugins = win?.Capacitor?.Plugins
+        if (Plugins?.RawHtml?.setProxyAuth) {
+          await Plugins.RawHtml.setProxyAuth({ domain, username, password })
+        }
+      } catch (_e2) {
+        // Ignore
+      }
+    }
+
+    setAuthDialog(null)
+
+    // Reload the current view to retry with auth
+    if (viewMode === 'readability') {
+      // Trigger a re-render by changing view mode temporarily
+      // This will cause the useEffect to re-run and retry fetchRawHtml with auth
+      setViewMode('original')
+      setTimeout(() => setViewMode('readability'), 10)
+    } else if (viewMode === 'configured') {
+      // Same approach for configured mode
+      setViewMode('original')
+      setTimeout(() => setViewMode('configured'), 10)
+    } else if (viewMode === 'original') {
+      // Force reload iframe
+      if (iframeRef.current) {
+        const currentSrc = iframeRef.current.src
+        iframeRef.current.src = 'about:blank'
+        setTimeout(() => {
+          if (iframeRef.current) iframeRef.current.src = currentSrc
+        }, 100)
+      }
+    }
+  }
+
+  const handleAuthCancel = () => {
+    setAuthDialog(null)
+  }
+
+  // Inject HTML into Shadow DOM when injectedHtml changes (for original mode)
+  useEffect(() => {
+    if (injectedHtml && injectedHtmlRef.current) {
+      // Clear any existing shadow root
+      if (injectedHtmlRef.current.shadowRoot) {
+        injectedHtmlRef.current.shadowRoot.innerHTML = ''
+      } else {
+        // Create shadow root with open mode (allows JS to access it)
+        injectedHtmlRef.current.attachShadow({ mode: 'open' })
+      }
+
+      const shadowRoot = injectedHtmlRef.current.shadowRoot
+      if (!shadowRoot) return
+
+      const hostElement = shadowRoot.host as HTMLElement
+      // Ensure the host element has proper positioning context for fixed elements inside Shadow DOM
+      hostElement.style.position = 'relative'
+      hostElement.style.isolation = 'isolate' // Create a new stacking context
+
+      // Load external stylesheets first (they need to be loaded before content renders)
+      // Load them IN the Shadow DOM to maintain style isolation
+      const loadExternalStylesheets = async () => {
+        const stylesheetPromises = injectedExternalStylesheets.map((href) => {
+          return new Promise<void>((resolve) => {
+            // Check if stylesheet is already loaded in shadow root
+            const existingLink = shadowRoot.querySelector(
+              `link[href="${href}"]`
+            )
+            if (existingLink) {
+              resolve()
+              return
             }
+
+            const link = document.createElement('link')
+            link.rel = 'stylesheet'
+            link.href = href
+            link.onload = () => {
+              resolve()
+            }
+            link.onerror = () => {
+              // eslint-disable-next-line no-console
+              console.warn(
+                '[FeedArticle] Failed to load external stylesheet:',
+                href
+              )
+              resolve() // Continue even if stylesheet fails to load
+            }
+            // Append to shadow root, not document.head, to maintain isolation
+            shadowRoot.appendChild(link)
+          })
+        })
+
+        await Promise.all(stylesheetPromises)
+      }
+
+      // Store original document methods for restoration (before any modifications)
+      const originalGetElementById = document.getElementById.bind(document)
+      const originalQuerySelector = document.querySelector.bind(document)
+      const originalQuerySelectorAll = document.querySelectorAll.bind(document)
+      const originalGetElementsByClassName =
+        document.getElementsByClassName.bind(document)
+      const originalGetElementsByTagName =
+        document.getElementsByTagName.bind(document)
+
+      // Load external scripts (they need to be loaded before inline scripts can use them)
+      const loadExternalScripts = async () => {
+        const scriptPromises = injectedExternalScripts.map((scriptSrc) => {
+          return new Promise<void>((resolve) => {
+            // Check if script is already loaded
+            const existingScript = document.querySelector(
+              `script[src="${scriptSrc}"]`
+            )
+            if (existingScript) {
+              resolve()
+              return
+            }
+
+            const script = document.createElement('script')
+            script.src = scriptSrc
+            script.async = true
+            script.onload = () => {
+              // eslint-disable-next-line no-console
+              console.log('[FeedArticle] External script loaded:', scriptSrc)
+              resolve()
+            }
+            script.onerror = () => {
+              // eslint-disable-next-line no-console
+              console.warn(
+                '[FeedArticle] Failed to load external script:',
+                scriptSrc
+              )
+              resolve() // Continue even if script fails to load
+            }
+            document.head.appendChild(script)
+          })
+        })
+
+        await Promise.all(scriptPromises)
+      }
+
+      // Permanently redirect document methods to search in shadow root first
+      // This is needed because scripts may use async callbacks (like DOMContentLoaded)
+      document.getElementById = function (id: string) {
+        // ShadowRoot doesn't have getElementById, use querySelector instead
+        // Use CSS.escape to handle IDs starting with digits (e.g., '85' -> '#\35 85')
+        const shadowElement = shadowRoot.querySelector('#' + CSS.escape(id))
+        if (shadowElement) {
+          // eslint-disable-next-line no-console
+          console.log('[FeedArticle] Found element in shadow DOM:', id)
+          return shadowElement as HTMLElement | null
+        }
+        return originalGetElementById.call(document, id)
+      }
+      document.querySelector = function (selector: string) {
+        try {
+          const shadowElement = shadowRoot.querySelector(selector)
+          return shadowElement || originalQuerySelector.call(document, selector)
+        } catch (e) {
+          // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
+          // Try to escape the ID if it looks like an ID selector
+          if (selector.startsWith('#') && !selector.includes(' ')) {
+            const id = selector.slice(1)
+            const escapedSelector = '#' + CSS.escape(id)
+            const shadowElement = shadowRoot.querySelector(escapedSelector)
+            return (
+              shadowElement ||
+              originalQuerySelector.call(document, escapedSelector)
+            )
+          }
+          // Re-throw if we can't handle it
+          throw e
+        }
+      }
+      document.querySelectorAll = function (selector: string) {
+        try {
+          const shadowResults = shadowRoot.querySelectorAll(selector)
+          return shadowResults.length > 0
+            ? shadowResults
+            : originalQuerySelectorAll.call(document, selector)
+        } catch (e) {
+          // Invalid selector (e.g., '#85' - IDs starting with digits are invalid CSS selectors)
+          // Try to escape the ID if it looks like an ID selector
+          if (selector.startsWith('#') && !selector.includes(' ')) {
+            const id = selector.slice(1)
+            const escapedSelector = '#' + CSS.escape(id)
+            const shadowResults = shadowRoot.querySelectorAll(escapedSelector)
+            return shadowResults.length > 0
+              ? shadowResults
+              : originalQuerySelectorAll.call(document, escapedSelector)
+          }
+          // Re-throw if we can't handle it
+          throw e
+        }
+      }
+      document.getElementsByClassName = function (className: string) {
+        const shadowResults = shadowRoot.querySelectorAll('.' + className)
+        return shadowResults.length > 0
+          ? (shadowResults as unknown as HTMLCollectionOf<Element>)
+          : originalGetElementsByClassName.call(document, className)
+      }
+      document.getElementsByTagName = function (tagName: string) {
+        const shadowResults = shadowRoot.querySelectorAll(tagName)
+        return shadowResults.length > 0
+          ? (shadowResults as unknown as HTMLCollectionOf<Element>)
+          : originalGetElementsByTagName.call(document, tagName)
+      }
+
+      // Load stylesheets first, then inject HTML, then load scripts
+      // Use .then() since useEffect callback cannot be async
+      loadExternalStylesheets().then(() => {
+        // Inject HTML into shadow root (without scripts - they're executed separately)
+        // Security: This is intentional - we're injecting proxied HTML content from trusted sources
+        shadowRoot.innerHTML = injectedHtml
+
+        // Add zoom implementation script to shadow DOM
+        const zoomScript = shadowRoot.ownerDocument.createElement('script')
+        zoomScript.textContent = getShadowDomZoomScript()
+        shadowRoot.appendChild(zoomScript)
+
+        // Setup image long press handlers for Android
+        if (Capacitor.getPlatform() === 'android') {
+          const setupImageLongPress = () => {
+            const images = shadowRoot.querySelectorAll('img')
+            images.forEach((img) => {
+              // Prevent default context menu
+              img.addEventListener('contextmenu', (e) => {
+                e.preventDefault()
+                const imageUrl =
+                  (img as HTMLImageElement).src ||
+                  img.getAttribute('data-src') ||
+                  img.getAttribute('data-lazy-src')
+                if (imageUrl) {
+                  // eslint-disable-next-line no-console
+                  console.log(
+                    '[FeedArticle] Image long press detected, setting selectedImageUrl:',
+                    imageUrl
+                  )
+                  setSelectedImageUrl(imageUrl)
+                }
+              })
+
+              // Touch events for mobile
+              let touchStartTime: number | null = null
+              let touchStartPos: { x: number; y: number } | null = null
+              img.addEventListener('touchstart', (e) => {
+                touchStartTime = Date.now()
+                if (e.touches.length === 1) {
+                  touchStartPos = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY,
+                  }
+                }
+              })
+
+              img.addEventListener('touchend', (e) => {
+                if (touchStartTime && Date.now() - touchStartTime >= 500) {
+                  // Check if finger didn't move much (long press, not drag)
+                  const moved =
+                    touchStartPos &&
+                    e.changedTouches[0] &&
+                    (Math.abs(e.changedTouches[0].clientX - touchStartPos.x) >
+                      10 ||
+                      Math.abs(e.changedTouches[0].clientY - touchStartPos.y) >
+                        10)
+                  if (!moved) {
+                    e.preventDefault()
+                    const imageUrl =
+                      (img as HTMLImageElement).src ||
+                      img.getAttribute('data-src') ||
+                      img.getAttribute('data-lazy-src')
+                    if (imageUrl) {
+                      // eslint-disable-next-line no-console
+                      console.log(
+                        '[FeedArticle] Image long press detected (touch), setting selectedImageUrl:',
+                        imageUrl
+                      )
+                      setSelectedImageUrl(imageUrl)
+                    }
+                  }
+                }
+                touchStartTime = null
+                touchStartPos = null
+              })
+
+              img.addEventListener('touchmove', () => {
+                touchStartTime = null
+                touchStartPos = null
+              })
+            })
+          }
+
+          setupImageLongPress()
+
+          // Watch for dynamically added images
+          const imageObserver = new MutationObserver(() => {
+            setupImageLongPress()
+          })
+          imageObserver.observe(shadowRoot, { childList: true, subtree: true })
+
+          // Store observer for cleanup
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(shadowRoot as any)._imageObserver = imageObserver
         }
 
-        const handleLoad = () => {
-            // eslint-disable-next-line no-console
-            console.log('[SCROLL_PROGRESS] handleLoad called, iframe:', !!iframe, 'contentWindow:', !!iframe?.contentWindow)
-            try {
-                const iframeWindow = iframe?.contentWindow
-                const iframeDoc = iframe?.contentDocument || iframeWindow?.document
-                // eslint-disable-next-line no-console
-                console.log('[SCROLL_PROGRESS] iframeDoc:', !!iframeDoc, 'body:', !!iframeDoc?.body)
-                if (iframeWindow && iframeDoc && iframeDoc.body) {
-                    // Direct scroll listener (works on web/desktop)
-                    iframeWindow.addEventListener('scroll', updateScrollProgress)
-                    updateScrollProgress()
+        // Function to convert position:fixed to position:absolute for all elements
+        // This ensures fixed elements stay contained within the Shadow DOM
+        const convertFixedToAbsolute = () => {
+          const allElements = shadowRoot.querySelectorAll('*')
+          allElements.forEach((element) => {
+            const el = element as HTMLElement
+            // Check computed style (this catches both inline styles and CSS classes)
+            const computedStyle = window.getComputedStyle(el)
+            if (computedStyle.position === 'fixed') {
+              // Preserve the original top, left, right, bottom values
+              const top = computedStyle.top
+              const left = computedStyle.left
+              const right = computedStyle.right
+              const bottom = computedStyle.bottom
 
-                    // Inject scroll progress script into iframe for Android WebView
-                    // This ensures postMessage works from iframe to parent
-                    const script = iframeDoc.createElement('script')
-                    script.textContent = `
+              // Convert to absolute
+              el.style.position = 'absolute'
+              if (top && top !== 'auto') el.style.top = top
+              if (left && left !== 'auto') el.style.left = left
+              if (right && right !== 'auto') el.style.right = right
+              if (bottom && bottom !== 'auto') el.style.bottom = bottom
+            }
+          })
+        }
+
+        // Convert fixed to absolute immediately after HTML injection
+        convertFixedToAbsolute()
+
+        // Also use a MutationObserver to catch dynamically added elements with position:fixed
+        const observer = new MutationObserver(() => {
+          convertFixedToAbsolute()
+        })
+        observer.observe(shadowRoot, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class'],
+        })
+
+        // Store observer reference for cleanup
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(shadowRoot as any)._positionObserver = observer
+
+        // Continue with script loading after HTML is injected
+        loadExternalScripts().then(() => {
+          // Wait a bit to ensure DOM is fully parsed
+          setTimeout(() => {
+            // Verify elements are in shadow DOM before executing scripts
+            const testElement =
+              shadowRoot.querySelector('#tweet_1986189869287170303') ||
+              shadowRoot.querySelector('[id^="tweet_"]') ||
+              shadowRoot.querySelector('div[id]')
+            // eslint-disable-next-line no-console
+            console.log(
+              '[FeedArticle] Shadow DOM test element:',
+              testElement ? 'found' : 'not found'
+            )
+            // eslint-disable-next-line no-console
+            console.log(
+              '[FeedArticle] Shadow DOM HTML length:',
+              shadowRoot.innerHTML.length
+            )
+
+            // Execute inline scripts (document methods are already redirected)
+            injectedScripts.forEach((scriptContent, index) => {
+              try {
+                // eslint-disable-next-line no-console
+                console.log(
+                  '[FeedArticle] Executing script',
+                  index + 1,
+                  'of',
+                  injectedScripts.length
+                )
+                // Execute script directly - document methods are already redirected
+                const scriptFunction = new Function(
+                  'document',
+                  'window',
+                  scriptContent
+                )
+                scriptFunction(document, window)
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  '[FeedArticle] Error executing script in Shadow DOM:',
+                  err
+                )
+              }
+            })
+
+            // Trigger DOMContentLoaded event AFTER scripts are executed
+            // This ensures that async callbacks can use the redirected document methods
+            const domContentLoadedEvent = new Event('DOMContentLoaded', {
+              bubbles: true,
+              cancelable: true,
+            })
+            window.dispatchEvent(domContentLoadedEvent)
+            document.dispatchEvent(domContentLoadedEvent)
+
+            // Log videos found in Shadow DOM after scripts have executed
+            const videos = shadowRoot.querySelectorAll('video')
+            if (videos && videos.length > 0) {
+              // eslint-disable-next-line no-console
+              console.log(
+                '[FeedArticle] Found videos in Shadow DOM:',
+                videos.length
+              )
+            }
+          }, 200) // Increased delay to ensure DOM is fully parsed
+        })
+      })
+
+      // Cleanup: restore original methods and disconnect observer when component unmounts or HTML changes
+      return () => {
+        // Disconnect MutationObserver
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const obs = (shadowRoot as any)?._positionObserver
+        if (obs) {
+          obs.disconnect()
+        }
+        // Disconnect image observer
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const imgObs = (shadowRoot as any)?._imageObserver
+        if (imgObs) {
+          imgObs.disconnect()
+        }
+        // Restore original document methods
+        document.getElementById = originalGetElementById
+        document.querySelector = originalQuerySelector
+        document.querySelectorAll = originalQuerySelectorAll
+        document.getElementsByClassName = originalGetElementsByClassName
+        document.getElementsByTagName = originalGetElementsByTagName
+      }
+    }
+  }, [
+    injectedHtml,
+    injectedScripts,
+    injectedExternalScripts,
+    injectedExternalStylesheets,
+    setSelectedImageUrl,
+  ])
+
+  // Track scroll progress in iframe for readability/configured modes
+  // Uses both direct iframe scroll events (web/desktop) and postMessage (Android WebView)
+  useEffect(() => {
+    if (viewMode !== 'readability' && viewMode !== 'configured') {
+      setScrollProgress(0)
+      return
+    }
+
+    const iframe = iframeRef.current
+
+    // Listen for SCROLL_PROGRESS postMessage from iframe (works on Android WebView)
+    const handleMessage = (event: MessageEvent) => {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[SCROLL_PROGRESS] Received message:',
+        event.data?.type,
+        event.data?.progress
+      )
+      if (
+        event.data?.type === 'SCROLL_PROGRESS' &&
+        typeof event.data.progress === 'number'
+      ) {
+        setScrollProgress(Math.min(100, Math.max(0, event.data.progress)))
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    // eslint-disable-next-line no-console
+    console.log('[SCROLL_PROGRESS] Listener registered for viewMode:', viewMode)
+
+    // Also try direct iframe scroll events as fallback (works on web/desktop)
+    const updateScrollProgress = () => {
+      try {
+        const iframeDoc =
+          iframe?.contentDocument || iframe?.contentWindow?.document
+        if (iframeDoc) {
+          const scrollTop =
+            iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop
+          const scrollHeight =
+            iframeDoc.documentElement.scrollHeight ||
+            iframeDoc.body.scrollHeight
+          const clientHeight =
+            iframeDoc.documentElement.clientHeight ||
+            iframeDoc.body.clientHeight
+          const maxScroll = scrollHeight - clientHeight
+          if (maxScroll > 0) {
+            const progress = (scrollTop / maxScroll) * 100
+            setScrollProgress(Math.min(100, Math.max(0, progress)))
+          } else {
+            setScrollProgress(0)
+          }
+        }
+      } catch (_e) {
+        // Cross-origin access denied - ignore, postMessage will handle it
+      }
+    }
+
+    const handleLoad = () => {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[SCROLL_PROGRESS] handleLoad called, iframe:',
+        !!iframe,
+        'contentWindow:',
+        !!iframe?.contentWindow
+      )
+      try {
+        const iframeWindow = iframe?.contentWindow
+        const iframeDoc = iframe?.contentDocument || iframeWindow?.document
+        // eslint-disable-next-line no-console
+        console.log(
+          '[SCROLL_PROGRESS] iframeDoc:',
+          !!iframeDoc,
+          'body:',
+          !!iframeDoc?.body
+        )
+        if (iframeWindow && iframeDoc && iframeDoc.body) {
+          // Direct scroll listener (works on web/desktop)
+          iframeWindow.addEventListener('scroll', updateScrollProgress)
+          updateScrollProgress()
+
+          // Inject scroll progress script into iframe for Android WebView
+          // This ensures postMessage works from iframe to parent
+          const script = iframeDoc.createElement('script')
+          script.textContent = `
                         (function() {
                             var lastProgress = -1;
                             function reportScrollProgress() {
@@ -951,339 +1152,387 @@ function FeedArticleComponent({ item, isMobile = false, onBack }: FeedArticlePro
                             reportScrollProgress();
                         })();
                     `
-                    iframeDoc.body.appendChild(script)
-                    // eslint-disable-next-line no-console
-                    console.log('[SCROLL_PROGRESS] Injected scroll script into iframe')
-                } else {
-                    // eslint-disable-next-line no-console
-                    console.log('[SCROLL_PROGRESS] iframe not ready yet')
-                }
-            } catch (_e) {
-                // eslint-disable-next-line no-console
-                console.log('[SCROLL_PROGRESS] Could not inject script into iframe:', _e)
-            }
+          iframeDoc.body.appendChild(script)
+          // eslint-disable-next-line no-console
+          console.log('[SCROLL_PROGRESS] Injected scroll script into iframe')
+        } else {
+          // eslint-disable-next-line no-console
+          console.log('[SCROLL_PROGRESS] iframe not ready yet')
         }
-
+      } catch (_e) {
         // eslint-disable-next-line no-console
-        console.log('[SCROLL_PROGRESS] Setting up iframe listener, iframe ref:', !!iframe)
-        if (iframe) {
-            iframe.addEventListener('load', handleLoad)
-            // Try immediately in case already loaded
-            handleLoad()
-        }
-
-        return () => {
-            window.removeEventListener('message', handleMessage)
-            if (iframe) {
-                iframe.removeEventListener('load', handleLoad)
-                try {
-                    const iframeWindow = iframe.contentWindow
-                    if (iframeWindow) {
-                        iframeWindow.removeEventListener('scroll', updateScrollProgress)
-                    }
-                } catch (_e) {
-                    // Cross-origin access denied - ignore
-                }
-            }
-        }
-    }, [viewMode, isLoading])
-
-    // Ensure iframe viewport doesn't extend under native system UI.
-    // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
-    useEffect(() => {
-        const iframe = iframeRef.current
-        const injectedHtml = injectedHtmlRef.current
-        
-        // Set height using CSS env() - let the browser handle it natively
-        // Use only half of safe-area-inset-bottom to reduce excessive bottom margin
-        if (iframe) {
-            iframe.style.height = 'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
-        }
-        
-        if (injectedHtml) {
-            injectedHtml.style.height = 'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
-        }
-        
-        // Only listen to Capacitor plugin events for native insets (more reliable than probing)
-        const handler = (ev: Event) => {
-            try {
-                const ce = ev as CustomEvent & { detail?: { bottom?: number } }
-                const safeInset = Number(ce?.detail?.bottom) || 0
-                
-                // Validate inset value (can be up to ~200px on modern Android devices with gesture navigation)
-                if (safeInset > 250) {
-                    // eslint-disable-next-line no-console
-                    console.warn('[FeedArticle] Suspicious inset value from Capacitor:', safeInset, '- ignoring');
-                    return;
-                }
-                
-                // Apply half of the inset to reduce excessive bottom margin
-                const adjustedInset = safeInset / 2;
-                
-                if (iframe) {
-                    iframe.style.height = `calc(100% - ${adjustedInset}px)`
-                }
-                if (injectedHtml) {
-                    injectedHtml.style.height = `calc(100% - ${adjustedInset}px)`
-                }
-            } catch (_e) {
-                // ignore
-            }
-        }
-        
-        // Only listen to Capacitor plugin events - don't adjust on resize/visibilitychange
-        // as those cause flickering. Let CSS env() handle it automatically.
-        window.addEventListener('capacitor-window-insets', handler as EventListener)
-        
-        return () => {
-            window.removeEventListener('capacitor-window-insets', handler as EventListener)
-        }
-    }, [])
-
-    const handleViewModeChange = async (mode: ArticleViewMode) => {
-        // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] handleViewModeChange called: ${mode}`)
-
-        setViewMode(mode)
-
-        // Save preference to storage for this feed
-        const feedId = item.feed?.id || 'default'
-        // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] Saving view mode "${mode}" for feed ${feedId}`)
-        await setArticleViewMode(feedId, mode)
-
-        // Verify it was saved
-        const verifyMode = await getArticleViewMode(feedId)
-        // eslint-disable-next-line no-console
-        console.log(`[FeedArticle] Verification: saved mode is now "${verifyMode}" (expected "${mode}")`)
+        console.log(
+          '[SCROLL_PROGRESS] Could not inject script into iframe:',
+          _e
+        )
+      }
     }
 
-    return (
-        <div
-            className={cn(
-                "flex h-full w-full flex-col items-start",
-                {
-                    flex: isMobile,
-                    "absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex":
-                        !isMobile,
-                    // In landscape mobile mode, remove borders, padding, and margins to maximize width
-                    "rounded-none border-0 m-0 p-0": isMobile && isLandscape,
-                },
-            )}
-            style={isMobile && isLandscape ? { width: '100vw', maxWidth: '100vw' } : undefined}
-        >
-        <div
-            className={cn(
-                "flex h-full w-full flex-col rounded-md border bg-primary-foreground shadow-sm",
-                {
-                    // In landscape mobile mode, remove borders, padding, and margins to maximize width
-                    "rounded-none border-0 m-0 p-0": isMobile && isLandscape,
-                },
-            )}
-            style={{ maxWidth: isMobile ? undefined : '800px' }}
-        >
-            <div className={cn(
-                "mb-1 flex h-full flex-none flex-col rounded-t-md bg-background shadow-lg",
-                {
-                    // In landscape mode, remove margins to maximize width
-                    "mb-0": isMobile && isLandscape,
-                }
-            )}>
-                <div className="flex items-center justify-between p-2 h-12 flex-none">
-                    <ArticleToolbar
-                        viewMode={viewMode}
-                        onViewModeChange={handleViewModeChange}
-                        articleUrl={item.url}
-                        feedFaviconUrl={item.feed?.faviconUrl}
-                        articleTitle={item.title}
-                        feedId={item.feed?.id}
-                        hasSelectorConfig={selectorConfigExists}
-                        isMobile={isMobile}
-                        isLandscape={isLandscape}
-                        onBack={onBack}
-                    />
-                </div>
-                {/* Scroll progress bar - only visible in readability/configured modes */}
-                {(viewMode === 'readability' || viewMode === 'configured') && (
-                    <div className="h-[2px] w-full flex-none" style={{ backgroundColor: 'transparent' }}>
-                        <div
-                            className={cn(
-                                "h-full transition-all duration-150 ease-out",
-                                theme === 'dark' ? "bg-white/70" : "bg-black/70"
-                            )}
-                            style={{ width: `${scrollProgress}%` }}
-                        />
-                    </div>
-                )}
-                {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
-                <div 
-                    data-article-container 
-                    className="relative flex-1 w-full min-h-0"
-                    style={{
-                        // Enable pinch-to-zoom on Android
-                        touchAction: 'pan-x pan-y pinch-zoom',
-                        // Ensure container has explicit height for iframe
-                        height: '100%',
-                        minHeight: 0,
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}
-                >
-                    {isLoading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
-                            <div className="flex flex-col items-center space-y-4">
-                                <Skeleton className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                <p className="text-sm text-muted-foreground">Loading article...</p>
-                            </div>
-                        </div>
-                    )}
-                    {error && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 p-4">
-                            <div className="flex flex-col items-center space-y-3 text-center">
-                                <p className="text-sm text-red-500">{error}</p>
-                                <div className="flex space-x-2">
-                                    <button className="px-3 py-1 rounded bg-primary text-primary-foreground" onClick={() => {
-                                        // Clear error and retry by toggling viewMode to force the effect
-                                        setError(null)
-                                        setIsLoading(true)
-                                        // trigger the effect by toggling viewMode away and back
-                                        setViewMode((v) => (v === 'readability' ? 'original' : 'readability'))
-                                        setTimeout(() => setViewMode('readability'), 50)
-                                    }}>Retry</button>
-                                    <button className="px-3 py-1 rounded border" onClick={() => setViewMode('original')}>See original</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {!error && (
-                        (viewMode === 'readability' || viewMode === 'configured') ? (
-                            <iframe
-                                key={`${item.id}-${item.url}-${viewMode}`}
-                                ref={iframeRef}
-                                className={cn("block w-full", {
-                                    invisible: isLoading,
-                                })}
-                                src="about:blank"
-                                title="Feed article"
-                                sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-top-navigation-by-user-activation"
-                                allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope; magnetometer"
-                                allowFullScreen
-                                style={{
-                                    border: 0,
-                                    height: '100%',
-                                    minHeight: '100%',
-                                    // Enable pinch-to-zoom on Android
-                                    touchAction: 'pan-x pan-y pinch-zoom'
-                                }}
-                            />
-                        ) : (
-                            <div
-                                ref={injectedHtmlRef}
-                                className={cn("block h-full w-full overflow-auto", {
-                                    invisible: isLoading,
-                                })}
-                                style={{ 
-                                    border: 0,
-                                    // Isolate styles from the rest of the app
-                                    isolation: 'isolate',
-                                    // Enable pinch-to-zoom on Android
-                                    touchAction: 'pan-x pan-y pinch-zoom',
-                                    WebkitOverflowScrolling: 'touch',
-                                    // Ensure container can scroll when content is zoomed
-                                    overflowX: 'auto',
-                                    overflowY: 'auto'
-                                }}
-                                onTouchStart={(e) => {
-                                    if (e.touches.length === 2) {
-                                        // eslint-disable-next-line no-console
-                                        console.log('[ZOOM-DIAG] Shadow DOM container: Pinch start detected, touches:', e.touches.length)
-                                    }
-                                }}
-                            />
-                        )
-                    )}
-                </div>
-            </div>
-            
-            {/* Floating action button - mobile only: modes + source */}
-            {isMobile && (
-                <div 
-                    className="fixed right-4 z-50"
-                    style={{
-                        bottom: 'calc(1rem + env(safe-area-inset-bottom))'
-                    }}
-                >
-                    <FloatingActionButton
-                        viewMode={viewMode}
-                        onViewModeChange={handleViewModeChange}
-                        articleUrl={item.url}
-                        hasSelectorConfig={selectorConfigExists}
-                    />
-                </div>
-            )}
-            
-            {/* Auth Dialog */}
-            {authDialog && (
-                <AuthDialog
-                    open={true}
-                    domain={authDialog.domain}
-                    onSubmit={handleAuthSubmit}
-                    onCancel={handleAuthCancel}
-                />
-            )}
-            
-            {/* Image Context Menu */}
-            <ImageContextMenu
-                imageUrl={selectedImageUrl}
-                onClose={() => setSelectedImageUrl(null)}
-            />
-
-            {/* YouTube Video Modal */}
-            {youtubeVideo && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
-                    onClick={() => setYoutubeVideo(null)}
-                >
-                    <div
-                        className="relative w-full max-w-4xl mx-4"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Close button */}
-                        <button
-                            className="absolute -top-10 right-0 text-white hover:text-gray-300 text-xl p-2"
-                            onClick={() => setYoutubeVideo(null)}
-                            aria-label="Close video"
-                        >
-                            ✕
-                        </button>
-                        {/* Video title */}
-                        {youtubeVideo.title && (
-                            <p className="text-white text-sm mb-2 truncate">{youtubeVideo.title}</p>
-                        )}
-                        {/* YouTube iframe - rendered at app level, not nested in blob iframe */}
-                        <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-                            <iframe
-                                className="absolute inset-0 w-full h-full"
-                                src={`https://www.youtube-nocookie.com/embed/${youtubeVideo.videoId}?autoplay=1&rel=0`}
-                                title={youtubeVideo.title || 'YouTube video'}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                                style={{ border: 0 }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-        </div>
-        </div>
+    // eslint-disable-next-line no-console
+    console.log(
+      '[SCROLL_PROGRESS] Setting up iframe listener, iframe ref:',
+      !!iframe
     )
+    if (iframe) {
+      iframe.addEventListener('load', handleLoad)
+      // Try immediately in case already loaded
+      handleLoad()
+    }
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      if (iframe) {
+        iframe.removeEventListener('load', handleLoad)
+        try {
+          const iframeWindow = iframe.contentWindow
+          if (iframeWindow) {
+            iframeWindow.removeEventListener('scroll', updateScrollProgress)
+          }
+        } catch (_e) {
+          // Cross-origin access denied - ignore
+        }
+      }
+    }
+  }, [viewMode, isLoading])
+
+  // Ensure iframe viewport doesn't extend under native system UI.
+  // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
+  useEffect(() => {
+    const iframe = iframeRef.current
+    const injectedHtml = injectedHtmlRef.current
+
+    // Set height using CSS env() - let the browser handle it natively
+    // Use only half of safe-area-inset-bottom to reduce excessive bottom margin
+    if (iframe) {
+      iframe.style.height =
+        'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
+    }
+
+    if (injectedHtml) {
+      injectedHtml.style.height =
+        'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
+    }
+
+    // Only listen to Capacitor plugin events for native insets (more reliable than probing)
+    const handler = (ev: Event) => {
+      try {
+        const ce = ev as CustomEvent & { detail?: { bottom?: number } }
+        const safeInset = Number(ce?.detail?.bottom) || 0
+
+        // Validate inset value (can be up to ~200px on modern Android devices with gesture navigation)
+        if (safeInset > 250) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[FeedArticle] Suspicious inset value from Capacitor:',
+            safeInset,
+            '- ignoring'
+          )
+          return
+        }
+
+        // Apply half of the inset to reduce excessive bottom margin
+        const adjustedInset = safeInset / 2
+
+        if (iframe) {
+          iframe.style.height = `calc(100% - ${adjustedInset}px)`
+        }
+        if (injectedHtml) {
+          injectedHtml.style.height = `calc(100% - ${adjustedInset}px)`
+        }
+      } catch (_e) {
+        // ignore
+      }
+    }
+
+    // Only listen to Capacitor plugin events - don't adjust on resize/visibilitychange
+    // as those cause flickering. Let CSS env() handle it automatically.
+    window.addEventListener('capacitor-window-insets', handler as EventListener)
+
+    return () => {
+      window.removeEventListener(
+        'capacitor-window-insets',
+        handler as EventListener
+      )
+    }
+  }, [])
+
+  const handleViewModeChange = async (mode: ArticleViewMode) => {
+    // eslint-disable-next-line no-console
+    console.log(`[FeedArticle] handleViewModeChange called: ${mode}`)
+
+    setViewMode(mode)
+
+    // Save preference to storage for this feed
+    const feedId = item.feed?.id || 'default'
+    // eslint-disable-next-line no-console
+    console.log(`[FeedArticle] Saving view mode "${mode}" for feed ${feedId}`)
+    await setArticleViewMode(feedId, mode)
+
+    // Verify it was saved
+    const verifyMode = await getArticleViewMode(feedId)
+    // eslint-disable-next-line no-console
+    console.log(
+      `[FeedArticle] Verification: saved mode is now "${verifyMode}" (expected "${mode}")`
+    )
+  }
+
+  return (
+    <div
+      className={cn('flex h-full w-full flex-col items-start', {
+        flex: isMobile,
+        'absolute inset-0 left-full z-50 hidden w-full flex-1 transition-all duration-200 sm:static sm:z-auto sm:flex':
+          !isMobile,
+        // In landscape mobile mode, remove borders, padding, and margins to maximize width
+        'm-0 rounded-none border-0 p-0': isMobile && isLandscape,
+      })}
+      style={
+        isMobile && isLandscape
+          ? { width: '100vw', maxWidth: '100vw' }
+          : undefined
+      }
+    >
+      <div
+        className={cn(
+          'bg-primary-foreground flex h-full w-full flex-col rounded-md border shadow-sm',
+          {
+            // In landscape mobile mode, remove borders, padding, and margins to maximize width
+            'm-0 rounded-none border-0 p-0': isMobile && isLandscape,
+          }
+        )}
+        style={{ maxWidth: isMobile ? undefined : '800px' }}
+      >
+        <div
+          className={cn(
+            'bg-background mb-1 flex h-full flex-none flex-col rounded-t-md shadow-lg',
+            {
+              // In landscape mode, remove margins to maximize width
+              'mb-0': isMobile && isLandscape,
+            }
+          )}
+        >
+          <div className='flex h-12 flex-none items-center justify-between p-2'>
+            <ArticleToolbar
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              articleUrl={item.url}
+              feedFaviconUrl={item.feed?.faviconUrl}
+              articleTitle={item.title}
+              feedId={item.feed?.id}
+              hasSelectorConfig={selectorConfigExists}
+              isMobile={isMobile}
+              isLandscape={isLandscape}
+              onBack={onBack}
+            />
+          </div>
+          {/* Scroll progress bar - only visible in readability/configured modes */}
+          {(viewMode === 'readability' || viewMode === 'configured') && (
+            <div
+              className='h-[2px] w-full flex-none'
+              style={{ backgroundColor: 'transparent' }}
+            >
+              <div
+                className={cn(
+                  'h-full transition-all duration-150 ease-out',
+                  theme === 'dark' ? 'bg-white/70' : 'bg-black/70'
+                )}
+                style={{ width: `${scrollProgress}%` }}
+              />
+            </div>
+          )}
+          {/* container must NOT be the scroll host when rendering an iframe; let the iframe scroll internally */}
+          <div
+            data-article-container
+            className='relative min-h-0 w-full flex-1'
+            style={{
+              // Enable pinch-to-zoom on Android - use manipulation for better compatibility
+              touchAction: 'manipulation',
+              // Ensure container has explicit height for iframe
+              height: '100%',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {isLoading && (
+              <div className='bg-background/80 absolute inset-0 z-10 flex items-center justify-center'>
+                <div className='flex flex-col items-center space-y-4'>
+                  <Skeleton className='border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent' />
+                  <p className='text-muted-foreground text-sm'>
+                    Loading article...
+                  </p>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className='bg-background/80 absolute inset-0 z-10 flex items-center justify-center p-4'>
+                <div className='flex flex-col items-center space-y-3 text-center'>
+                  <p className='text-sm text-red-500'>{error}</p>
+                  <div className='flex space-x-2'>
+                    <button
+                      className='bg-primary text-primary-foreground rounded px-3 py-1'
+                      onClick={() => {
+                        // Clear error and retry by toggling viewMode to force the effect
+                        setError(null)
+                        setIsLoading(true)
+                        // trigger the effect by toggling viewMode away and back
+                        setViewMode((v) =>
+                          v === 'readability' ? 'original' : 'readability'
+                        )
+                        setTimeout(() => setViewMode('readability'), 50)
+                      }}
+                    >
+                      Retry
+                    </button>
+                    <button
+                      className='rounded border px-3 py-1'
+                      onClick={() => setViewMode('original')}
+                    >
+                      See original
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {!error &&
+              (viewMode === 'readability' || viewMode === 'configured' ? (
+                <iframe
+                  key={`${item.id}-${item.url}-${viewMode}`}
+                  ref={iframeRef}
+                  className={cn('block w-full', {
+                    invisible: isLoading,
+                  })}
+                  src='about:blank'
+                  title='Feed article'
+                  sandbox='allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-top-navigation-by-user-activation'
+                  allow='fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope; magnetometer'
+                  allowFullScreen
+                  style={{
+                    border: 0,
+                    height: '100%',
+                    minHeight: '100%',
+                    // Enable pinch-to-zoom on Android - use manipulation for better compatibility
+                    touchAction: 'manipulation',
+                  }}
+                />
+              ) : (
+                <div
+                  ref={injectedHtmlRef}
+                  className={cn('block h-full w-full overflow-auto', {
+                    invisible: isLoading,
+                  })}
+                  style={{
+                    border: 0,
+                    // Isolate styles from the rest of the app
+                    isolation: 'isolate',
+                    // Enable pinch-to-zoom on Android - use manipulation for better compatibility
+                    touchAction: 'manipulation',
+                    WebkitOverflowScrolling: 'touch',
+                    // Ensure container can scroll when content is zoomed
+                    overflowX: 'auto',
+                    overflowY: 'auto',
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 2) {
+                      // eslint-disable-next-line no-console
+                      console.log(
+                        '[ZOOM-DIAG] Shadow DOM container: Pinch start detected, touches:',
+                        e.touches.length
+                      )
+                    }
+                  }}
+                />
+              ))}
+          </div>
+        </div>
+
+        {/* Floating action button - mobile only: modes + source */}
+        {isMobile && (
+          <div
+            className='fixed right-4 z-50'
+            style={{
+              bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+            }}
+          >
+            <FloatingActionButton
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              articleUrl={item.url}
+              hasSelectorConfig={selectorConfigExists}
+            />
+          </div>
+        )}
+
+        {/* Auth Dialog */}
+        {authDialog && (
+          <AuthDialog
+            open={true}
+            domain={authDialog.domain}
+            onSubmit={handleAuthSubmit}
+            onCancel={handleAuthCancel}
+          />
+        )}
+
+        {/* Image Context Menu */}
+        <ImageContextMenu
+          imageUrl={selectedImageUrl}
+          onClose={() => setSelectedImageUrl(null)}
+        />
+
+        {/* YouTube Video Modal */}
+        {youtubeVideo && (
+          <div
+            className='fixed inset-0 z-[100] flex items-center justify-center bg-black/80'
+            onClick={() => setYoutubeVideo(null)}
+          >
+            <div
+              className='relative mx-4 w-full max-w-4xl'
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                className='absolute -top-10 right-0 p-2 text-xl text-white hover:text-gray-300'
+                onClick={() => setYoutubeVideo(null)}
+                aria-label='Close video'
+              >
+                ✕
+              </button>
+              {/* Video title */}
+              {youtubeVideo.title && (
+                <p className='mb-2 truncate text-sm text-white'>
+                  {youtubeVideo.title}
+                </p>
+              )}
+              {/* YouTube iframe - rendered at app level, not nested in blob iframe */}
+              <div
+                className='relative w-full'
+                style={{ paddingBottom: '56.25%' }}
+              >
+                <iframe
+                  className='absolute inset-0 h-full w-full'
+                  src={`https://www.youtube-nocookie.com/embed/${youtubeVideo.videoId}?autoplay=1&rel=0`}
+                  title={youtubeVideo.title || 'YouTube video'}
+                  allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+                  allowFullScreen
+                  style={{ border: 0 }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // Memoize to prevent re-renders when parent re-renders due to orientation changes
 // Only re-render if item.id or isMobile actually changes
-export const FeedArticle = memo(FeedArticleComponent, (prevProps, nextProps) => {
+export const FeedArticle = memo(
+  FeedArticleComponent,
+  (prevProps, nextProps) => {
     // Return true if props are equal (skip re-render), false if they differ (re-render)
-    return prevProps.item.id === nextProps.item.id && 
-           prevProps.isMobile === nextProps.isMobile
-})
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.isMobile === nextProps.isMobile
+    )
+  }
+)

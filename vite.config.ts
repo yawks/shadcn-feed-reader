@@ -1,4 +1,5 @@
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 import path from 'path'
 import react from '@vitejs/plugin-react-swc'
@@ -13,7 +14,16 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
-    // PWA plugin removed for Tauri migration
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        // Precache all static assets
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Skip waiting so the new SW activates immediately
+        skipWaiting: true,
+        clientsClaim: true,
+      },
+    }),
   ],
   resolve: {
     alias: {

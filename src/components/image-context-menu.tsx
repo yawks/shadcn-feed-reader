@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Maximize2, Share2 } from 'lucide-react'
-import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
-import { Button } from '@/components/ui/button'
+import { Copy, Maximize2, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { startProxyServer } from '@/lib/raw-html'
 import { safeInvoke } from '@/lib/safe-invoke'
+import { Button } from '@/components/ui/button'
 
 interface ImageContextMenuProps {
   imageUrl: string | null
@@ -37,7 +37,7 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
 
     const getTouchCenter = (touch1: Touch, touch2: Touch) => ({
       x: (touch1.clientX + touch2.clientX) / 2,
-      y: (touch1.clientY + touch2.clientY) / 2
+      y: (touch1.clientY + touch2.clientY) / 2,
     })
 
     const applyZoom = (newScale: number, panX: number, panY: number) => {
@@ -51,7 +51,10 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
       setPan({ x: finalPanX, y: finalPanY })
       lastPanRef.current = { x: finalPanX, y: finalPanY }
       // eslint-disable-next-line no-console
-      console.log('[ZOOM-DIAG] Fullscreen image: Applied zoom, scale:', clampedScale.toFixed(2))
+      console.log(
+        '[ZOOM-DIAG] Fullscreen image: Applied zoom, scale:',
+        clampedScale.toFixed(2)
+      )
     }
 
     const resetZoom = () => {
@@ -67,13 +70,22 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
           touch2.clientY - touch1.clientY
         )
         initialScaleRef.current = scale
-        pinchStartPanRef.current = { x: lastPanRef.current.x, y: lastPanRef.current.y }
+        pinchStartPanRef.current = {
+          x: lastPanRef.current.x,
+          y: lastPanRef.current.y,
+        }
         pinchStartCenterRef.current = getTouchCenter(touch1, touch2)
         lastTouchCenterRef.current = pinchStartCenterRef.current
         // eslint-disable-next-line no-console
-        console.log('[ZOOM-DIAG] Fullscreen image: Pinch start, center:', pinchStartCenterRef.current)
+        console.log(
+          '[ZOOM-DIAG] Fullscreen image: Pinch start, center:',
+          pinchStartCenterRef.current
+        )
       } else if (e.touches.length === 1 && scale > 1) {
-        lastTouchCenterRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        lastTouchCenterRef.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        }
         e.preventDefault()
       }
     }
@@ -89,14 +101,27 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
         )
 
         if (initialDistanceRef.current > 0) {
-          const newScale = Math.max(1.0, Math.min(5, initialScaleRef.current * (currentDistance / initialDistanceRef.current)))
+          const newScale = Math.max(
+            1.0,
+            Math.min(
+              5,
+              initialScaleRef.current *
+                (currentDistance / initialDistanceRef.current)
+            )
+          )
           const touchCenter = getTouchCenter(touch1, touch2)
 
           // Calculate pan to keep the pinch center point fixed on content
           // Formula: newPan = touchCenter - (pinchStartCenter - pinchStartPan) * newScale / initialScale
           const scaleRatio = newScale / initialScaleRef.current
-          const newPanX = touchCenter.x - (pinchStartCenterRef.current.x - pinchStartPanRef.current.x) * scaleRatio
-          const newPanY = touchCenter.y - (pinchStartCenterRef.current.y - pinchStartPanRef.current.y) * scaleRatio
+          const newPanX =
+            touchCenter.x -
+            (pinchStartCenterRef.current.x - pinchStartPanRef.current.x) *
+              scaleRatio
+          const newPanY =
+            touchCenter.y -
+            (pinchStartCenterRef.current.y - pinchStartPanRef.current.y) *
+              scaleRatio
 
           applyZoom(newScale, newPanX, newPanY)
           lastTouchCenterRef.current = touchCenter
@@ -118,16 +143,25 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
     const handleTouchEnd = (e: TouchEvent) => {
       if (e.touches.length < 2 && initialDistanceRef.current > 0) {
         // eslint-disable-next-line no-console
-        console.log('[ZOOM-DIAG] Fullscreen image: Pinch end, final scale:', scale.toFixed(2))
+        console.log(
+          '[ZOOM-DIAG] Fullscreen image: Pinch end, final scale:',
+          scale.toFixed(2)
+        )
         initialDistanceRef.current = 0
         initialScaleRef.current = scale
         // Update pinchStartPan for potential next pinch
-        pinchStartPanRef.current = { x: lastPanRef.current.x, y: lastPanRef.current.y }
+        pinchStartPanRef.current = {
+          x: lastPanRef.current.x,
+          y: lastPanRef.current.y,
+        }
       }
       // When one finger remains, update lastTouchCenter to that finger's position
       // to prevent a jump when transitioning from pinch to pan
       if (e.touches.length === 1) {
-        lastTouchCenterRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        lastTouchCenterRef.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        }
       } else if (e.touches.length === 0) {
         lastTouchCenterRef.current = { x: 0, y: 0 }
       }
@@ -148,7 +182,9 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
       }
     }
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: false })
+    container.addEventListener('touchstart', handleTouchStart, {
+      passive: false,
+    })
     container.addEventListener('touchmove', handleTouchMove, { passive: false })
     container.addEventListener('touchend', handleTouchEnd, { passive: true })
     container.addEventListener('touchend', handleDoubleTap, { passive: true })
@@ -164,9 +200,9 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[9999] bg-black flex items-center justify-center overflow-hidden"
+      className='fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black'
       style={{
-        touchAction: 'pan-x pan-y pinch-zoom'
+        touchAction: 'manipulation',
       }}
       onClick={() => {
         if (scale === 1) {
@@ -183,15 +219,15 @@ function FullscreenImageZoom({ imageUrl, onClose }: FullscreenImageZoomProps) {
       <img
         ref={imageRef}
         src={imageUrl}
-        alt="Fullscreen image"
-        className="max-w-full max-h-full object-contain"
+        alt='Fullscreen image'
+        className='max-h-full max-w-full object-contain'
         style={{
-          touchAction: 'pan-x pan-y pinch-zoom',
+          touchAction: 'manipulation',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
           transformOrigin: 'center center',
-          transition: scale === 1 ? 'transform 0.2s' : 'none'
+          transition: scale === 1 ? 'transform 0.2s' : 'none',
         }}
         onClick={(e) => {
           if (scale > 1) {
@@ -208,12 +244,23 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
-  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null)
+  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(
+    null
+  )
   const isAndroid = Capacitor.getPlatform() === 'android'
-  
+
   // Log when imageUrl changes
   // eslint-disable-next-line no-console
-  console.log('[ImageContextMenu] Render - imageUrl:', imageUrl, 'isAndroid:', isAndroid, 'isFullscreenOpen:', isFullscreenOpen, 'fullscreenImageUrl:', fullscreenImageUrl)
+  console.log(
+    '[ImageContextMenu] Render - imageUrl:',
+    imageUrl,
+    'isAndroid:',
+    isAndroid,
+    'isFullscreenOpen:',
+    isFullscreenOpen,
+    'fullscreenImageUrl:',
+    fullscreenImageUrl
+  )
 
   const handleFullscreen = () => {
     if (!imageUrl) {
@@ -222,7 +269,10 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
       return
     }
     // eslint-disable-next-line no-console
-    console.log('[ImageContextMenu] handleFullscreen: opening fullscreen for:', imageUrl)
+    console.log(
+      '[ImageContextMenu] handleFullscreen: opening fullscreen for:',
+      imageUrl
+    )
     // Store the image URL before closing the menu
     setFullscreenImageUrl(imageUrl)
     // Close the context menu
@@ -230,7 +280,9 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
     // Open the fullscreen dialog immediately
     setIsFullscreenOpen(true)
     // eslint-disable-next-line no-console
-    console.log('[ImageContextMenu] handleFullscreen: isFullscreenOpen set to true')
+    console.log(
+      '[ImageContextMenu] handleFullscreen: isFullscreenOpen set to true'
+    )
   }
 
   // Don't show the context menu if no image URL or not Android
@@ -238,7 +290,7 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
 
   const handleShare = async () => {
     if (!imageUrl) return
-    
+
     setIsSharing(true)
     try {
       // Share only the URL so WhatsApp can generate a preview
@@ -258,13 +310,13 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
 
   const handleCopy = async () => {
     if (!imageUrl) return
-    
+
     setIsCopying(true)
     try {
       // Utiliser le proxy pour télécharger l'image (évite les problèmes CORS)
       let proxyUrl: string
       let response: Response
-      
+
       // Essayer d'utiliser le proxy Tauri d'abord (desktop)
       let proxyPort: number | null = null
       try {
@@ -275,19 +327,24 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
       } catch {
         // Tauri proxy not available, continue
       }
-      
+
       if (proxyPort) {
         // Utiliser le proxy Tauri
         await safeInvoke('set_proxy_url', { url: imageUrl })
         proxyUrl = `http://localhost:${proxyPort}/proxy?url=${encodeURIComponent(imageUrl)}`
         // eslint-disable-next-line no-console
-        console.log('[ImageContextMenu] Using Tauri proxy to fetch image:', proxyUrl)
+        console.log(
+          '[ImageContextMenu] Using Tauri proxy to fetch image:',
+          proxyUrl
+        )
         response = await fetch(proxyUrl)
       } else if (isAndroid) {
         // Utiliser le proxy Java (Android/Capacitor)
         // eslint-disable-next-line no-console
-        console.log('[ImageContextMenu] Attempting to start Java proxy server...')
-        
+        console.log(
+          '[ImageContextMenu] Attempting to start Java proxy server...'
+        )
+
         // Vérifier si le plugin est disponible avant d'appeler
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const win = window as any
@@ -295,41 +352,59 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         // eslint-disable-next-line no-console
         console.log('[ImageContextMenu] Plugins available:', !!Plugins)
         // eslint-disable-next-line no-console
-        console.log('[ImageContextMenu] RawHtml plugin available:', !!Plugins?.RawHtml)
+        console.log(
+          '[ImageContextMenu] RawHtml plugin available:',
+          !!Plugins?.RawHtml
+        )
         // eslint-disable-next-line no-console
-        console.log('[ImageContextMenu] startProxyServer method available:', typeof Plugins?.RawHtml?.startProxyServer)
-        
+        console.log(
+          '[ImageContextMenu] startProxyServer method available:',
+          typeof Plugins?.RawHtml?.startProxyServer
+        )
+
         const port = await startProxyServer()
         // eslint-disable-next-line no-console
         console.log('[ImageContextMenu] Proxy server port result:', port)
-        
+
         if (port) {
           proxyUrl = `http://localhost:${port}/proxy?url=${encodeURIComponent(imageUrl)}`
           // eslint-disable-next-line no-console
-          console.log('[ImageContextMenu] Using Java proxy to fetch image:', proxyUrl)
+          console.log(
+            '[ImageContextMenu] Using Java proxy to fetch image:',
+            proxyUrl
+          )
           response = await fetch(proxyUrl)
         } else {
           // eslint-disable-next-line no-console
-          console.error('[ImageContextMenu] Proxy server failed to start. Plugins state:', {
-            Plugins,
-            RawHtml: Plugins?.RawHtml,
-            startProxyServer: typeof Plugins?.RawHtml?.startProxyServer,
-          })
-          throw new Error('Proxy server not available. Cannot download image due to CORS restrictions.')
+          console.error(
+            '[ImageContextMenu] Proxy server failed to start. Plugins state:',
+            {
+              Plugins,
+              RawHtml: Plugins?.RawHtml,
+              startProxyServer: typeof Plugins?.RawHtml?.startProxyServer,
+            }
+          )
+          throw new Error(
+            'Proxy server not available. Cannot download image due to CORS restrictions.'
+          )
         }
       } else {
         // Web: essayer directement (peut échouer avec CORS)
         // eslint-disable-next-line no-console
-        console.warn('[ImageContextMenu] No proxy available, trying direct fetch (may fail with CORS)')
+        console.warn(
+          '[ImageContextMenu] No proxy available, trying direct fetch (may fail with CORS)'
+        )
         response = await fetch(imageUrl)
       }
-      
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`)
+        throw new Error(
+          `Failed to fetch image: ${response.status} ${response.statusText}`
+        )
       }
-      
+
       const blob = await response.blob()
-      
+
       // Convertir Blob en base64 en utilisant FileReader (plus fiable pour les grandes images)
       const base64Data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -342,7 +417,7 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         reader.onerror = reject
         reader.readAsDataURL(blob)
       })
-      
+
       // Déterminer l'extension du fichier depuis l'URL ou le Content-Type
       const contentType = response.headers.get('content-type') || 'image/jpeg'
       let extension = 'jpg'
@@ -359,11 +434,11 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
           extension = urlMatch[1].toLowerCase()
         }
       }
-      
+
       // Générer un nom de fichier unique
       const fileName = `copied_image_${Date.now()}.${extension}`
       const filePath = `shared/${fileName}`
-      
+
       // Créer le répertoire parent s'il n'existe pas
       try {
         await Filesystem.mkdir({
@@ -374,9 +449,12 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
       } catch (mkdirError) {
         // Le répertoire existe peut-être déjà, continuer
         // eslint-disable-next-line no-console
-        console.log('[ImageContextMenu] mkdir result (may already exist):', mkdirError)
+        console.log(
+          '[ImageContextMenu] mkdir result (may already exist):',
+          mkdirError
+        )
       }
-      
+
       // Sauvegarder l'image dans le cache de l'app
       await Filesystem.writeFile({
         path: filePath,
@@ -384,18 +462,18 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         directory: Directory.Cache,
         recursive: true,
       })
-      
+
       // Obtenir le chemin complet du fichier
       const fileUri = await Filesystem.getUri({
         path: filePath,
         directory: Directory.Cache,
       })
-      
+
       // Copier l'image dans le presse-papiers via le plugin personnalisé
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win = window as any
       const Plugins = win?.Capacitor?.Plugins
-      
+
       // eslint-disable-next-line no-console
       console.log('[ImageContextMenu] Attempting to copy image:', {
         fileUri: fileUri.uri,
@@ -403,7 +481,7 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         clipboardPluginAvailable: !!Plugins?.Clipboard,
         copyImageMethodAvailable: !!Plugins?.Clipboard?.copyImage,
       })
-      
+
       if (Plugins?.Clipboard?.copyImage) {
         try {
           await Plugins.Clipboard.copyImage({
@@ -423,12 +501,13 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
         })
         throw new Error('Clipboard plugin not available')
       }
-      
+
       onClose()
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('[ImageContextMenu] Copy failed:', error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Error copying image: ${errorMessage}`)
       onClose()
     } finally {
@@ -439,35 +518,38 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
   return (
     <>
       {showContextMenu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-          <div 
-            className="bg-background rounded-lg shadow-lg border p-2 min-w-[200px]"
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
+          onClick={onClose}
+        >
+          <div
+            className='bg-background min-w-[200px] rounded-lg border p-2 shadow-lg'
             onClick={(e) => e.stopPropagation()}
           >
             <Button
-              variant="ghost"
-              className="w-full justify-start gap-2"
+              variant='ghost'
+              className='w-full justify-start gap-2'
               onClick={handleFullscreen}
             >
-              <Maximize2 className="h-4 w-4" />
+              <Maximize2 className='h-4 w-4' />
               <span>Fullscreen</span>
             </Button>
             <Button
-              variant="ghost"
-              className="w-full justify-start gap-2"
+              variant='ghost'
+              className='w-full justify-start gap-2'
               onClick={handleShare}
               disabled={isSharing}
             >
-              <Share2 className="h-4 w-4" />
+              <Share2 className='h-4 w-4' />
               <span>{isSharing ? 'Sharing...' : 'Share'}</span>
             </Button>
             <Button
-              variant="ghost"
-              className="w-full justify-start gap-2"
+              variant='ghost'
+              className='w-full justify-start gap-2'
               onClick={handleCopy}
               disabled={isCopying}
             >
-              <Copy className="h-4 w-4" />
+              <Copy className='h-4 w-4' />
               <span>{isCopying ? 'Copying...' : 'Copy'}</span>
             </Button>
           </div>
@@ -487,4 +569,3 @@ export function ImageContextMenu({ imageUrl, onClose }: ImageContextMenuProps) {
     </>
   )
 }
-
