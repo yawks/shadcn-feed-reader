@@ -7,6 +7,7 @@ interface UseResizablePanelsFlexOptions {
   defaultRightFlex: number
   minLeftFlex?: number
   minRightFlex?: number
+  maxLeftPx?: number
 }
 
 export function useResizablePanelsFlex({
@@ -15,7 +16,8 @@ export function useResizablePanelsFlex({
   defaultLeftFlex,
   defaultRightFlex,
   minLeftFlex = 0.15,
-  minRightFlex = 0.15
+  minRightFlex = 0.15,
+  maxLeftPx
 }: UseResizablePanelsFlexOptions) {
   const [leftFlex, setLeftFlex] = useState(() => {
     const saved = localStorage.getItem(leftPanelKey)
@@ -50,14 +52,23 @@ export function useResizablePanelsFlex({
 
     const mouseX = e.clientX - containerRect.left
     const containerWidth = containerRect.width
-    const newLeftRatio = mouseX / containerWidth
-    const newRightRatio = 1 - newLeftRatio
+    let newLeftRatio = mouseX / containerWidth
+    let newRightRatio = 1 - newLeftRatio
+
+    // Enforce max pixel width for left panel if specified
+    if (maxLeftPx && containerWidth > 0) {
+      const maxLeftRatio = maxLeftPx / containerWidth
+      if (newLeftRatio > maxLeftRatio) {
+        newLeftRatio = maxLeftRatio
+        newRightRatio = 1 - newLeftRatio
+      }
+    }
 
     if (newLeftRatio >= minLeftFlex && newRightRatio >= minRightFlex) {
       setLeftFlex(newLeftRatio)
       setRightFlex(newRightRatio)
     }
-  }, [isResizing, minLeftFlex, minRightFlex])
+  }, [isResizing, minLeftFlex, minRightFlex, maxLeftPx])
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false)

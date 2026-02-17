@@ -93,7 +93,8 @@ export default function Feeds() {
     defaultLeftFlex: 0.4,
     defaultRightFlex: 0.6,
     minLeftFlex: 0.15,
-    minRightFlex: 0.15
+    minRightFlex: 0.15,
+    maxLeftPx: 500
   })
 
   useEffect(() => {
