@@ -163,6 +163,22 @@ const setupFullscreenSafeAreaFix = () => {
       capacitorSafeAreas,
     })
 
+    // Notify Android native layer to enter/exit immersive mode
+    // (hides system navigation bar so it doesn't overlap video controls)
+    try {
+      const handler = (window as any).AndroidFullscreenHandler
+      if (handler) {
+        if (isEnteringFullscreen) {
+          handler.enterFullscreen()
+        } else {
+          handler.exitFullscreen()
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[FULLSCREEN] Error calling AndroidFullscreenHandler', e)
+    }
+
     if (isEnteringFullscreen) {
       // Entering fullscreen - reset exit time
       fullscreenExitTime = 0

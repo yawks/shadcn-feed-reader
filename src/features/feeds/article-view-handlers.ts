@@ -539,6 +539,62 @@ export async function handleReadabilityView({
                 reportScrollProgress();
             });
         })();
+
+        // Handle all link clicks: anchors scroll in-page, same-domain navigates internally, cross-domain opens externally
+        (function() {
+            var articleUrl = decodeURIComponent('${encodeURIComponent(url)}');
+            var articleHostname = '';
+            try { articleHostname = new URL(articleUrl).hostname; } catch(e) {}
+            var scrollStack = [];
+
+            document.addEventListener('click', function(e) {
+                var link = e.target.closest ? e.target.closest('a') : null;
+                if (!link) return;
+                var href = link.getAttribute('href');
+                if (!href) return;
+
+                // Anchor links: scroll within page
+                if (href.charAt(0) === '#') {
+                    if (href === '#') return;
+                    var targetId = href.substring(1);
+                    var target = document.getElementById(targetId) || document.querySelector('[name="' + CSS.escape(targetId) + '"]');
+                    if (!target) return;
+                    e.preventDefault();
+                    var currentScroll = window.scrollY || document.documentElement.scrollTop;
+                    scrollStack.push(currentScroll);
+                    history.pushState({ anchorScroll: true }, '', href);
+                    target.scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+
+                // Resolve relative URLs against article URL
+                var resolvedUrl;
+                try { resolvedUrl = new URL(href, articleUrl).href; } catch(err) { return; }
+
+                // Skip non-http(s) protocols (mailto:, tel:, javascript:, etc.)
+                if (resolvedUrl.indexOf('http') !== 0) return;
+
+                var linkHostname;
+                try { linkHostname = new URL(resolvedUrl).hostname; } catch(err) { return; }
+
+                e.preventDefault();
+
+                if (linkHostname === articleHostname && window.parent && window.parent !== window) {
+                    // Same domain: navigate within iframe via parent
+                    window.parent.postMessage({ type: 'NAVIGATE_INTERNAL', url: resolvedUrl }, '*');
+                } else if (window.parent && window.parent !== window) {
+                    // Different domain: open externally via parent
+                    window.parent.postMessage({ type: 'OPEN_EXTERNAL', url: resolvedUrl }, '*');
+                }
+            });
+
+            window.addEventListener('popstate', function() {
+                if (scrollStack.length > 0) {
+                    var pos = scrollStack.pop();
+                    window.scrollTo({ top: pos, behavior: 'smooth' });
+                }
+            });
+        })();
     </script>
 </head>
 <body>
@@ -1496,6 +1552,62 @@ export async function handleConfiguredView({
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[SCROLL_PROGRESS_IFRAME] DOMContentLoaded (configured)');
                 reportScrollProgress();
+            });
+        })();
+
+        // Handle all link clicks: anchors scroll in-page, same-domain navigates internally, cross-domain opens externally
+        (function() {
+            var articleUrl = decodeURIComponent('${encodeURIComponent(url)}');
+            var articleHostname = '';
+            try { articleHostname = new URL(articleUrl).hostname; } catch(e) {}
+            var scrollStack = [];
+
+            document.addEventListener('click', function(e) {
+                var link = e.target.closest ? e.target.closest('a') : null;
+                if (!link) return;
+                var href = link.getAttribute('href');
+                if (!href) return;
+
+                // Anchor links: scroll within page
+                if (href.charAt(0) === '#') {
+                    if (href === '#') return;
+                    var targetId = href.substring(1);
+                    var target = document.getElementById(targetId) || document.querySelector('[name="' + CSS.escape(targetId) + '"]');
+                    if (!target) return;
+                    e.preventDefault();
+                    var currentScroll = window.scrollY || document.documentElement.scrollTop;
+                    scrollStack.push(currentScroll);
+                    history.pushState({ anchorScroll: true }, '', href);
+                    target.scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+
+                // Resolve relative URLs against article URL
+                var resolvedUrl;
+                try { resolvedUrl = new URL(href, articleUrl).href; } catch(err) { return; }
+
+                // Skip non-http(s) protocols (mailto:, tel:, javascript:, etc.)
+                if (resolvedUrl.indexOf('http') !== 0) return;
+
+                var linkHostname;
+                try { linkHostname = new URL(resolvedUrl).hostname; } catch(err) { return; }
+
+                e.preventDefault();
+
+                if (linkHostname === articleHostname && window.parent && window.parent !== window) {
+                    // Same domain: navigate within iframe via parent
+                    window.parent.postMessage({ type: 'NAVIGATE_INTERNAL', url: resolvedUrl }, '*');
+                } else if (window.parent && window.parent !== window) {
+                    // Different domain: open externally via parent
+                    window.parent.postMessage({ type: 'OPEN_EXTERNAL', url: resolvedUrl }, '*');
+                }
+            });
+
+            window.addEventListener('popstate', function() {
+                if (scrollStack.length > 0) {
+                    var pos = scrollStack.pop();
+                    window.scrollTo({ top: pos, behavior: 'smooth' });
+                }
             });
         })();
     </script>

@@ -99,6 +99,21 @@ function FeedArticleComponent({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const injectedHtmlRef = useRef<HTMLDivElement>(null) // For direct HTML injection
 
+  // Internal navigation state: allows same-domain link navigation within the article view
+  const [internalNavUrl, setInternalNavUrl] = useState<string | null>(null)
+  const internalNavHistory = useRef<string[]>([])
+  // Effective URL: use internal nav URL if navigated, otherwise item.url
+  const effectiveUrl = internalNavUrl || item.url || ''
+  // Ref to track current effective URL for use in event handlers (avoids stale closures)
+  const effectiveUrlRef = useRef(effectiveUrl)
+  effectiveUrlRef.current = effectiveUrl
+
+  // Reset internal navigation when the article changes
+  useEffect(() => {
+    setInternalNavUrl(null)
+    internalNavHistory.current = []
+  }, [item.url])
+
   // Now all view modes use iframe for isolated scroll context
   const isIframeView = true
 
@@ -263,7 +278,7 @@ function FeedArticleComponent({
 
     // Skip reload if URL, viewMode, theme, and fontSize haven't changed
     // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
-    const urlChanged = lastLoadedUrlRef.current !== item.url
+    const urlChanged = lastLoadedUrlRef.current !== effectiveUrl
     const viewModeChanged = lastViewModeRef.current !== viewMode
     const themeChanged = lastThemeRef.current !== theme
     const fontSizeChanged = lastFontSizeRef.current !== fontSize
@@ -274,7 +289,7 @@ function FeedArticleComponent({
       viewModeChanged,
       themeChanged,
       fontSizeChanged,
-      currentUrl: item.url,
+      currentUrl: effectiveUrl,
       lastUrl: lastLoadedUrlRef.current,
       currentViewMode: viewMode,
       lastViewMode: lastViewModeRef.current,
@@ -316,20 +331,20 @@ function FeedArticleComponent({
     }
 
     // Update refs
-    lastLoadedUrlRef.current = item.url || null
+    lastLoadedUrlRef.current = effectiveUrl || null
     lastViewModeRef.current = viewMode
     lastThemeRef.current = theme
     lastFontSizeRef.current = fontSize
 
     // eslint-disable-next-line no-console
     console.log('🔴 [FeedArticle] Reloading article', {
-      url: item.url,
+      url: effectiveUrl,
       viewMode,
       viewModeLoaded,
     })
     // eslint-disable-next-line no-console
     console.log(
-      '[FeedArticle] RELOADING url=' + item.url + ' viewMode=' + viewMode
+      '[FeedArticle] RELOADING url=' + effectiveUrl + ' viewMode=' + viewMode
     )
 
     const setIframeUrl = (url: string) => {
@@ -341,7 +356,7 @@ function FeedArticleComponent({
 
     if (viewMode === 'readability') {
       handleReadabilityView({
-        url: item.url || '',
+        url: effectiveUrl,
         proxyPort,
         theme,
         fontSize,
@@ -358,7 +373,7 @@ function FeedArticleComponent({
         proxyPort
       )
       handleOriginalView({
-        url: item.url || '',
+        url: effectiveUrl,
         proxyPort,
         setInjectedHtml,
         setInjectedScripts,
@@ -378,7 +393,7 @@ function FeedArticleComponent({
         feedId
       )
       handleConfiguredView({
-        url: item.url || '',
+        url: effectiveUrl,
         proxyPort,
         feedId,
         theme,
@@ -392,7 +407,7 @@ function FeedArticleComponent({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    item.url,
+    effectiveUrl,
     viewMode,
     proxyPort,
     theme,
@@ -557,6 +572,7 @@ function FeedArticleComponent({
   // Listen for auth requests from proxy via postMessage
   // Also listen for image long press events from iframe
   // Also listen for YouTube video clicks from iframe
+  // Also listen for internal/external link navigation from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'PROXY_AUTH_REQUIRED' && event.data?.domain) {
@@ -579,6 +595,33 @@ function FeedArticleComponent({
           videoId: event.data.videoId,
           title: event.data.videoTitle || '',
         })
+      } else if (
+        event.data?.type === 'NAVIGATE_INTERNAL' &&
+        event.data?.url
+      ) {
+        // Same-domain link: navigate within the article view using the same view mode
+        const currentUrl = effectiveUrlRef.current
+        if (currentUrl) {
+          internalNavHistory.current.push(currentUrl)
+        }
+        setInternalNavUrl(event.data.url)
+        setIsLoading(true)
+      } else if (
+        event.data?.type === 'OPEN_EXTERNAL' &&
+        event.data?.url
+      ) {
+        // Cross-domain link: open in system browser or new tab
+        const externalUrl = event.data.url
+        try {
+          const shellMod = await import('@tauri-apps/plugin-shell')
+          if (typeof shellMod.open === 'function') {
+            await shellMod.open(externalUrl)
+          } else {
+            window.open(externalUrl, '_blank', 'noopener,noreferrer')
+          }
+        } catch (_e) {
+          window.open(externalUrl, '_blank', 'noopener,noreferrer')
+        }
       }
     }
 

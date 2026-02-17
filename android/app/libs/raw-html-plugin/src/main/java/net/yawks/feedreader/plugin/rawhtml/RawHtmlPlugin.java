@@ -521,7 +521,7 @@ public class RawHtmlPlugin extends Plugin {
                     "$1" + proxyBase + "$2" + "$3"
                 );
                 
-                // Inject script to ensure videos have controls and iframes have fullscreen attributes for native fullscreen
+                // Inject script to ensure videos have controls, iframes have fullscreen attributes, and handle Android immersive mode
                 String injectedScript = "<script>(function(){" +
                     "function enableFullscreenForMedia(media){" +
                     "if(media.tagName==='IFRAME'){" +
@@ -530,6 +530,24 @@ public class RawHtmlPlugin extends Plugin {
                     "media.setAttribute('mozallowfullscreen','');" +
                     "}else if(media.tagName==='VIDEO'&&!media.hasAttribute('controls')){" +
                     "media.setAttribute('controls','controls');" +
+                    "}" +
+                    "}" +
+                    "function setupFullscreenHandlers(){" +
+                    "if(window.AndroidFullscreenHandler){" +
+                    "document.addEventListener('fullscreenchange',function(){" +
+                    "if(document.fullscreenElement){" +
+                    "window.AndroidFullscreenHandler.enterFullscreen();" +
+                    "}else{" +
+                    "window.AndroidFullscreenHandler.exitFullscreen();" +
+                    "}" +
+                    "});" +
+                    "document.addEventListener('webkitfullscreenchange',function(){" +
+                    "if(document.webkitFullscreenElement){" +
+                    "window.AndroidFullscreenHandler.enterFullscreen();" +
+                    "}else{" +
+                    "window.AndroidFullscreenHandler.exitFullscreen();" +
+                    "}" +
+                    "});" +
                     "}" +
                     "}" +
                     "function processExistingMedia(){" +
@@ -551,10 +569,12 @@ public class RawHtmlPlugin extends Plugin {
                     "});" +
                     "if(document.body){" +
                     "processExistingMedia();" +
+                    "setupFullscreenHandlers();" +
                     "observer.observe(document.body,{childList:true,subtree:true});" +
                     "}else{" +
                     "document.addEventListener('DOMContentLoaded',function(){" +
                     "processExistingMedia();" +
+                    "setupFullscreenHandlers();" +
                     "observer.observe(document.body,{childList:true,subtree:true});" +
                     "});" +
                     "}" +
