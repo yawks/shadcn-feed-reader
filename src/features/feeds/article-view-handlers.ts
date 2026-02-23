@@ -221,6 +221,32 @@ export async function handleReadabilityView({
         }
       })
 
+      // Rewrite srcset attributes on <source> elements inside <picture>
+      doc.querySelectorAll('source[srcset]').forEach((source) => {
+        const srcset = source.getAttribute('srcset')
+        if (srcset) {
+          const rewrittenSrcset = srcset
+            .split(',')
+            .map((entry) => {
+              const parts = entry.trim().split(/\s+/)
+              const imgUrl = parts[0]
+              const absoluteImgUrl = resolveUrl(imgUrl || '')
+              if (absoluteImgUrl) {
+                const proxyUrl = effectiveProxyPort
+                  ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                  : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                return (
+                  proxyUrl +
+                  (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
+                )
+              }
+              return entry.trim()
+            })
+            .join(', ')
+          source.setAttribute('srcset', rewrittenSrcset)
+        }
+      })
+
       rewrittenSummary = doc.body.innerHTML
     }
 
@@ -278,21 +304,23 @@ export async function handleReadabilityView({
     body { padding: 1rem; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: ${isDark ? 'rgb(34, 34, 34)' : 'rgb(255, 255, 255)'}; color: ${isDark ? 'rgb(229, 229, 229)' : 'rgb(34, 34, 34)'}; }
 
         /* Imported reader styles (adapted) */
-        h1, h2 { font-weight: 300; line-height: 130%; }
-        h1 { font-size: 170%; margin-bottom: 0.1em; }
-        h2 { font-size: 140%; }
+        h1, h2, h3, h4 { font-weight: 600; line-height: 130%; }
+        h1 { font-size: 175%; margin-top: 0.2em; margin-bottom: 0.5em; }
+        h2 { font-size: 135%; margin-top: 1.6em; margin-bottom: 0.4em; }
+        h3 { font-size: 115%; margin-top: 1.2em; margin-bottom: 0.3em; }
+        h4 { font-size: 105%; margin-top: 1em; margin-bottom: 0.25em; }
         h1 span, h2 span { padding-right: 10px; }
         a { color: ${linkColor}; }
         h1 a { color: inherit; text-decoration: none; }
         img { height: auto; margin-right: 15px; margin-top: 5px; vertical-align: middle; max-width: 100%; }
         pre { white-space: pre-wrap; direction: ltr; }
-        blockquote { border-left: thick solid ${quoteLeftColor}; background-color: ${bgBlockquote}; margin: 0.5em 0; padding: 0.5em; }
-        p { margin: 0.8em 0; }
+        blockquote { border-left: thick solid ${quoteLeftColor}; background-color: ${bgBlockquote}; margin: 0.8em 0; padding: 0.6em 0.8em; }
+        p { margin: 0.6em 0 0.9em; }
         p.subtitle { color: ${subtitleColor}; border-top:1px ${subtitleBorderColor}; border-bottom:1px ${subtitleBorderColor}; padding-top:2px; padding-bottom:2px; font-weight:600; }
         ul, ol { margin: 0 0 0.8em 0.6em; padding: 0 0 0 1em; }
-        ul li, ol li { margin: 0 0 0.8em 0; padding: 0; }
-        hr { border: 1px solid ${hrColor}; background-color: ${hrColor}; }
-        strong { font-weight: 400; }
+        ul li, ol li { margin: 0 0 0.35em 0; padding: 0; }
+        hr { border: 1px solid ${hrColor}; background-color: ${hrColor}; margin: 1.2em 0; }
+        strong { font-weight: 700; }
         figure { margin: 0; }
         figure img { width: 100% !important; float: none; }
         
@@ -1228,6 +1256,32 @@ export async function handleConfiguredView({
             })
             .join(', ')
           img.setAttribute('srcset', rewrittenSrcset)
+        }
+      })
+
+      // Rewrite srcset attributes on <source> elements inside <picture>
+      doc.querySelectorAll('source[srcset]').forEach((source) => {
+        const srcset = source.getAttribute('srcset')
+        if (srcset) {
+          const rewrittenSrcset = srcset
+            .split(',')
+            .map((entry) => {
+              const parts = entry.trim().split(/\s+/)
+              const imgUrl = parts[0]
+              const absoluteImgUrl = resolveUrl(imgUrl || '')
+              if (absoluteImgUrl) {
+                const proxyUrl = effectiveProxyPort
+                  ? `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                  : `${webProxyBase}/proxy?url=${encodeURIComponent(absoluteImgUrl)}`
+                return (
+                  proxyUrl +
+                  (parts.length > 1 ? ' ' + parts.slice(1).join(' ') : '')
+                )
+              }
+              return entry.trim()
+            })
+            .join(', ')
+          source.setAttribute('srcset', rewrittenSrcset)
         }
       })
 
