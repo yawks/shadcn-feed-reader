@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { FeedItem } from '@/backends/types'
-import { Capacitor } from '@capacitor/core'
 import {
   getArticleViewMode,
   getArticleViewModeSync,
@@ -68,16 +67,7 @@ function FeedArticleComponent({
   const [viewModeFeedId, setViewModeFeedId] = useState<string>(
     () => item.feed?.id || 'default'
   )
-  const [viewModeLoaded, setViewModeLoaded] = useState<boolean>(() => {
-    // On web, we can load synchronously, so it's already loaded
-    // On Capacitor, we need to load async, so it's not loaded yet
-    if (typeof window !== 'undefined') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const win = window as any
-      return win.Capacitor?.getPlatform?.() !== 'android'
-    }
-    return true
-  })
+  const [viewModeLoaded, setViewModeLoaded] = useState(true)
 
   const [proxyPort, setProxyPort] = useState<number | null>(null)
   const [authDialog, setAuthDialog] = useState<{ domain: string } | null>(null)
@@ -137,16 +127,7 @@ function FeedArticleComponent({
       setViewModeLoaded(false)
     }
 
-    // On Capacitor, we need to load async, so mark as not loaded yet
-    if (typeof window !== 'undefined') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const win = window as any
-      if (win.Capacitor?.getPlatform?.() === 'android') {
-        setViewModeLoaded(false)
-      }
-    }
-
-    // Load saved mode asynchronously (needed for Capacitor)
+    // Load saved mode asynchronously
     getArticleViewMode(feedId)
       .then((savedMode) => {
         // eslint-disable-next-line no-console
@@ -195,53 +176,11 @@ function FeedArticleComponent({
         console.log('[FeedArticle] ✓ Tauri proxy started on port:', port)
         return
       } catch (tauriErr) {
-        // Tauri not available, try Capacitor (Android)
-        const errorMsg =
-          tauriErr instanceof Error ? tauriErr.message : String(tauriErr)
         // eslint-disable-next-line no-console
-        console.log('[FeedArticle] Tauri not available, error:', errorMsg)
-        // Check for various Tauri not available error messages
-        // Also handle network errors from HTTP API fallback (happens on Android)
-        const isTauriNotAvailable =
-          errorMsg.includes('Tauri invoke not available') ||
-          errorMsg.includes('Cannot read properties of undefined') ||
-          (errorMsg.includes('invoke') && errorMsg.includes('undefined')) ||
-          errorMsg.includes('Failed to fetch') ||
-          errorMsg.includes('NetworkError') ||
-          errorMsg.includes('API Error')
-
-        if (isTauriNotAvailable) {
-          try {
-            // eslint-disable-next-line no-console
-            console.log('[FeedArticle] Attempting to start Capacitor proxy...')
-            const { startProxyServer } = await import('@/lib/raw-html')
-            const port = await startProxyServer()
-            if (port) {
-              setProxyPort(port)
-              // eslint-disable-next-line no-console
-              console.log(
-                '[FeedArticle] ✓ Capacitor proxy started on port:',
-                port
-              )
-            } else {
-              // eslint-disable-next-line no-console
-              console.warn('[FeedArticle] Capacitor proxy returned null port')
-            }
-          } catch (capErr) {
-            // eslint-disable-next-line no-console
-            console.error('[FeedArticle] ✗ Capacitor proxy failed:', capErr)
-            const errorDetails =
-              capErr instanceof Error ? capErr.message : String(capErr)
-            // eslint-disable-next-line no-console
-            console.error('[FeedArticle] Error details:', errorDetails)
-          }
-        } else {
-          // eslint-disable-next-line no-console
-          console.debug(
-            '[FeedArticle] Tauri proxy not available or failed (dev):',
-            tauriErr
-          )
-        }
+        console.debug(
+          '[FeedArticle] Tauri proxy not available or failed (dev):',
+          tauriErr
+        )
       }
     }
 
@@ -253,6 +192,9 @@ function FeedArticleComponent({
   const lastViewModeRef = useRef<ArticleViewMode | null>(null)
   const lastThemeRef = useRef<string | null>(null)
   const lastFontSizeRef = useRef<string | null>(null)
+  const lastProxyPortRef = useRef<number | null>(null)
+  // Monotonic counter to detect stale async loads (race condition prevention)
+  const articleLoadIdRef = useRef(0)
 
   useEffect(() => {
     // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
@@ -276,12 +218,16 @@ function FeedArticleComponent({
       return
     }
 
-    // Skip reload if URL, viewMode, theme, and fontSize haven't changed
+    // Skip reload if URL, viewMode, theme, fontSize, and proxyPort haven't changed
     // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
     const urlChanged = lastLoadedUrlRef.current !== effectiveUrl
     const viewModeChanged = lastViewModeRef.current !== viewMode
     const themeChanged = lastThemeRef.current !== theme
     const fontSizeChanged = lastFontSizeRef.current !== fontSize
+    // Reload if proxy just became available (was null, now has a port) - fixes race condition
+    // where article was loaded before proxy was ready, causing fetchRawHtml to fail
+    const proxyBecameAvailable =
+      lastProxyPortRef.current === null && proxyPort !== null
 
     // eslint-disable-next-line no-console
     console.log('🟡 [FeedArticle] useEffect triggered', {
@@ -289,6 +235,7 @@ function FeedArticleComponent({
       viewModeChanged,
       themeChanged,
       fontSizeChanged,
+      proxyBecameAvailable,
       currentUrl: effectiveUrl,
       lastUrl: lastLoadedUrlRef.current,
       currentViewMode: viewMode,
@@ -305,12 +252,14 @@ function FeedArticleComponent({
         ' viewModeChanged=' +
         viewModeChanged +
         ' viewModeLoaded=' +
-        viewModeLoaded
+        viewModeLoaded +
+        ' proxyBecameAvailable=' +
+        proxyBecameAvailable
     )
 
     // For readability mode, theme and fontSize changes should update the blob without full reload
     // For other modes, only reload if URL or viewMode changes
-    if (!urlChanged && !viewModeChanged) {
+    if (!urlChanged && !viewModeChanged && !proxyBecameAvailable) {
       // If only theme/fontSize changed and we're in readability mode, update the iframe content
       if (viewMode === 'readability' && (themeChanged || fontSizeChanged)) {
         // Update refs
@@ -335,6 +284,7 @@ function FeedArticleComponent({
     lastViewModeRef.current = viewMode
     lastThemeRef.current = theme
     lastFontSizeRef.current = fontSize
+    lastProxyPortRef.current = proxyPort
 
     // eslint-disable-next-line no-console
     console.log('🔴 [FeedArticle] Reloading article', {
@@ -354,6 +304,11 @@ function FeedArticleComponent({
     // eslint-disable-next-line no-console
     console.log('[FeedArticle] About to load article, proxyPort:', proxyPort)
 
+    // Stale-load prevention: each load gets a unique ID.
+    // Handlers check isStale() at async boundaries and abort if a newer load started.
+    const loadId = ++articleLoadIdRef.current
+    const isStale = () => articleLoadIdRef.current !== loadId
+
     if (viewMode === 'readability') {
       handleReadabilityView({
         url: effectiveUrl,
@@ -365,6 +320,7 @@ function FeedArticleComponent({
         setIsLoading,
         setAuthDialog,
         setIframeUrl,
+        isStale,
       })
     } else if (viewMode === 'original') {
       // eslint-disable-next-line no-console
@@ -403,6 +359,7 @@ function FeedArticleComponent({
         setIsLoading,
         setAuthDialog,
         setIframeUrl,
+        isStale,
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -489,86 +446,6 @@ function FeedArticleComponent({
     }
   }, [isIframeView, viewMode, theme, proxyPort, item.url])
 
-  // Layout probes: measure viewport and article/iframe sizes and padding so we can
-  // understand why content is ending up underneath the Android navigation area.
-  useEffect(() => {
-    const logMeasurements = () => {
-      try {
-        // Basic viewport metrics
-        const windowInnerHeight =
-          typeof window !== 'undefined' ? window.innerHeight : undefined
-        // Use a typed-safe access to visualViewport to satisfy lint rules
-        const visualViewport =
-          typeof window !== 'undefined' &&
-          (
-            window as unknown as Window & {
-              visualViewport?: { height?: number }
-            }
-          ).visualViewport
-        const visualViewportHeight = visualViewport
-          ? visualViewport.height
-          : undefined
-
-        // Container scroll area that holds iframe
-        const containerEl = document.querySelector(
-          '.relative.h-full.w-full.overflow-auto'
-        ) as HTMLElement | null
-        let containerRect = null
-        if (containerEl) {
-          const cr = containerEl.getBoundingClientRect()
-          containerRect = { top: cr.top, bottom: cr.bottom, height: cr.height }
-        }
-
-        // Iframe metrics (if present)
-        const iframe = iframeRef.current
-        let iframeRect = null
-        if (iframe) {
-          const ir = iframe.getBoundingClientRect()
-          iframeRect = { top: ir.top, bottom: ir.bottom, height: ir.height }
-        }
-
-        // Probe safe-area-inset-bottom via env() by creating a temporary element.
-        let measuredSafeAreaInsetBottom: number | string = 'n/a'
-        try {
-          const probe = document.createElement('div')
-          probe.style.position = 'absolute'
-          probe.style.left = '-9999px'
-          probe.style.height = 'env(safe-area-inset-bottom, 0px)'
-          document.body.appendChild(probe)
-          measuredSafeAreaInsetBottom = probe.offsetHeight
-          document.body.removeChild(probe)
-        } catch (_e) {
-          measuredSafeAreaInsetBottom = 'err'
-        }
-
-        // eslint-disable-next-line no-console
-        console.debug(
-          '[DIAG] FeedArticle: layout',
-          JSON.stringify({
-            viewMode,
-            windowInnerHeight,
-            visualViewportHeight,
-            containerRect,
-            iframeRect,
-            measuredSafeAreaInsetBottom,
-            articleContentLength: articleContent?.length,
-          })
-        )
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.debug('[DIAG] FeedArticle: layout probe failed', err)
-      }
-    }
-
-    logMeasurements()
-    window.addEventListener('resize', logMeasurements)
-    window.addEventListener('orientationchange', logMeasurements)
-    return () => {
-      window.removeEventListener('resize', logMeasurements)
-      window.removeEventListener('orientationchange', logMeasurements)
-    }
-  }, [viewMode, articleContent])
-
   // Listen for auth requests from proxy via postMessage
   // Also listen for image long press events from iframe
   // Also listen for YouTube video clicks from iframe
@@ -582,10 +459,7 @@ function FeedArticleComponent({
         event.data?.type === 'IMAGE_LONG_PRESS' &&
         event.data?.imageUrl
       ) {
-        // Only show menu on Android
-        if (Capacitor.getPlatform() === 'android') {
-          setSelectedImageUrl(event.data.imageUrl)
-        }
+        setSelectedImageUrl(event.data.imageUrl)
       } else if (
         event.data?.type === 'YOUTUBE_VIDEO_CLICK' &&
         event.data?.videoId
@@ -642,17 +516,7 @@ function FeedArticleComponent({
     try {
       await safeInvoke('set_proxy_auth', { domain, username, password })
     } catch (_e) {
-      // Try Capacitor (Android)
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const win = window as any
-        const Plugins = win?.Capacitor?.Plugins
-        if (Plugins?.RawHtml?.setProxyAuth) {
-          await Plugins.RawHtml.setProxyAuth({ domain, username, password })
-        }
-      } catch (_e2) {
-        // Ignore
-      }
+      // Ignore
     }
 
     setAuthDialog(null)
@@ -862,91 +726,6 @@ function FeedArticleComponent({
         zoomScript.textContent = getShadowDomZoomScript()
         shadowRoot.appendChild(zoomScript)
 
-        // Setup image long press handlers for Android
-        if (Capacitor.getPlatform() === 'android') {
-          const setupImageLongPress = () => {
-            const images = shadowRoot.querySelectorAll('img')
-            images.forEach((img) => {
-              // Prevent default context menu
-              img.addEventListener('contextmenu', (e) => {
-                e.preventDefault()
-                const imageUrl =
-                  (img as HTMLImageElement).src ||
-                  img.getAttribute('data-src') ||
-                  img.getAttribute('data-lazy-src')
-                if (imageUrl) {
-                  // eslint-disable-next-line no-console
-                  console.log(
-                    '[FeedArticle] Image long press detected, setting selectedImageUrl:',
-                    imageUrl
-                  )
-                  setSelectedImageUrl(imageUrl)
-                }
-              })
-
-              // Touch events for mobile
-              let touchStartTime: number | null = null
-              let touchStartPos: { x: number; y: number } | null = null
-              img.addEventListener('touchstart', (e) => {
-                touchStartTime = Date.now()
-                if (e.touches.length === 1) {
-                  touchStartPos = {
-                    x: e.touches[0].clientX,
-                    y: e.touches[0].clientY,
-                  }
-                }
-              })
-
-              img.addEventListener('touchend', (e) => {
-                if (touchStartTime && Date.now() - touchStartTime >= 500) {
-                  // Check if finger didn't move much (long press, not drag)
-                  const moved =
-                    touchStartPos &&
-                    e.changedTouches[0] &&
-                    (Math.abs(e.changedTouches[0].clientX - touchStartPos.x) >
-                      10 ||
-                      Math.abs(e.changedTouches[0].clientY - touchStartPos.y) >
-                        10)
-                  if (!moved) {
-                    e.preventDefault()
-                    const imageUrl =
-                      (img as HTMLImageElement).src ||
-                      img.getAttribute('data-src') ||
-                      img.getAttribute('data-lazy-src')
-                    if (imageUrl) {
-                      // eslint-disable-next-line no-console
-                      console.log(
-                        '[FeedArticle] Image long press detected (touch), setting selectedImageUrl:',
-                        imageUrl
-                      )
-                      setSelectedImageUrl(imageUrl)
-                    }
-                  }
-                }
-                touchStartTime = null
-                touchStartPos = null
-              })
-
-              img.addEventListener('touchmove', () => {
-                touchStartTime = null
-                touchStartPos = null
-              })
-            })
-          }
-
-          setupImageLongPress()
-
-          // Watch for dynamically added images
-          const imageObserver = new MutationObserver(() => {
-            setupImageLongPress()
-          })
-          imageObserver.observe(shadowRoot, { childList: true, subtree: true })
-
-          // Store observer for cleanup
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ;(shadowRoot as any)._imageObserver = imageObserver
-        }
-
         // Function to convert position:fixed to position:absolute for all elements
         // This ensures fixed elements stay contained within the Shadow DOM
         const convertFixedToAbsolute = () => {
@@ -1065,12 +844,6 @@ function FeedArticleComponent({
         const obs = (shadowRoot as any)?._positionObserver
         if (obs) {
           obs.disconnect()
-        }
-        // Disconnect image observer
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const imgObs = (shadowRoot as any)?._imageObserver
-        if (imgObs) {
-          imgObs.disconnect()
         }
         // Restore original document methods
         document.getElementById = originalGetElementById
@@ -1239,13 +1012,11 @@ function FeedArticleComponent({
   }, [viewMode, isLoading])
 
   // Ensure iframe viewport doesn't extend under native system UI.
-  // Use CSS env() directly via inline styles - simpler and more stable than dynamic JS adjustments.
+  // Use CSS env() directly via inline styles - let the browser handle it natively.
   useEffect(() => {
     const iframe = iframeRef.current
     const injectedHtml = injectedHtmlRef.current
 
-    // Set height using CSS env() - let the browser handle it natively
-    // Use only half of safe-area-inset-bottom to reduce excessive bottom margin
     if (iframe) {
       iframe.style.height =
         'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
@@ -1254,48 +1025,6 @@ function FeedArticleComponent({
     if (injectedHtml) {
       injectedHtml.style.height =
         'calc(100% - calc(env(safe-area-inset-bottom, 0px) / 2))'
-    }
-
-    // Only listen to Capacitor plugin events for native insets (more reliable than probing)
-    const handler = (ev: Event) => {
-      try {
-        const ce = ev as CustomEvent & { detail?: { bottom?: number } }
-        const safeInset = Number(ce?.detail?.bottom) || 0
-
-        // Validate inset value (can be up to ~200px on modern Android devices with gesture navigation)
-        if (safeInset > 250) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            '[FeedArticle] Suspicious inset value from Capacitor:',
-            safeInset,
-            '- ignoring'
-          )
-          return
-        }
-
-        // Apply half of the inset to reduce excessive bottom margin
-        const adjustedInset = safeInset / 2
-
-        if (iframe) {
-          iframe.style.height = `calc(100% - ${adjustedInset}px)`
-        }
-        if (injectedHtml) {
-          injectedHtml.style.height = `calc(100% - ${adjustedInset}px)`
-        }
-      } catch (_e) {
-        // ignore
-      }
-    }
-
-    // Only listen to Capacitor plugin events - don't adjust on resize/visibilitychange
-    // as those cause flickering. Let CSS env() handle it automatically.
-    window.addEventListener('capacitor-window-insets', handler as EventListener)
-
-    return () => {
-      window.removeEventListener(
-        'capacitor-window-insets',
-        handler as EventListener
-      )
     }
   }, [])
 

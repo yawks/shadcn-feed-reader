@@ -39,7 +39,6 @@ import { SelectorConfigDialog } from '@/features/feeds/SelectorConfigDialog'
 import { safeInvoke } from '@/lib/safe-invoke'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Capacitor } from '@capacitor/core'
 
 // Local looser type for the folders cache shape. The runtime items are not strictly
 // matching the NavItem union used elsewhere, so use a permissive but typed shape
@@ -141,33 +140,6 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
         ...(authConfig.extraFields || []),
       ]
 
-      // Try Capacitor first (Android native)
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const { performFormLogin } = await import('@/lib/raw-html')
-          const result = await performFormLogin({
-            loginUrl: authConfig.loginUrl,
-            fields,
-            responseSelector: authConfig.responseSelector,
-          })
-
-          if (result?.success) {
-            if (result.extractedText) {
-              toast.success(`Login successful: ${result.extractedText}`)
-            } else {
-              toast.success('Login successful')
-            }
-          } else {
-            toast.error(result?.message || 'Login failed')
-          }
-          return
-        } catch (capacitorErr) {
-          // eslint-disable-next-line no-console
-          console.warn('[handleFeedLogin] Capacitor failed, trying safeInvoke:', capacitorErr)
-        }
-      }
-
-      // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
       const result = await safeInvoke('perform_form_login', {
         request: {
           login_url: authConfig.loginUrl,
@@ -696,33 +668,6 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
         ...(authConfig.extraFields || []),
       ]
 
-      // Try Capacitor first (Android native)
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const { performFormLogin } = await import('@/lib/raw-html')
-          const result = await performFormLogin({
-            loginUrl: authConfig.loginUrl,
-            fields,
-            responseSelector: authConfig.responseSelector,
-          })
-
-          if (result?.success) {
-            if (result.extractedText) {
-              toast.success(`Login successful: ${result.extractedText}`)
-            } else {
-              toast.success('Login successful')
-            }
-          } else {
-            toast.error(result?.message || 'Login failed')
-          }
-          return
-        } catch (capacitorErr) {
-          // eslint-disable-next-line no-console
-          console.warn('[handleSubFeedLogin] Capacitor failed, trying safeInvoke:', capacitorErr)
-        }
-      }
-
-      // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
       const result = await safeInvoke('perform_form_login', {
         request: {
           login_url: authConfig.loginUrl,

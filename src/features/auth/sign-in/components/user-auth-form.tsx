@@ -17,10 +17,8 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { readSettingsFile, importSettings, getImportedLoginData, validateImportedSettings, type ExportedSettings } from '@/lib/settings-export'
+import { readSettingsFile, importSettings, getImportedLoginData, type ExportedSettings } from '@/lib/settings-export'
 import { IconUpload } from '@tabler/icons-react'
-import { Capacitor } from '@capacitor/core'
-import { FilePicker } from '@capawesome/capacitor-file-picker'
 
 type UserAuthFormProps = Readonly<HTMLAttributes<HTMLFormElement>>
 
@@ -59,83 +57,7 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
     },
   })
 
-  const handleImportClick = async () => {
-    // On native platforms, use Capacitor FilePicker
-    if (Capacitor.isNativePlatform()) {
-      // eslint-disable-next-line no-console
-      console.log('[Import] Using Capacitor FilePicker')
-      try {
-        const result = await FilePicker.pickFiles({
-          types: ['application/json'],
-          readData: true,
-        })
-
-        // eslint-disable-next-line no-console
-        console.log('[Import] FilePicker result:', result)
-
-        if (result.files.length === 0) {
-          // eslint-disable-next-line no-console
-          console.log('[Import] No file selected')
-          return
-        }
-
-        const file = result.files[0]
-        // eslint-disable-next-line no-console
-        console.log('[Import] File picked:', file.name, 'size:', file.size)
-
-        // The file data is base64 encoded
-        if (!file.data) {
-          setAuthError('Could not read file data')
-          return
-        }
-
-        // Decode base64 to string
-        const content = atob(file.data)
-        // eslint-disable-next-line no-console
-        console.log('[Import] Decoded content length:', content.length)
-
-        const data = JSON.parse(content)
-        if (!validateImportedSettings(data)) {
-          setAuthError('Invalid settings file format')
-          return
-        }
-
-        // eslint-disable-next-line no-console
-        console.log('[Import] Settings validated, keys:', Object.keys(data.settings).length)
-
-        // Import settings (skip auth keys, we'll use them for the form)
-        await importSettings(data, true)
-        setImportedSettings(data)
-
-        // Pre-fill the form with imported login data
-        const loginData = getImportedLoginData(data)
-        // eslint-disable-next-line no-console
-        console.log('[Import] Login data:', { url: loginData.url, login: loginData.login })
-
-        if (loginData.url) {
-          form.setValue('nextcloudUrl', loginData.url)
-        }
-        if (loginData.login) {
-          form.setValue('email', loginData.login)
-        }
-
-        setImportSuccess(true)
-        setAuthError(null)
-        // eslint-disable-next-line no-console
-        console.log('[Import] Import completed successfully')
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[Import] FilePicker error:', err)
-        const errorMessage = err instanceof Error ? err.message : 'Failed to pick file'
-        // Don't show error if user just cancelled
-        if (!errorMessage.includes('cancel') && !errorMessage.includes('Cancel')) {
-          setAuthError(`Import failed: ${errorMessage}`)
-        }
-      }
-      return
-    }
-
-    // On web, use the file input
+  const handleImportClick = () => {
     fileInputRef.current?.click()
   }
 

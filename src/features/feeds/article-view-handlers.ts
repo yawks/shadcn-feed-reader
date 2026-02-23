@@ -1,5 +1,4 @@
 import i18n from '@/i18n'
-import { Capacitor } from '@capacitor/core'
 import {
   extractArticle,
   convertYouTubePlaceholders,
@@ -27,6 +26,8 @@ interface ReadabilityViewParams {
   setIsLoading: (loading: boolean) => void
   setAuthDialog: (dialog: { domain: string } | null) => void
   setIframeUrl: (url: string) => void
+  /** Returns true if a newer load has started and this one should be discarded */
+  isStale?: () => boolean
 }
 
 export async function handleReadabilityView({
@@ -39,6 +40,7 @@ export async function handleReadabilityView({
   setIsLoading,
   setAuthDialog,
   setIframeUrl,
+  isStale,
 }: ReadabilityViewParams): Promise<void> {
   try {
     // eslint-disable-next-line no-console
@@ -59,22 +61,8 @@ export async function handleReadabilityView({
           username: storedCreds.username,
           password: storedCreds.password,
         })
-      } catch (_tauriErr) {
-        // Try Capacitor (Android)
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const win = window as any
-          const Plugins = win?.Capacitor?.Plugins
-          if (Plugins?.RawHtml?.setProxyAuth) {
-            await Plugins.RawHtml.setProxyAuth({
-              domain,
-              username: storedCreds.username,
-              password: storedCreds.password,
-            })
-          }
-        } catch (_capErr) {
-          // Ignore - will prompt if needed
-        }
+      } catch (_err) {
+        // Ignore - will prompt if needed
       }
     }
 
@@ -85,6 +73,8 @@ export async function handleReadabilityView({
     } catch (_invokeErr: unknown) {
       // eslint-disable-next-line no-console
       console.error('[FeedArticle] fetchRawHtml FAILED:', _invokeErr)
+
+      if (isStale?.()) return
 
       // Check if it's an auth required error
       if (_invokeErr instanceof AuthRequiredError) {
@@ -104,6 +94,8 @@ export async function handleReadabilityView({
       setIsLoading(false)
       return
     }
+
+    if (isStale?.()) return
 
     let summary = ''
     try {
@@ -131,45 +123,19 @@ export async function handleReadabilityView({
       return
     }
 
-    // On Android/Capacitor: use proxy port if available, otherwise try to start it
-    // Note: proxy should already be started in FeedArticle useEffect, but we handle it here as fallback
-    let javaProxyPort: number | null = null
-    if (!proxyPort) {
-      try {
-        const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-        const port = await startProxyServer()
-        if (port) {
-          javaProxyPort = port
-          await setProxyUrl(url)
-          // eslint-disable-next-line no-console
-          console.log(
-            '[handleReadabilityView] Capacitor proxy started on port (fallback):',
-            port
-          )
-        }
-      } catch (_capErr) {
-        // Ignore - proxy might not be available or already running
-        // eslint-disable-next-line no-console
-        console.debug(
-          '[handleReadabilityView] Capacitor proxy not available or already running'
-        )
-      }
-    }
-
     // Fix lazy-loaded images by copying data-src to src
     let rewrittenSummary = fixLazyLoadedImages(summary)
 
     // Rewrite image URLs to go through proxy to avoid hotlinking issues
     // This ensures images from CDNs that check Referer headers will work
-    const effectiveProxyPort = proxyPort || javaProxyPort
+    const effectiveProxyPort = proxyPort
 
-    // Detect Web Mode (no Tauri, no Capacitor)
+    // Detect Web Mode (no Tauri)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isWeb =
       typeof window !== 'undefined' &&
       !(window as any).__TAURI_INTERNALS__ &&
-      !(window as any).__TAURI__ &&
-      !Capacitor.isNativePlatform()
+      !(window as any).__TAURI__
 
     // In web mode, set the proxy URL so the server knows the Referer to use
     if (isWeb) {
@@ -622,9 +588,14 @@ export async function handleReadabilityView({
     console.error('[FeedArticle] handleReadabilityView FAILED:', msg)
     // eslint-disable-next-line no-console
     console.error('[FeedArticle] Full error:', _err)
-    setError(i18n.t('errors.parse_failed', { message: msg })) // Using parse_failed as generic fetch failed here for readability specific
+    if (!isStale?.()) {
+      setError(i18n.t('errors.parse_failed', { message: msg }))
+    }
   } finally {
-    setIsLoading(false)
+    // Don't release the loading state if stale — a newer load is still running and owns it
+    if (!isStale?.()) {
+      setIsLoading(false)
+    }
   }
 }
 
@@ -667,13 +638,12 @@ export async function handleOriginalView({
     let proxyUrl: string
     let effectiveProxyPort = proxyPort
 
-    // Detect Web Mode (no Tauri, no Capacitor)
+    // Detect Web Mode (no Tauri)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isWeb =
       typeof window !== 'undefined' &&
       !(window as any).__TAURI_INTERNALS__ &&
-      !(window as any).__TAURI__ &&
-      !Capacitor.isNativePlatform()
+      !(window as any).__TAURI__
 
     // If proxyPort is not set and we are NOT in web mode, try to start it
     if (!effectiveProxyPort && !isWeb) {
@@ -682,71 +652,25 @@ export async function handleOriginalView({
         '[handleOriginalView] proxyPort is null, attempting to start proxy...'
       )
 
-      // On Capacitor/Android, use the Capacitor plugin directly (not safeInvoke/HTTP API)
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const { startProxyServer, setProxyUrl } = await import(
-            '@/lib/raw-html'
-          )
-          // eslint-disable-next-line no-console
-          console.log(
-            '[handleOriginalView] Capacitor platform detected, starting proxy...'
-          )
-          const port = await startProxyServer()
-
-          if (!port) {
-            // eslint-disable-next-line no-console
-            console.error(
-              '[handleOriginalView] Capacitor proxy returned null port'
-            )
-            setError(i18n.t('errors.proxy_failed'))
-            setIsLoading(false)
-            return
-          }
-
+      try {
+        const port = await safeInvoke('start_proxy')
+        if (port && typeof port === 'number' && !isNaN(port)) {
           effectiveProxyPort = port
-          await setProxyUrl(url)
           // eslint-disable-next-line no-console
           console.log(
-            '[handleOriginalView] Capacitor proxy started on port:',
+            '[handleOriginalView] Proxy started on port:',
             effectiveProxyPort
           )
-        } catch (capErr) {
-          // eslint-disable-next-line no-console
-          console.error(
-            '[handleOriginalView] Failed to start Capacitor proxy:',
-            capErr
-          )
-          const errorMsg =
-            capErr instanceof Error ? capErr.message : String(capErr)
-          setError(
-            i18n.t('errors.proxy_failed_with_msg', { message: errorMsg })
-          )
-          setIsLoading(false)
-          return
         }
-      } else {
-        // Desktop/Docker: try Tauri or HTTP API
-        try {
-          const port = await safeInvoke('start_proxy')
-          if (port && typeof port === 'number' && !isNaN(port)) {
-            effectiveProxyPort = port
-            // eslint-disable-next-line no-console
-            console.log(
-              '[handleOriginalView] Proxy started on port:',
-              effectiveProxyPort
-            )
-          }
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[handleOriginalView] Proxy start failed:', err)
-          const errorMsg = err instanceof Error ? err.message : String(err)
-          setError(
-            i18n.t('errors.proxy_failed_with_msg', { message: errorMsg })
-          )
-          setIsLoading(false)
-          return
-        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[handleOriginalView] Proxy start failed:', err)
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        setError(
+          i18n.t('errors.proxy_failed_with_msg', { message: errorMsg })
+        )
+        setIsLoading(false)
+        return
       }
     }
 
@@ -869,10 +793,7 @@ async function fetchDynamicFieldValues(
   }
 
   // eslint-disable-next-line no-console
-  console.log(
-    '%c[AUTH]    └─ Fetching login page to extract form data',
-    'color: #22c55e'
-  )
+  console.log('[AUTH]    Fetching login page to extract form data: ' + loginUrl)
 
   try {
     // Fetch login page HTML
@@ -901,46 +822,28 @@ async function fetchDynamicFieldValues(
           const actionUrl = new URL(action, loginUrl)
           result.formAction = actionUrl.href
           // eslint-disable-next-line no-console
-          console.log(
-            '%c[AUTH]       └─ Form action URL:',
-            'color: #22c55e',
-            result.formAction
-          )
+          console.log('[AUTH]    formAction=' + result.formAction)
         } catch {
           // If URL parsing fails, use the action as-is if it's absolute
           if (action.startsWith('http')) {
             result.formAction = action
             // eslint-disable-next-line no-console
-            console.log(
-              '%c[AUTH]       └─ Form action URL (raw):',
-              'color: #22c55e',
-              result.formAction
-            )
+            console.log('[AUTH]    formAction(raw)=' + result.formAction)
           }
         }
       } else {
         // eslint-disable-next-line no-console
-        console.log(
-          '%c[AUTH]       └─ No form action attribute, will POST to page URL',
-          'color: #eab308'
-        )
+        console.log('[AUTH]    No form action attribute, will POST to page URL')
       }
     } else {
       // eslint-disable-next-line no-console
-      console.warn(
-        '%c[AUTH]       └─ Could not find login form with password field',
-        'color: #eab308'
-      )
+      console.warn('[AUTH]    Could not find login form with password field')
     }
 
     // Extract field values
     if (fieldNames.length > 0) {
       // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH]       └─ Looking for dynamic fields:',
-        'color: #22c55e',
-        fieldNames.join(', ')
-      )
+      console.log('[AUTH]    Looking for dynamic fields: ' + fieldNames.join(', '))
     }
 
     for (const fieldName of fieldNames) {
@@ -952,26 +855,15 @@ async function fetchDynamicFieldValues(
         const value = input.value || input.getAttribute('value') || ''
         result.fieldValues.set(fieldName, value)
         // eslint-disable-next-line no-console
-        console.log(
-          '%c[AUTH]       └─ Found "' + fieldName + '":',
-          'color: #22c55e',
-          value ? '[value found]' : '(empty)'
-        )
+        console.log('[AUTH]    field "' + fieldName + '": ' + (value ? 'value found' : 'empty'))
       } else {
         // eslint-disable-next-line no-console
-        console.warn(
-          '%c[AUTH]       └─ Field "' + fieldName + '" not found in form',
-          'color: #eab308'
-        )
+        console.warn('[AUTH]    field "' + fieldName + '" not found in form')
       }
     }
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error(
-      '%c[AUTH]    └─ Error fetching dynamic values:',
-      'color: #ef4444',
-      err
-    )
+    console.error('[AUTH]    Error fetching dynamic values:', err)
   }
 
   return result
@@ -983,14 +875,7 @@ async function fetchDynamicFieldValues(
  */
 async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
   // eslint-disable-next-line no-console
-  console.log(
-    '%c[AUTH] 🔐 STEP 1: LOGIN',
-    'color: #22c55e; font-weight: bold; font-size: 12px'
-  )
-  // eslint-disable-next-line no-console
-  console.log('%c[AUTH]    └─ Page URL:', 'color: #22c55e', authConfig.loginUrl)
-  // eslint-disable-next-line no-console
-  console.log('%c[AUTH]    └─ User:', 'color: #22c55e', authConfig.username)
+  console.log('[AUTH] STEP 1: LOGIN loginUrl=' + authConfig.loginUrl + ' user=' + authConfig.username)
 
   // Find fields that need dynamic values (empty value) - typically CSRF tokens
   const dynamicFieldNames = (authConfig.extraFields || [])
@@ -1008,7 +893,7 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
   // Use the extracted form action URL, or fall back to the login page URL
   const postUrl = loginPageData.formAction || authConfig.loginUrl
   // eslint-disable-next-line no-console
-  console.log('%c[AUTH]    └─ POST URL:', 'color: #22c55e', postUrl)
+  console.log('[AUTH]    postUrl=' + postUrl)
 
   // Build final fields list, replacing empty values with dynamic ones
   const resolvedExtraFields = (authConfig.extraFields || [])
@@ -1025,47 +910,7 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
   ]
 
   // eslint-disable-next-line no-console
-  console.log(
-    '%c[AUTH]    └─ Fields:',
-    'color: #22c55e',
-    fields.map((f) => f.name).join(', ')
-  )
-
-  // Try Capacitor first (Android native)
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const { performFormLogin } = await import('@/lib/raw-html')
-      const result = await performFormLogin({
-        loginUrl: postUrl,
-        fields,
-        responseSelector: authConfig.responseSelector,
-      })
-
-      if (result?.success) {
-        // eslint-disable-next-line no-console
-        console.log(
-          '%c[AUTH]    ✅ Login successful (Capacitor)',
-          'color: #22c55e; font-weight: bold'
-        )
-        return true
-      } else {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '%c[AUTH]    ⚠️ Login failed (Capacitor):',
-          'color: #eab308',
-          result?.message
-        )
-        return false
-      }
-    } catch (capErr) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '%c[AUTH]    Capacitor failed, trying safeInvoke:',
-        'color: #eab308',
-        capErr
-      )
-    }
-  }
+  console.log('[AUTH]    fields=' + fields.map((f) => f.name).join(','))
 
   // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
   try {
@@ -1075,27 +920,31 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
         fields,
         response_selector: authConfig.responseSelector,
       },
-    })) as { success?: boolean; message?: string }
+    })) as { success?: boolean; statusCode?: number; message?: string; extractedText?: string }
+
+    // eslint-disable-next-line no-console
+    console.log(
+      '[AUTH] LOGIN RESPONSE (Tauri/HTTP) - success:', result?.success,
+      '| HTTP status:', result?.statusCode,
+      '| message:', result?.message
+    )
+    if (result?.extractedText !== undefined) {
+      // eslint-disable-next-line no-console
+      console.log('[AUTH]    └─ responseSelector extracted:', JSON.stringify(result.extractedText).substring(0, 200))
+    }
 
     if (result?.success) {
       // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH]    ✅ Login successful (Tauri/HTTP)',
-        'color: #22c55e; font-weight: bold'
-      )
+      console.log('[AUTH]    ✅ Login successful (Tauri/HTTP)')
       return true
     } else {
       // eslint-disable-next-line no-console
-      console.warn(
-        '%c[AUTH]    ⚠️ Login failed:',
-        'color: #eab308',
-        result?.message
-      )
+      console.warn('[AUTH]    ❌ Login failed (Tauri/HTTP) - HTTP', result?.statusCode, '-', result?.message)
       return false
     }
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('%c[AUTH]    ❌ Login error:', 'color: #ef4444', err)
+    console.error('[AUTH]    ❌ Login threw error:', err)
     return false
   }
 }
@@ -1105,48 +954,15 @@ async function performAuthLogin(authConfig: FeedAuthConfig): Promise<boolean> {
  */
 async function performAuthLogout(logoutUrl: string): Promise<void> {
   // eslint-disable-next-line no-console
-  console.log(
-    '%c[AUTH] 🚪 STEP 3: LOGOUT',
-    'color: #f97316; font-weight: bold; font-size: 12px'
-  )
-  // eslint-disable-next-line no-console
-  console.log('%c[AUTH]    └─ URL:', 'color: #f97316', logoutUrl)
+  console.log('[AUTH] 🚪 STEP 3: LOGOUT - URL:', logoutUrl)
 
-  // Try Capacitor first (Android native)
-  if (Capacitor.isNativePlatform()) {
-    try {
-      await fetchRawHtml(logoutUrl)
-      // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH]    ✅ Logout successful (Capacitor)',
-        'color: #22c55e; font-weight: bold'
-      )
-      return
-    } catch (capErr) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '%c[AUTH]    Capacitor failed, trying safeInvoke:',
-        'color: #eab308',
-        capErr
-      )
-    }
-  }
-
-  // Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
   try {
-    await safeInvoke('fetch_raw_html', { url: logoutUrl })
+    const result = await safeInvoke('fetch_raw_html', { url: logoutUrl })
     // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH]    ✅ Logout successful (Tauri/HTTP)',
-      'color: #22c55e; font-weight: bold'
-    )
+    console.log('[AUTH]    ✅ Logout successful (Tauri/HTTP), response length:', String(result ?? '').length)
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.warn(
-      '%c[AUTH]    ⚠️ Logout failed (ignored):',
-      'color: #eab308',
-      err
-    )
+    console.warn('[AUTH]    ⚠️ Logout failed (ignored):', err)
   }
 }
 
@@ -1161,6 +977,8 @@ interface ConfiguredViewParams {
   setIsLoading: (loading: boolean) => void
   setAuthDialog: (dialog: { domain: string } | null) => void
   setIframeUrl: (url: string) => void
+  /** Returns true if a newer load has started and this one should be discarded */
+  isStale?: () => boolean
 }
 
 export async function handleConfiguredView({
@@ -1174,30 +992,14 @@ export async function handleConfiguredView({
   setIsLoading,
   setAuthDialog,
   setIframeUrl,
+  isStale,
 }: ConfiguredViewParams): Promise<void> {
   // Track auth config for logout at the end
   let authConfig: FeedAuthConfig | null = null
 
   try {
     // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] ═══════════════════════════════════════════════════════',
-      'color: #3b82f6'
-    )
-    // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] 📰 CONFIGURED VIEW - Article fetch with authentication',
-      'color: #3b82f6; font-weight: bold; font-size: 14px'
-    )
-    // eslint-disable-next-line no-console
-    console.log('%c[AUTH]    URL:', 'color: #3b82f6', url)
-    // eslint-disable-next-line no-console
-    console.log('%c[AUTH]    Feed ID:', 'color: #3b82f6', feedId)
-    // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] ═══════════════════════════════════════════════════════',
-      'color: #3b82f6'
-    )
+    console.log('[AUTH] === CONFIGURED VIEW START === feedId=' + feedId + ' url=' + url)
 
     // 1. Load selector config for this feed
     const config = await getSelectorConfig(feedId)
@@ -1210,34 +1012,35 @@ export async function handleConfiguredView({
 
     // 2. Load auth config and perform login if configured
     authConfig = await getAuthConfig(feedId)
+    // eslint-disable-next-line no-console
+    console.log(
+      '[AUTH] getAuthConfig(feedId=' + feedId + ') => ' +
+      (authConfig ? 'AUTH_CONFIG_FOUND loginUrl=' + authConfig.loginUrl : 'AUTH_CONFIG_NULL (no authConfig saved OR no backend-password in localStorage)')
+    )
     if (authConfig) {
       // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH] 🔑 Auth config found - will perform login/fetch/logout cycle',
-        'color: #8b5cf6; font-weight: bold'
-      )
-      if (authConfig.logoutUrl) {
-        // eslint-disable-next-line no-console
-        console.log(
-          '%c[AUTH]    └─ Logout URL configured:',
-          'color: #8b5cf6',
-          authConfig.logoutUrl
-        )
-      }
+      console.log('[AUTH] Auth config found - performing login/fetch/logout cycle')
+      // eslint-disable-next-line no-console
+      console.log('[AUTH]    loginUrl=' + authConfig.loginUrl)
+      // eslint-disable-next-line no-console
+      console.log('[AUTH]    logoutUrl=' + (authConfig.logoutUrl || '(none)'))
       const loginSuccess = await performAuthLogin(authConfig)
+      // eslint-disable-next-line no-console
+      console.log('[AUTH]    loginResult=' + (loginSuccess ? 'SUCCESS' : 'FAILED'))
       if (!loginSuccess) {
         // eslint-disable-next-line no-console
-        console.warn(
-          '%c[AUTH]    ⚠️ Login failed, continuing anyway...',
-          'color: #eab308'
-        )
+        console.warn('[AUTH]    Login failed, continuing fetch anyway...')
       }
     } else {
       // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH] ℹ️ No auth config - fetching without authentication',
-        'color: #6b7280'
-      )
+      console.log('[AUTH] No auth config for feed ' + feedId + ' - fetching without authentication')
+    }
+
+    // Abort if a newer load has started while we were logging in
+    if (isStale?.()) {
+      // eslint-disable-next-line no-console
+      console.log('[AUTH] ⚠️ Load is stale (newer load started), aborting after login')
+      return
     }
 
     // 3. Check if we have stored credentials and apply them proactively (for HTTP Basic Auth)
@@ -1256,49 +1059,29 @@ export async function handleConfiguredView({
           username: storedCreds.username,
           password: storedCreds.password,
         })
-      } catch (_tauriErr) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const win = window as any
-          const Plugins = win?.Capacitor?.Plugins
-          if (Plugins?.RawHtml?.setProxyAuth) {
-            await Plugins.RawHtml.setProxyAuth({
-              domain,
-              username: storedCreds.username,
-              password: storedCreds.password,
-            })
-          }
-        } catch (_capErr) {
-          // Ignore - will prompt if needed
-        }
+      } catch (_err) {
+        // Ignore - will prompt if needed
       }
     }
 
     // 4. Fetch raw HTML
     // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] 📥 STEP 2: FETCH ARTICLE',
-      'color: #3b82f6; font-weight: bold; font-size: 12px'
-    )
-    // eslint-disable-next-line no-console
-    console.log('%c[AUTH]    └─ URL:', 'color: #3b82f6', url)
+    console.log('[AUTH] STEP 2: FETCH ARTICLE url=' + url)
 
     let html: string
     try {
       html = await fetchRawHtml(url)
       // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH]    ✅ Fetch successful (' + html.length + ' bytes)',
-        'color: #22c55e; font-weight: bold'
-      )
+      console.log('[AUTH]    ✅ Article fetch successful (' + html.length + ' bytes)')
     } catch (_invokeErr: unknown) {
+      if (isStale?.()) {
+        // eslint-disable-next-line no-console
+        console.log('[AUTH] ⚠️ Load is stale, discarding fetch error')
+        return
+      }
       if (_invokeErr instanceof AuthRequiredError) {
         // eslint-disable-next-line no-console
-        console.error(
-          '%c[AUTH]    ❌ Auth required for domain:',
-          'color: #ef4444',
-          _invokeErr.domain
-        )
+        console.error('[AUTH]    ❌ Auth required for domain:', _invokeErr.domain)
         setAuthDialog({ domain: _invokeErr.domain })
         setIsLoading(false)
         return
@@ -1307,9 +1090,15 @@ export async function handleConfiguredView({
       const msg =
         _invokeErr instanceof Error ? _invokeErr.message : String(_invokeErr)
       // eslint-disable-next-line no-console
-      console.error('%c[AUTH]    ❌ Fetch failed:', 'color: #ef4444', msg)
+      console.error('[AUTH]    ❌ Fetch failed:', msg)
       setError(i18n.t('errors.fetch_failed', { message: msg }))
       setIsLoading(false)
+      return
+    }
+
+    if (isStale?.()) {
+      // eslint-disable-next-line no-console
+      console.log('[AUTH] ⚠️ Load is stale after article fetch, aborting')
       return
     }
 
@@ -1337,30 +1126,14 @@ export async function handleConfiguredView({
 
     let rewrittenContent = fixLazyLoadedImages(extractedContent)
 
-    // On Android/Capacitor: use proxy port if available
-    let javaProxyPort: number | null = null
-    if (!proxyPort) {
-      try {
-        const { startProxyServer, setProxyUrl } = await import('@/lib/raw-html')
-        const port = await startProxyServer()
-        if (port) {
-          javaProxyPort = port
-          await setProxyUrl(url)
-        }
-      } catch (_capErr) {
-        // Ignore
-      }
-    }
+    const effectiveProxyPort = proxyPort
 
-    const effectiveProxyPort = proxyPort || javaProxyPort
-
-    // Detect Web Mode (no Tauri, no Capacitor)
+    // Detect Web Mode (no Tauri)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isWeb =
       typeof window !== 'undefined' &&
       !(window as any).__TAURI_INTERNALS__ &&
-      !(window as any).__TAURI__ &&
-      !Capacitor.isNativePlatform()
+      !(window as any).__TAURI__
 
     // In web mode, set the proxy URL so the server knows the Referer to use
     if (isWeb) {
@@ -1674,34 +1447,30 @@ export async function handleConfiguredView({
   } catch (_err) {
     const msg = _err instanceof Error ? _err.message : String(_err)
     // eslint-disable-next-line no-console
-    console.error('%c[AUTH]    ❌ Error:', 'color: #ef4444', msg)
-    setError(`Extraction avec sélecteurs échouée: ${msg}`)
-  } finally {
-    // 7. Perform logout if configured (always, even on error)
-    if (authConfig?.logoutUrl) {
-      await performAuthLogout(authConfig.logoutUrl)
-    } else if (authConfig) {
-      // eslint-disable-next-line no-console
-      console.log(
-        '%c[AUTH] ℹ️ No logout URL configured - session may persist',
-        'color: #6b7280'
-      )
+    console.error('[AUTH]    ❌ Error:', msg)
+    if (!isStale?.()) {
+      setError(`Extraction avec sélecteurs échouée: ${msg}`)
     }
+  } finally {
+    const stale = isStale?.() ?? false
     // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] ═══════════════════════════════════════════════════════',
-      'color: #3b82f6'
-    )
-    // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] ✨ CONFIGURED VIEW COMPLETE',
-      'color: #3b82f6; font-weight: bold'
-    )
-    // eslint-disable-next-line no-console
-    console.log(
-      '%c[AUTH] ═══════════════════════════════════════════════════════',
-      'color: #3b82f6'
-    )
-    setIsLoading(false)
+    console.log('[AUTH] ✨ CONFIGURED VIEW finalizing (stale=' + String(stale) + ')')
+
+    if (stale) {
+      // This load was superseded by a newer one. Do NOT call setIsLoading(false) here —
+      // the newer load is still running and owns the loading state.
+      // Also skip logout so the newer load can reuse the auth session.
+      // eslint-disable-next-line no-console
+      console.log('[AUTH] ⚠️ Stale load: skipping setIsLoading + logout (newer load owns the session)')
+    } else {
+      // 7. Perform logout if configured (this is the active load, safe to logout)
+      if (authConfig?.logoutUrl) {
+        await performAuthLogout(authConfig.logoutUrl)
+      } else if (authConfig) {
+        // eslint-disable-next-line no-console
+        console.log('[AUTH] ℹ️ No logout URL configured - session may persist')
+      }
+      setIsLoading(false)
+    }
   }
 }

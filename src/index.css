@@ -130,7 +130,7 @@
     /* Don't add padding to body - let containers handle safe areas */
   }
 
-  /* Safe area support for Capacitor/mobile */
+  /* Safe area support for mobile browsers */
   /* Note: Safe areas are handled by the main content container (#content) */
   @supports (padding: max(0px)) {
     /* Apply to bottom navigation elements only */
@@ -143,13 +143,6 @@
   #root {
     min-height: 100svh;
     min-height: -webkit-fill-available;
-  }
-
-  /* Force safe area recalculation after fullscreen exit */
-  /* This class is toggled by main.tsx to force a layout reflow */
-  #root.safe-area-refresh {
-    /* Force reflow by changing a property that triggers layout */
-    transform: translateZ(0);
   }
 
   button:not(:disabled),

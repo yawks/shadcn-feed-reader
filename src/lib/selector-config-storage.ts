@@ -1,50 +1,17 @@
 /**
  * Manages CSS selector configurations per feed
- * Uses Capacitor Preferences API on Android, localStorage elsewhere
+ * Uses localStorage
  */
 
-import { Preferences } from '@capacitor/preferences'
 import type { FeedSelectorConfig, FeedAuthConfig, StoredAuthConfig, SelectorConfigStorage } from '@/features/feeds/selector-config-types'
 import { encryptPassword, decryptPassword, getBackendPassword } from './encryption'
 
 const STORAGE_KEY = 'feed-selector-configs'
 
-/**
- * Check if we're running on Android/Capacitor
- */
-function isCapacitor(): boolean {
-	return typeof window !== 'undefined' &&
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(window as any).Capacitor?.getPlatform?.() === 'android'
-}
-
-/**
- * Get stored configs from storage (synchronous version for initial state)
- */
-function getStoredConfigsSync(): SelectorConfigStorage {
+function getStoredConfigs(): SelectorConfigStorage {
 	try {
-		if (typeof window !== 'undefined' && !isCapacitor()) {
-			const stored = localStorage.getItem(STORAGE_KEY)
-			return stored ? JSON.parse(stored) : {}
-		}
-	} catch {
-		// Ignore errors
-	}
-	return {}
-}
-
-/**
- * Get stored configs from storage (async version for Capacitor)
- */
-async function getStoredConfigs(): Promise<SelectorConfigStorage> {
-	try {
-		if (isCapacitor()) {
-			const { value } = await Preferences.get({ key: STORAGE_KEY })
-			return value ? JSON.parse(value) : {}
-		} else {
-			const stored = localStorage.getItem(STORAGE_KEY)
-			return stored ? JSON.parse(stored) : {}
-		}
+		const stored = localStorage.getItem(STORAGE_KEY)
+		return stored ? JSON.parse(stored) : {}
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error('[selector-config-storage] Failed to get stored configs:', e)
@@ -52,17 +19,9 @@ async function getStoredConfigs(): Promise<SelectorConfigStorage> {
 	}
 }
 
-/**
- * Save configs to storage
- */
-async function saveConfigs(configs: SelectorConfigStorage): Promise<void> {
+function saveConfigs(configs: SelectorConfigStorage): void {
 	try {
-		const json = JSON.stringify(configs)
-		if (isCapacitor()) {
-			await Preferences.set({ key: STORAGE_KEY, value: json })
-		} else {
-			localStorage.setItem(STORAGE_KEY, json)
-		}
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(configs))
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error('[selector-config-storage] Failed to save configs:', e)
@@ -74,7 +33,7 @@ async function saveConfigs(configs: SelectorConfigStorage): Promise<void> {
  */
 export async function getSelectorConfig(feedId: string): Promise<FeedSelectorConfig | null> {
 	try {
-		const configs = await getStoredConfigs()
+		const configs = getStoredConfigs()
 		return configs[feedId] || null
 	} catch (e) {
 		// eslint-disable-next-line no-console
@@ -84,14 +43,11 @@ export async function getSelectorConfig(feedId: string): Promise<FeedSelectorCon
 }
 
 /**
- * Get selector config for a feed synchronously (for initial state, web only)
+ * Get selector config for a feed synchronously
  */
 export function getSelectorConfigSync(feedId: string): FeedSelectorConfig | null {
 	try {
-		if (isCapacitor()) {
-			return null
-		}
-		const configs = getStoredConfigsSync()
+		const configs = getStoredConfigs()
 		return configs[feedId] || null
 	} catch {
 		return null
@@ -103,9 +59,9 @@ export function getSelectorConfigSync(feedId: string): FeedSelectorConfig | null
  */
 export async function setSelectorConfig(feedId: string, config: FeedSelectorConfig): Promise<void> {
 	try {
-		const configs = await getStoredConfigs()
+		const configs = getStoredConfigs()
 		configs[feedId] = config
-		await saveConfigs(configs)
+		saveConfigs(configs)
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error('[selector-config-storage] Failed to set config:', e)
@@ -117,9 +73,9 @@ export async function setSelectorConfig(feedId: string, config: FeedSelectorConf
  */
 export async function removeSelectorConfig(feedId: string): Promise<void> {
 	try {
-		const configs = await getStoredConfigs()
+		const configs = getStoredConfigs()
 		delete configs[feedId]
-		await saveConfigs(configs)
+		saveConfigs(configs)
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error('[selector-config-storage] Failed to remove config:', e)
@@ -131,7 +87,7 @@ export async function removeSelectorConfig(feedId: string): Promise<void> {
  */
 export async function hasSelectorConfig(feedId: string): Promise<boolean> {
 	try {
-		const configs = await getStoredConfigs()
+		const configs = getStoredConfigs()
 		const config = configs[feedId]
 		return config != null && (config.selectors.length > 0 || !!config.customCss || !!config.authConfig)
 	} catch {
@@ -140,14 +96,11 @@ export async function hasSelectorConfig(feedId: string): Promise<boolean> {
 }
 
 /**
- * Check synchronously (web only)
+ * Check synchronously
  */
 export function hasSelectorConfigSync(feedId: string): boolean {
 	try {
-		if (isCapacitor()) {
-			return false
-		}
-		const configs = getStoredConfigsSync()
+		const configs = getStoredConfigs()
 		const config = configs[feedId]
 		return config != null && (config.selectors.length > 0 || !!config.customCss || !!config.authConfig)
 	} catch {
@@ -213,7 +166,7 @@ export async function getAuthConfig(feedId: string): Promise<FeedAuthConfig | nu
  */
 export async function hasAuthConfig(feedId: string): Promise<boolean> {
 	try {
-		const configs = await getStoredConfigs()
+		const configs = getStoredConfigs()
 		const config = configs[feedId]
 		return config?.authConfig?.loginUrl != null
 	} catch {
@@ -222,14 +175,11 @@ export async function hasAuthConfig(feedId: string): Promise<boolean> {
 }
 
 /**
- * Check if a feed has auth config synchronously (web only)
+ * Check if a feed has auth config synchronously
  */
 export function hasAuthConfigSync(feedId: string): boolean {
 	try {
-		if (isCapacitor()) {
-			return false
-		}
-		const configs = getStoredConfigsSync()
+		const configs = getStoredConfigs()
 		const config = configs[feedId]
 		return config?.authConfig?.loginUrl != null
 	} catch {

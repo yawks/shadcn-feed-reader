@@ -198,33 +198,12 @@ export function validateImportedSettings(data: unknown): data is ExportedSetting
 	return true
 }
 
-// Keys that need to be stored in Capacitor Preferences on Android
-const CAPACITOR_PREFERENCE_KEYS = [
-	'article-view-preferences',
-	'feed-selector-configs',
-]
-
-/**
- * Check if we're running on Android/Capacitor
- */
-function isCapacitor(): boolean {
-	return typeof window !== 'undefined' &&
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(window as any).Capacitor?.getPlatform?.() === 'android'
-}
-
 /**
  * Import settings from a JSON object
  * @param data The exported settings object
  * @param skipAuth If true, don't import backend-url and backend-login (useful when already on login page)
  */
-export async function importSettings(data: ExportedSettings, skipAuth = false): Promise<void> {
-	// On Android, we need to use Capacitor Preferences for certain keys
-	const useCapacitorPreferences = isCapacitor()
-
-	// eslint-disable-next-line no-console
-	console.log('[importSettings] Starting import, useCapacitorPreferences:', useCapacitorPreferences)
-
+export function importSettings(data: ExportedSettings, skipAuth = false): void {
 	for (const [key, value] of Object.entries(data.settings)) {
 		// Never import excluded keys
 		if (EXCLUDED_KEYS.includes(key)) continue
@@ -232,26 +211,8 @@ export async function importSettings(data: ExportedSettings, skipAuth = false): 
 		// Skip auth keys if requested
 		if (skipAuth && (key === 'backend-url' || key === 'backend-login')) continue
 
-		// On Android, certain keys need to be stored in Capacitor Preferences
-		if (useCapacitorPreferences && CAPACITOR_PREFERENCE_KEYS.includes(key)) {
-			try {
-				const { Preferences } = await import('@capacitor/preferences')
-				await Preferences.set({ key, value })
-				// eslint-disable-next-line no-console
-				console.log(`[importSettings] Stored "${key}" in Capacitor Preferences`)
-			} catch (err) {
-				// eslint-disable-next-line no-console
-				console.error(`[importSettings] Failed to store "${key}" in Capacitor Preferences:`, err)
-			}
-		} else {
-			localStorage.setItem(key, value)
-			// eslint-disable-next-line no-console
-			console.log(`[importSettings] Stored "${key}" in localStorage`)
-		}
+		localStorage.setItem(key, value)
 	}
-
-	// eslint-disable-next-line no-console
-	console.log('[importSettings] Import completed')
 }
 
 /**

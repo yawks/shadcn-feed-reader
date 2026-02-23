@@ -2,14 +2,13 @@
 // fetching the URL directly when running in non-Tauri environments (browser,
 // capacitor, etc.). This prevents `invoke` being undefined at runtime.
 
-// Helper to check if running in Web/Docker mode (no Tauri, no Capacitor)
+// Helper to check if running in Web/Docker mode (no Tauri)
 export function isWebMode(): boolean {
   if (typeof window === 'undefined') return false
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const win = window as any
   const hasTauri = !!(win.__TAURI_INTERNALS__ || win.__TAURI__)
-  const hasCapacitor = !!(win.Capacitor?.isNativePlatform?.())
-  return !hasTauri && !hasCapacitor
+  return !hasTauri
 }
 
 // Transform Tauri command args to HTTP API format
@@ -29,10 +28,6 @@ export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
   // Check if we are in a Tauri environment
   // @ts-ignore
   const isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
-
-  // Check if we are in a Capacitor environment
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
 
   if (isTauri) {
     let tauriInvoke: any
@@ -57,14 +52,7 @@ export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
     }
   }
 
-  // On Capacitor, throw an error so the caller can use the Capacitor plugin fallback
-  // The HTTP API is only available in Docker/Web mode, not in Capacitor
-  if (isCapacitor) {
-    console.log('[safeInvoke] ⚠️ Capacitor detected, throwing to trigger plugin fallback:', cmd)
-    throw new Error('Tauri invoke not available (Capacitor platform)')
-  }
-
-  // Fallback to HTTP API (only for Docker/Web mode)
+  // Fallback to HTTP API (Docker/Web mode)
   const httpArgs = transformArgsForHttp(cmd, args)
   console.log('[safeInvoke] 🌐 HTTP API fallback:', cmd, httpArgs)
 

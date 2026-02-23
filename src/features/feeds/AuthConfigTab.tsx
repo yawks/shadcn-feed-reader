@@ -7,7 +7,6 @@ import { IconPlus, IconTrash, IconEye, IconEyeOff } from '@tabler/icons-react'
 import type { FeedAuthConfig, AuthExtraField } from './selector-config-types'
 import { setAuthConfig, removeAuthConfig, getAuthConfig } from '@/lib/selector-config-storage'
 import { safeInvoke } from '@/lib/safe-invoke'
-import { Capacitor } from '@capacitor/core'
 import { toast } from 'sonner'
 
 interface AuthConfigTabProps {
@@ -134,16 +133,11 @@ export function AuthConfigTab({ feedId, initialConfig, onConfigSaved }: AuthConf
 		console.log('[AuthConfigTab] Fetching dynamic field values for:', fieldNames)
 
 		try {
-			// Try Tauri first
 			let html: string | null = null
 			try {
 				html = (await safeInvoke('fetch_raw_html', { url: pageUrl })) as string
 			} catch {
-				// Try Capacitor
-				if (Capacitor.isNativePlatform()) {
-					const { fetchRawHtml } = await import('@/lib/raw-html')
-					html = await fetchRawHtml(pageUrl)
-				}
+				// safeInvoke failed, html remains null
 			}
 
 			if (html) {
@@ -227,32 +221,6 @@ export function AuthConfigTab({ feedId, initialConfig, onConfigSaved }: AuthConf
 				{ name: configToUse.passwordField, value: configToUse.password },
 				...resolvedExtraFields,
 			]
-
-			// Try Capacitor first (Android native)
-			if (Capacitor.isNativePlatform()) {
-				try {
-					const { performFormLogin } = await import('@/lib/raw-html')
-					const result = await performFormLogin({
-						loginUrl: configToUse.loginUrl,
-						fields,
-						responseSelector: configToUse.responseSelector,
-					})
-
-					if (result?.success) {
-						if (result.extractedText) {
-							toast.success(t('auth_config.login_success_with_text', { text: result.extractedText }))
-						} else {
-							toast.success(t('auth_config.login_success'))
-						}
-					} else {
-						toast.error(result?.message || t('auth_config.login_fail'))
-					}
-					return
-				} catch (capacitorErr) {
-					// eslint-disable-next-line no-console
-					console.warn('[AuthConfigTab] Capacitor failed, trying safeInvoke:', capacitorErr)
-				}
-			}
 
 			// Try Tauri (desktop) or HTTP API (Docker/Web mode) via safeInvoke
 			const result = (await safeInvoke('perform_form_login', {

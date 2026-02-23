@@ -13,12 +13,8 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/utils/auth'
 import { useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
-import { downloadSettings, readSettingsFile, importSettings, exportSettings, validateImportedSettings } from '@/lib/settings-export'
+import { downloadSettings, readSettingsFile, importSettings } from '@/lib/settings-export'
 import { IconDownload, IconUpload } from '@tabler/icons-react'
-import { Capacitor } from '@capacitor/core'
-import { FilePicker } from '@capawesome/capacitor-file-picker'
-import { Share } from '@capacitor/share'
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 
 export function ProfileDropdown() {
   const navigate = useNavigate()
@@ -34,148 +30,27 @@ export function ProfileDropdown() {
   }
 
   const handleExport = async () => {
-    // eslint-disable-next-line no-console
-    console.log('[Export] Starting export')
-
     try {
-      // On native platforms, use Capacitor Filesystem + Share
-      if (Capacitor.isNativePlatform()) {
-        // eslint-disable-next-line no-console
-        console.log('[Export] Using Capacitor Filesystem + Share')
-
-        const exported = exportSettings()
-        const json = JSON.stringify(exported, null, 2)
-        const filename = `feed-reader-settings-${new Date().toISOString().split('T')[0]}.json`
-
-        // Write file to cache directory
-        const result = await Filesystem.writeFile({
-          path: filename,
-          data: json,
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        })
-
-        // eslint-disable-next-line no-console
-        console.log('[Export] File written:', result.uri)
-
-        // Share the file
-        await Share.share({
-          title: 'Export Feed Reader Settings',
-          url: result.uri,
-          dialogTitle: 'Save settings file',
-        })
-
-        // eslint-disable-next-line no-console
-        console.log('[Export] Share dialog opened')
-        return
-      }
-
-      // On web/Tauri, use existing method
       await downloadSettings()
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[Export] Failed to export settings:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to export settings'
-      // Don't show error if user just cancelled the share dialog
-      if (!errorMessage.includes('cancel') && !errorMessage.includes('Cancel')) {
-        alert(errorMessage)
-      }
+      alert(errorMessage)
     }
   }
 
-  const handleImportClick = async () => {
-    // eslint-disable-next-line no-console
-    console.log('[Import] Starting import')
-
-    // On native platforms, use Capacitor FilePicker
-    if (Capacitor.isNativePlatform()) {
-      // eslint-disable-next-line no-console
-      console.log('[Import] Using Capacitor FilePicker')
-
-      try {
-        const result = await FilePicker.pickFiles({
-          types: ['application/json'],
-          readData: true,
-        })
-
-        // eslint-disable-next-line no-console
-        console.log('[Import] FilePicker result:', result)
-
-        if (result.files.length === 0) {
-          // eslint-disable-next-line no-console
-          console.log('[Import] No file selected')
-          return
-        }
-
-        const file = result.files[0]
-        // eslint-disable-next-line no-console
-        console.log('[Import] File picked:', file.name, 'size:', file.size)
-
-        if (!file.data) {
-          alert('Could not read file data')
-          return
-        }
-
-        // Decode base64 to string
-        const content = atob(file.data)
-        // eslint-disable-next-line no-console
-        console.log('[Import] Decoded content length:', content.length)
-
-        const data = JSON.parse(content)
-        if (!validateImportedSettings(data)) {
-          alert('Invalid settings file format')
-          return
-        }
-
-        // eslint-disable-next-line no-console
-        console.log('[Import] Settings validated, keys:', Object.keys(data.settings).length)
-
-        await importSettings(data)
-        // eslint-disable-next-line no-console
-        console.log('[Import] Import completed, reloading...')
-
-        // Reload the page to apply imported settings
-        window.location.reload()
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[Import] FilePicker error:', err)
-        const errorMessage = err instanceof Error ? err.message : 'Failed to pick file'
-        // Don't show error if user just cancelled
-        if (!errorMessage.includes('cancel') && !errorMessage.includes('Cancel')) {
-          alert(`Import failed: ${errorMessage}`)
-        }
-      }
-      return
-    }
-
-    // On web, use the file input
-    // eslint-disable-next-line no-console
-    console.log('[Import] isNativePlatform:', Capacitor.isNativePlatform())
-    // eslint-disable-next-line no-console
-    console.log('[Import] fileInputRef.current:', fileInputRef.current)
-    // eslint-disable-next-line no-console
-    console.log('[Import] About to click file input')
-
-    if (fileInputRef.current) {
-      fileInputRef.current.click()
-      // eslint-disable-next-line no-console
-      console.log('[Import] click() called on file input')
-    } else {
-      // eslint-disable-next-line no-console
-      console.error('[Import] fileInputRef.current is null!')
-    }
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // eslint-disable-next-line no-console
-    console.log('[Import] handleFileChange triggered')
-
     const file = e.target.files?.[0]
     if (!file) return
 
     try {
       const data = await readSettingsFile(file)
-      await importSettings(data)
+      importSettings(data)
       // Reload the page to apply imported settings
       window.location.reload()
     } catch (err) {

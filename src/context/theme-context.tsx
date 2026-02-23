@@ -1,19 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
-// Capacitor StatusBar
-declare global {
-  interface Window {
-    Capacitor?: {
-      Plugins?: {
-        StatusBar?: {
-          setStyle: (options: { style: 'DARK' | 'LIGHT' }) => Promise<void>
-          setBackgroundColor: (options: { color: string }) => Promise<void>
-        }
-      }
-    }
-  }
-}
-
 type Theme = 'dark' | 'light' | 'system'
 
 type ThemeProviderProps = {
@@ -53,18 +39,6 @@ export function ThemeProvider({
       const systemTheme = mediaQuery.matches ? 'dark' : 'light'
       const effectiveTheme = theme === 'system' ? systemTheme : theme
       root.classList.add(effectiveTheme) // Add the new theme class
-      
-      // Update Capacitor StatusBar if available
-      if (window.Capacitor?.Plugins?.StatusBar) {
-        try {
-          // Set status bar style based on theme
-          window.Capacitor.Plugins.StatusBar.setStyle({
-            style: effectiveTheme === 'dark' ? 'DARK' : 'LIGHT'
-          })
-        } catch (error) {
-          console.error('Failed to set StatusBar style:', error)
-        }
-      }
     }
 
     const handleChange = () => {
