@@ -44,7 +44,7 @@ function FeedArticleComponent({
   const isLandscape = useOrientation()
 
   const [isLoading, setIsLoading] = useState(true)
-  const [articleContent, setArticleContent] = useState('')
+  const [, setArticleContent] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original mode)
   const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
@@ -309,6 +309,10 @@ function FeedArticleComponent({
     const loadId = ++articleLoadIdRef.current
     const isStale = () => articleLoadIdRef.current !== loadId
 
+    // Reset loading state for every new load (mode switch, URL change, auth reload, etc.)
+    setIsLoading(true)
+    setError(null)
+
     if (viewMode === 'readability') {
       handleReadabilityView({
         url: effectiveUrl,
@@ -381,6 +385,9 @@ function FeedArticleComponent({
     }
 
     const handleLoad = () => {
+      // Ignore load events for about:blank (initial iframe state before real content is set)
+      if (!iframe.src || iframe.src === 'about:blank') return
+
       setIsLoading(false)
 
       if (iframe.contentWindow) {
@@ -720,6 +727,8 @@ function FeedArticleComponent({
         // Inject HTML into shadow root (without scripts - they're executed separately)
         // Security: This is intentional - we're injecting proxied HTML content from trusted sources
         shadowRoot.innerHTML = injectedHtml
+        // Content is now in the Shadow DOM — hide the loader
+        setIsLoading(false)
 
         // Add zoom implementation script to shadow DOM
         const zoomScript = shadowRoot.ownerDocument.createElement('script')

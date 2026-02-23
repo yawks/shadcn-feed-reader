@@ -42,6 +42,9 @@ export async function handleReadabilityView({
   setIframeUrl,
   isStale,
 }: ReadabilityViewParams): Promise<void> {
+  // When the iframe URL is set, the iframe load event will call setIsLoading(false).
+  // Track this so the finally block doesn't release loading prematurely.
+  let iframeHandlesLoading = false
   try {
     // eslint-disable-next-line no-console
     console.log('[FeedArticle] handleReadabilityView START for url:', url)
@@ -581,6 +584,8 @@ export async function handleReadabilityView({
       blobHtml.substring(0, 1000)
     )
     setIframeUrl(blobUrl)
+    // The iframe load event will call setIsLoading(false) once the content is rendered
+    iframeHandlesLoading = true
   } catch (_err) {
     const msg = _err instanceof Error ? _err.message : String(_err)
     // Don't silently switch to original; surface the error so user can retry.
@@ -592,8 +597,8 @@ export async function handleReadabilityView({
       setError(i18n.t('errors.parse_failed', { message: msg }))
     }
   } finally {
-    // Don't release the loading state if stale — a newer load is still running and owns it
-    if (!isStale?.()) {
+    // Only release loading here for error paths. On success, the iframe load event does it.
+    if (!isStale?.() && !iframeHandlesLoading) {
       setIsLoading(false)
     }
   }
@@ -627,6 +632,9 @@ export async function handleOriginalView({
   setIsLoading,
   prepareHtmlForShadowDom,
 }: OriginalViewParams): Promise<void> {
+  // When HTML is injected into the Shadow DOM, the injection useEffect calls setIsLoading(false).
+  // Track this so the finally block doesn't release loading prematurely.
+  let shadowDomHandlesLoading = false
   try {
     // eslint-disable-next-line no-console
     console.log(
@@ -710,10 +718,15 @@ export async function handleOriginalView({
     setInjectedScripts(prepared.scripts)
     setInjectedExternalScripts(prepared.externalScripts)
     setInjectedExternalStylesheets(prepared.externalStylesheets)
+    // The Shadow DOM injection useEffect will call setIsLoading(false) once HTML is in the DOM
+    shadowDomHandlesLoading = true
   } catch (_err) {
     setError(_err instanceof Error ? _err.message : String(_err))
   } finally {
-    setIsLoading(false)
+    // Only release loading here for error paths. On success, the Shadow DOM injection does it.
+    if (!shadowDomHandlesLoading) {
+      setIsLoading(false)
+    }
   }
 }
 
@@ -996,6 +1009,9 @@ export async function handleConfiguredView({
 }: ConfiguredViewParams): Promise<void> {
   // Track auth config for logout at the end
   let authConfig: FeedAuthConfig | null = null
+  // When the iframe URL is set, the iframe load event will call setIsLoading(false).
+  // Track this so the finally block doesn't release loading prematurely.
+  let iframeHandlesLoading = false
 
   try {
     // eslint-disable-next-line no-console
@@ -1444,6 +1460,8 @@ export async function handleConfiguredView({
     const blob = new Blob([blobHtml], { type: 'text/html' })
     const blobUrl = URL.createObjectURL(blob)
     setIframeUrl(blobUrl)
+    // The iframe load event will call setIsLoading(false) once the content is rendered
+    iframeHandlesLoading = true
   } catch (_err) {
     const msg = _err instanceof Error ? _err.message : String(_err)
     // eslint-disable-next-line no-console
@@ -1470,7 +1488,10 @@ export async function handleConfiguredView({
         // eslint-disable-next-line no-console
         console.log('[AUTH] ℹ️ No logout URL configured - session may persist')
       }
-      setIsLoading(false)
+      // Only release loading here for error paths. On success, the iframe load event does it.
+      if (!iframeHandlesLoading) {
+        setIsLoading(false)
+      }
     }
   }
 }
