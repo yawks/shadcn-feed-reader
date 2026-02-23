@@ -102,7 +102,26 @@ function FeedArticleComponent({
   useEffect(() => {
     setInternalNavUrl(null)
     internalNavHistory.current = []
+    autoRetryCountRef.current = 0
   }, [item.url])
+
+  // Auto-retry configured view on error (up to 2 times, without user interaction)
+  useEffect(() => {
+    if (!error || viewMode !== 'configured') return
+    if (autoRetryCountRef.current >= 2) return
+
+    autoRetryCountRef.current++
+    const currentMode = viewMode
+    const timer = setTimeout(() => {
+      setError(null)
+      setIsLoading(true)
+      setViewMode((v) => (v === 'readability' ? 'original' : 'readability'))
+      setTimeout(() => setViewMode(currentMode), 50)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error])
 
   // Now all view modes use iframe for isolated scroll context
   const isIframeView = true
@@ -195,6 +214,8 @@ function FeedArticleComponent({
   const lastProxyPortRef = useRef<number | null>(null)
   // Monotonic counter to detect stale async loads (race condition prevention)
   const articleLoadIdRef = useRef(0)
+  // Auto-retry counter for configured view (resets on article change)
+  const autoRetryCountRef = useRef(0)
 
   useEffect(() => {
     // CRITICAL: Don't load article until viewMode is loaded (on Capacitor)
@@ -1153,13 +1174,14 @@ function FeedArticleComponent({
                       className='bg-primary text-primary-foreground rounded px-3 py-1'
                       onClick={() => {
                         // Clear error and retry by toggling viewMode to force the effect
+                        const currentMode = viewMode
                         setError(null)
                         setIsLoading(true)
-                        // trigger the effect by toggling viewMode away and back
+                        // trigger the effect by toggling viewMode away and back to the same mode
                         setViewMode((v) =>
                           v === 'readability' ? 'original' : 'readability'
                         )
-                        setTimeout(() => setViewMode('readability'), 50)
+                        setTimeout(() => setViewMode(currentMode), 50)
                       }}
                     >
                       Retry

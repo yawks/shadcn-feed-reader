@@ -1151,6 +1151,8 @@ export async function handleConfiguredView({
     if (config.selectors.length > 0) {
       extractedContent = applySelectorConfig(html, config.selectors)
       if (!extractedContent || extractedContent.trim().length < 50) {
+        // eslint-disable-next-line no-console
+        console.warn('[handleConfiguredView] Selectors returned no content (length=' + (extractedContent?.trim().length ?? 0) + '). Selectors:', config.selectors.map(s => s.operation + s.selector).join(', '))
         setError(i18n.t('errors.selectors_no_content'))
         setIsLoading(false)
         return
