@@ -205,6 +205,7 @@ export default class FeedBackend implements Backend {
           unreadCount: feed.unreadCount,
           faviconUrl: feed.faviconLink,
           folderId: folderId,
+          feedUrl: feed.url,
         };
 
         feedsInFolders[folderId].feeds.push(newFeed);

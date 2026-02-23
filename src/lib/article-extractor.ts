@@ -315,6 +315,10 @@ function extractYouTubeVideoId(url: string): string | null {
   const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
   if (shortMatch) return shortMatch[1];
 
+  // Match YouTube Shorts URLs: youtube.com/shorts/VIDEO_ID
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shortsMatch) return shortsMatch[1];
+
   return null;
 }
 
@@ -327,6 +331,20 @@ function extractYouTubeVideoId(url: string): string | null {
  * don't work properly when nested inside blob: URL iframes (error 153)
  */
 export function convertYouTubePlaceholders(doc: Document): void {
+  // Handle anchor tags linking to YouTube videos with an image inside (WordPress block pattern)
+  // e.g. <figure><a href="https://www.youtube.com/shorts/..."><img ...></a></figure>
+  doc.querySelectorAll('a[href*="youtube.com"], a[href*="youtu.be"]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') || '';
+    const videoId = extractYouTubeVideoId(href);
+    if (!videoId) return;
+
+    // Only convert if the anchor wraps an image (acting as a thumbnail placeholder)
+    if (!anchor.querySelector('img')) return;
+
+    const link = createYouTubeLink(doc, videoId);
+    anchor.parentNode?.replaceChild(link, anchor);
+  });
+
   // First, handle existing YouTube iframes - convert them to links
   doc.querySelectorAll('iframe[src*="youtube"]').forEach((iframe) => {
     const src = iframe.getAttribute('src') || '';

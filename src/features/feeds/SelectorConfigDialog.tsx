@@ -35,6 +35,7 @@ interface SelectorConfigDialogProps {
 	onOpenChange: (open: boolean) => void
 	feedId: string
 	feedTitle?: string
+	feedUrl?: string
 	onConfigSaved?: (hasSelectors: boolean) => void
 	onAuthConfigSaved?: (hasAuth: boolean) => void
 }
@@ -44,6 +45,7 @@ export function SelectorConfigDialog({
 	onOpenChange,
 	feedId,
 	feedTitle,
+	feedUrl,
 	onConfigSaved,
 	onAuthConfigSaved,
 }: SelectorConfigDialogProps) {
@@ -196,6 +198,29 @@ export function SelectorConfigDialog({
 					<DialogDescription>
 						Settings for <span className="font-semibold">{feedTitle || 'this feed'}</span>
 					</DialogDescription>
+					{feedUrl && (
+						<p className="text-xs text-muted-foreground mt-1">
+							<span className="font-medium">URL</span>{' '}
+							<button
+								type="button"
+								className="underline hover:text-foreground transition-colors cursor-pointer break-all text-left"
+								onClick={async () => {
+									try {
+										const mod = await import('@tauri-apps/plugin-shell')
+										if (typeof mod.open === 'function') {
+											await mod.open(feedUrl)
+										} else {
+											window.open(feedUrl, '_blank', 'noopener,noreferrer')
+										}
+									} catch {
+										window.open(feedUrl, '_blank', 'noopener,noreferrer')
+									}
+								}}
+							>
+								{feedUrl}
+							</button>
+						</p>
+					)}
 				</DialogHeader>
 
 				<Tabs

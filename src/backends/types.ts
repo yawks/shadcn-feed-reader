@@ -17,6 +17,7 @@ export type Feed = {
   unreadCount: number
   faviconUrl: string
   folderId: string
+  feedUrl?: string
 }
 
 export type FeedItem = {

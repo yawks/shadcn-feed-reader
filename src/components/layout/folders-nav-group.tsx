@@ -28,6 +28,7 @@ const getFolders = async () => {
                 url: `/feed/${feed.id}`,
                 iconUrl: feed.faviconUrl,
                 badge: feed.unreadCount > 0 ? String(feed.unreadCount) : undefined,
+                feedUrl: feed.feedUrl,
             }))
         };
     })
@@ -49,6 +50,7 @@ const getFolders = async () => {
             url: `/feed/${f.id}`,
             iconUrl: f.faviconUrl,
             badge: f.unreadCount && f.unreadCount > 0 ? String(f.unreadCount) : undefined,
+            feedUrl: feed.feedUrl,
         }})
         navItems.push(...orphanFeedItems)
     }

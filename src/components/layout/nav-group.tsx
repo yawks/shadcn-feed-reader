@@ -122,7 +122,7 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
 
   const [feedToDelete, setFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [feedToRename, setFeedToRename] = useState<{ id: string; title: string } | null>(null)
-  const [feedToConfigure, setFeedToConfigure] = useState<{ id: string; title: string } | null>(null)
+  const [feedToConfigure, setFeedToConfigure] = useState<{ id: string; title: string; feedUrl?: string } | null>(null)
 
   const handleFeedLogin = async (feedId: string) => {
     const authConfig = await getAuthConfig(feedId)
@@ -236,7 +236,7 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => {
                   setMenuOpen(false);
-                  if (feedId) setFeedToConfigure({ id: feedId, title: item.title })
+                  if (feedId) setFeedToConfigure({ id: feedId, title: item.title, feedUrl: (item as { feedUrl?: string }).feedUrl })
                 }}>
                   Configure
                 </DropdownMenuItem>
@@ -306,6 +306,7 @@ function SidebarMenuLink({ item, href }: { item: NavItem; href: string }) {
       onOpenChange={(open) => { if (!open) setFeedToConfigure(null) }}
       feedId={feedToConfigure?.id ?? ''}
       feedTitle={feedToConfigure?.title}
+      feedUrl={feedToConfigure?.feedUrl}
     />
     </>
   )
@@ -650,7 +651,7 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
   }  // rename handled via dialog state (see below)
   const [subFeedToDelete, setSubFeedToDelete] = useState<{ id: string; title: string } | null>(null)
   const [subFeedToRename, setSubFeedToRename] = useState<{ id: string; title: string } | null>(null)
-  const [subFeedToConfigure, setSubFeedToConfigure] = useState<{ id: string; title: string } | null>(null)
+  const [subFeedToConfigure, setSubFeedToConfigure] = useState<{ id: string; title: string; feedUrl?: string } | null>(null)
 
   const handleSubFeedLogin = async (feedId: string) => {
     const authConfig = await getAuthConfig(feedId)
@@ -777,7 +778,7 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
                 <DropdownMenuItem onSelect={() => {
                   setMenuOpen(false);
                   const feedId = extractFeedIdFromUrl(subItem.url);
-                  if (feedId) setSubFeedToConfigure({ id: feedId, title: subItem.title })
+                  if (feedId) setSubFeedToConfigure({ id: feedId, title: subItem.title, feedUrl: (subItem as { feedUrl?: string }).feedUrl })
                 }}>
                   Configure
                 </DropdownMenuItem>
@@ -850,6 +851,7 @@ function SidebarMenuSubRow({ subItem, parentItem, href, onDragStateChange }: { s
       onOpenChange={(open) => { if (!open) setSubFeedToConfigure(null) }}
       feedId={subFeedToConfigure?.id ?? ''}
       feedTitle={subFeedToConfigure?.title}
+      feedUrl={subFeedToConfigure?.feedUrl}
     />
     </>
   )
