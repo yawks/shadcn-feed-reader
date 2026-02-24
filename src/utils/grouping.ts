@@ -116,7 +116,7 @@ function enhancedSimilarity(
   return finalSimilarity;
 }
 
-// 3. Main Grouping Function
+// 3. Main Grouping Function - uses union-find for correct transitive grouping
 export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): ProcessedFeedItem[] {
 
   // Remove duplicate articles by URL (keep the first occurrence)
@@ -128,76 +128,99 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
     return true;
   });
 
-  const articlesByKeyword: { [keyword: string]: FeedItem[] } = {};
+  if (uniqueArticles.length === 0) return [];
 
-  // First pass: group by shared keywords (use uniqueArticles)
+  // Pre-compute keywords for each article to avoid redundant extraction
+  const articleKeywordsMap = new Map<number, Set<string>>();
   uniqueArticles.forEach(article => {
-    const keywords = extractKeywords(article.title);
-    keywords.forEach(keyword => {
-      if (!articlesByKeyword[keyword]) {
-        articlesByKeyword[keyword] = [];
-      }
-      articlesByKeyword[keyword].push(article);
+    articleKeywordsMap.set(article.id, new Set(extractKeywords(article.title)));
+  });
+
+  // Index articles by keyword to generate candidate pairs efficiently
+  const articlesByKeyword = new Map<string, FeedItem[]>();
+  uniqueArticles.forEach(article => {
+    articleKeywordsMap.get(article.id)!.forEach(keyword => {
+      if (!articlesByKeyword.has(keyword)) articlesByKeyword.set(keyword, []);
+      articlesByKeyword.get(keyword)!.push(article);
     });
   });
 
-  // Get potential groups from shared keywords
-  // Articles that share at least one proper noun will be in the same potential group
-  const potentialGroups: FeedItem[][] = Object.values(articlesByKeyword)
-    .filter(group => group.length > 1);
+  // Union-Find: allows correct transitive grouping (A~B and B~C → A,B,C grouped)
+  const parent = new Map<number, number>();
+  function find(id: number): number {
+    if (!parent.has(id)) parent.set(id, id);
+    if (parent.get(id) !== id) parent.set(id, find(parent.get(id)!));
+    return parent.get(id)!;
+  }
+  function union(id1: number, id2: number) {
+    parent.set(find(id1), find(id2));
+  }
+
+  // Compare all pairs within each keyword bucket and union similar ones
+  const comparedPairs = new Set<string>();
+  articlesByKeyword.forEach(group => {
+    if (group.length <= 1) return;
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const artA = group[i];
+        const artB = group[j];
+        if (!artA.title || !artB.title) continue;
+
+        const pairKey = artA.id < artB.id ? `${artA.id}-${artB.id}` : `${artB.id}-${artA.id}`;
+        if (comparedPairs.has(pairKey)) continue;
+        comparedPairs.add(pairKey);
+
+        if (find(artA.id) === find(artB.id)) continue; // already in the same group
+
+        const similarity = enhancedSimilarity(
+          artA.title,
+          artB.title,
+          articleKeywordsMap.get(artA.id)!,
+          articleKeywordsMap.get(artB.id)!
+        );
+        if (similarity >= similarityThreshold) {
+          union(artA.id, artB.id);
+        }
+      }
+    }
+  });
+
+  // Build final groups from union-find connected components
+  const componentMap = new Map<number, FeedItem[]>();
+  uniqueArticles.forEach(article => {
+    const root = find(article.id);
+    if (!componentMap.has(root)) componentMap.set(root, []);
+    componentMap.get(root)!.push(article);
+  });
 
   const finalGroups: GroupedFeedItem[] = [];
-  const processedArticleIds = new Set<number>();
+  const groupedArticleIds = new Set<number>();
 
-  // Second pass: refine groups with enhanced similarity and create final groups
-  potentialGroups.forEach(group => {
-    if (group.some(article => processedArticleIds.has(article.id))) {
-      return; // Skip if any article in the group has already been processed
-    }
+  componentMap.forEach(group => {
+    if (group.length <= 1) return;
 
     // Choisir comme mainArticle celui qui a une miniature si possible
     const mainArticle = group.find(a => a.thumbnailUrl && a.thumbnailUrl.trim() !== '') || group[0];
     if (!mainArticle?.title) return;
-    
-    const mainArticleProperNouns = new Set(extractKeywords(mainArticle.title));
 
-    const similarArticles = group.filter(article => {
-      if (article.id === mainArticle.id) return true;
-      if (!article?.title) return false;
-      
-      const articleProperNouns = new Set(extractKeywords(article.title));
-      const similarity = enhancedSimilarity(
-        mainArticle.title,
-        article.title,
-        mainArticleProperNouns,
-        articleProperNouns
-      );
-      return similarity >= similarityThreshold;
+    group.forEach(a => groupedArticleIds.add(a.id));
+
+    const sources = group.map(a => ({
+      faviconUrl: a.feed?.faviconUrl,
+      title: a.feed?.title,
+    }));
+
+    finalGroups.push({
+      isGroup: true,
+      id: `group-${mainArticle.id}`,
+      title: `Actualité : ${mainArticle.title}`,
+      mainArticle,
+      articles: group.filter(a => a.id !== mainArticle.id),
+      sources,
     });
-
-    if (similarArticles.length > 1) {
-      similarArticles.forEach(article => processedArticleIds.add(article.id));
-
-      const groupTitle = `Actualité : ${mainArticle.title}`;
-      const sources = similarArticles.map(a => ({
-        faviconUrl: a.feed?.faviconUrl,
-        title: a.feed?.title
-      }));
-
-      finalGroups.push({
-        isGroup: true,
-        id: `group-${mainArticle.id}`,
-        title: groupTitle,
-        mainArticle: mainArticle,
-        articles: similarArticles.slice(1),
-        sources: sources,
-      });
-    }
   });
 
-  // Filter out processed articles and combine with groups (use uniqueArticles)
-  const ungroupedArticles = uniqueArticles.filter(article => !processedArticleIds.has(article.id));
-
+  const ungroupedArticles = uniqueArticles.filter(article => !groupedArticleIds.has(article.id));
   return [...finalGroups, ...ungroupedArticles];
 }
 
