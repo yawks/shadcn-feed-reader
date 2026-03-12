@@ -39,7 +39,7 @@ function FeedArticleComponent({
   isMobile = false,
   onBack,
 }: FeedArticleProps) {
-  const { theme } = useTheme()
+  const { theme, effectiveTheme } = useTheme()
   const { fontSize } = useFontSize()
   const isLandscape = useOrientation()
 
@@ -243,7 +243,7 @@ function FeedArticleComponent({
     // Only reload if URL or viewMode changes (not theme/fontSize for readability mode)
     const urlChanged = lastLoadedUrlRef.current !== effectiveUrl
     const viewModeChanged = lastViewModeRef.current !== viewMode
-    const themeChanged = lastThemeRef.current !== theme
+    const themeChanged = lastThemeRef.current !== effectiveTheme
     const fontSizeChanged = lastFontSizeRef.current !== fontSize
     // Reload if proxy just became available (was null, now has a port) - fixes race condition
     // where article was loaded before proxy was ready, causing fetchRawHtml to fail
@@ -284,7 +284,7 @@ function FeedArticleComponent({
       // If only theme/fontSize changed and we're in readability mode, update the iframe content
       if (viewMode === 'readability' && (themeChanged || fontSizeChanged)) {
         // Update refs
-        lastThemeRef.current = theme
+        lastThemeRef.current = effectiveTheme
         lastFontSizeRef.current = fontSize
         // eslint-disable-next-line no-console
         console.log(
@@ -303,7 +303,7 @@ function FeedArticleComponent({
     // Update refs
     lastLoadedUrlRef.current = effectiveUrl || null
     lastViewModeRef.current = viewMode
-    lastThemeRef.current = theme
+    lastThemeRef.current = effectiveTheme
     lastFontSizeRef.current = fontSize
     lastProxyPortRef.current = proxyPort
 
@@ -338,7 +338,7 @@ function FeedArticleComponent({
       handleReadabilityView({
         url: effectiveUrl,
         proxyPort,
-        theme,
+        theme: effectiveTheme,
         fontSize,
         setArticleContent,
         setError,
@@ -377,7 +377,7 @@ function FeedArticleComponent({
         url: effectiveUrl,
         proxyPort,
         feedId,
-        theme,
+        theme: effectiveTheme,
         fontSize,
         setArticleContent,
         setError,
@@ -392,7 +392,7 @@ function FeedArticleComponent({
     effectiveUrl,
     viewMode,
     proxyPort,
-    theme,
+    effectiveTheme,
     fontSize,
     viewModeLoaded,
     viewModeFeedId,
