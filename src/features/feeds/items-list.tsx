@@ -42,31 +42,31 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
       >
         <div className="space-y-2">
           <div className="flex gap-3">
-              <div className="flex-shrink-0">
-                <div 
-                  className={`
+            <div className="flex-shrink-0">
+              <div
+                className={`
                     w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200
                     ${isUnread ? 'ring-primary ring-2' : 'ring-border/10'}
                   `}
-                  style={{
-                    width: '3rem',
-                    height: '3rem',
-                    minWidth: '3rem',
-                    minHeight: '3rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ThumbnailImage
-                    src={thumbnailUrl}
-                    alt={title}
-                    className="transition-transform duration-200 group-hover:scale-105"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
+                style={{
+                  width: '3rem',
+                  height: '3rem',
+                  minWidth: '3rem',
+                  minHeight: '3rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ThumbnailImage
+                  src={thumbnailUrl}
+                  alt={title}
+                  className="transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
+            </div>
             <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
               <h3 className={`
                 feed-item-title font-medium leading-tight line-clamp-4

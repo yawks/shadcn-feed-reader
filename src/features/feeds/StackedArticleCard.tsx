@@ -16,6 +16,8 @@ interface StackedArticleCardProps {
 
 export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, onToggleExpand, onExpand }: StackedArticleCardProps) {
   const { mainArticle, articles, sources } = group;
+  const nbDifferentSources = [...new Set(sources.map(articles => articles.url))].length;
+
   const isMobile = useIsMobile();
 
   const handleCardClick = () => {
@@ -50,27 +52,27 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
         <div className="space-y-2 pb-4">
           <div className="flex gap-3">
             <div className="flex-shrink-0">
-                <div 
-                  className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
-                  style={{
-                    width: '3rem',
-                    height: '3rem',
-                    minWidth: '3rem',
-                    minHeight: '3rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ThumbnailImage
-                    src={mainArticle.thumbnailUrl}
-                    alt={mainArticle.title}
-                    className="transition-transform duration-200 group-hover:scale-105"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
+              <div
+                className={`w-12 h-12 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
+                style={{
+                  width: '3rem',
+                  height: '3rem',
+                  minWidth: '3rem',
+                  minHeight: '3rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ThumbnailImage
+                  src={mainArticle.thumbnailUrl}
+                  alt={mainArticle.title}
+                  className="transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
+            </div>
 
             <div className="flex-1 min-w-0 space-y-1 overflow-x-hidden">
               <h3 className={`feed-item-title font-medium leading-tight line-clamp-4 ${!mainArticle.read ? 'font-medium' : 'text-muted-foreground'} group-hover:text-foreground transition-colors duration-200`}>
@@ -83,7 +85,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
             <div className="flex items-center gap-1 min-w-0">
               {mainArticle.feed?.faviconUrl && <FeedFavicon src={mainArticle.feed.faviconUrl} alt={mainArticle.feed.title} className="w-3 h-3 rounded-sm flex-shrink-0" />}
               <span className="text-xs font-medium truncate">{mainArticle.feed?.title}</span>
-              {sources.length > 1 && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-md font-medium">+{sources.length - 1}</span>}
+              {nbDifferentSources > 1 && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-md font-medium">+{nbDifferentSources - 1}</span>}
             </div>
             <time className="text-xs whitespace-nowrap flex-shrink-0">{timeSinceShort(mainArticle.pubDate?.getTime() ?? 0)}</time>
           </div>
@@ -94,7 +96,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
 
       {/* Expanded list */}
       {isExpanded && (
-        <div className="transition-all ease-in-out duration-500 overflow-hidden max-h-96 border-t border-border/40 pt-3">
+        <div className="transition-all ease-in-out duration-500 overflow-hidden border-t border-border/40 pt-3">
           <div className="pl-4 pr-1 relative">
             <div className="absolute left-2 top-0 bottom-0 w-[2px] bg-border dark:bg-white/30" aria-hidden />
 
@@ -111,7 +113,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                   >
                     <div className="flex flex-row items-center gap-2">
                       <div className="flex-shrink-0">
-                        <div 
+                        <div
                           className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!mainArticle.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
                           style={{
                             width: '2rem',
@@ -157,7 +159,7 @@ export function StackedArticleCard({ group, isSelected, onSelect, isExpanded, on
                   >
                     <div className="flex flex-row items-center gap-2">
                       <div className="flex-shrink-0">
-                        <div 
+                        <div
                           className={`w-8 h-8 rounded-md overflow-hidden bg-muted/50 ring-1 transition-all duration-200 ${!article.read ? 'ring-primary ring-2' : 'ring-border/10'}`}
                           style={{
                             width: '2rem',

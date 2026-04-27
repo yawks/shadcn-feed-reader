@@ -6,7 +6,7 @@ export type GroupedFeedItem = {
   title: string;
   mainArticle: FeedItem;
   articles: FeedItem[];
-  sources: { faviconUrl: string | undefined; title: string | undefined }[];
+  sources: { faviconUrl: string | undefined; title: string | undefined; url: string }[];
 };
 
 export type ProcessedFeedItem = FeedItem | GroupedFeedItem;
@@ -208,6 +208,7 @@ export function groupArticles(articles: FeedItem[], similarityThreshold = 0.4): 
     const sources = group.map(a => ({
       faviconUrl: a.feed?.faviconUrl,
       title: a.feed?.title,
+      url: a.url,
     }));
 
     finalGroups.push({
