@@ -26,7 +26,7 @@ function SingleArticleCard({ item, isSelected, onSelect }: { item: FeedItem, isS
   const isUnread = !item.read;
 
   return (
-    <div key={id} className="relative">
+    <div key={id} className="relative ml-2 mr-1">
       <button
         className={`
           group relative w-full text-left rounded-lg p-3 transition-all duration-200 ease-in-out
@@ -130,7 +130,7 @@ export function ItemsList({ items, selectedFeedArticle, setSelectedFeedArticle, 
   };
 
   return (
-    <div className="flex w-full flex-col border-r border-border/40">
+    <div className="flex w-full flex-col">
       <div className="h-full overflow-y-auto">
         <div className="space-y-1 py-1 mr-0.5">
           {items.map((item: ProcessedFeedItem) => {
