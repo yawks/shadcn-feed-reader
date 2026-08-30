@@ -20,7 +20,6 @@ import { AuthDialog } from '@/components/auth-dialog'
 import { ImageContextMenu } from '@/components/image-context-menu'
 import { ArticleToolbar, ArticleViewMode } from './ArticleToolbar'
 import { FloatingActionButton } from './FloatingActionButton'
-import { prepareHtmlForShadowDom } from './article-html-preparation'
 import {
   handleOriginalView,
   handleReadabilityView,
@@ -46,13 +45,10 @@ function FeedArticleComponent({
   const [isLoading, setIsLoading] = useState(true)
   const [, setArticleContent] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [injectedHtml, setInjectedHtml] = useState<string | null>(null) // For direct HTML injection (original mode)
-  const [injectedScripts, setInjectedScripts] = useState<string[]>([]) // Inline scripts to execute separately
-  const [injectedExternalScripts, setInjectedExternalScripts] = useState<
-    string[]
-  >([]) // External scripts (with src) to load
-  const [injectedExternalStylesheets, setInjectedExternalStylesheets] =
-    useState<string[]>([]) // External stylesheets to load
+  const [injectedHtml] = useState<string | null>(null)
+  const [injectedScripts] = useState<string[]>([])
+  const [injectedExternalScripts] = useState<string[]>([])
+  const [injectedExternalStylesheets] = useState<string[]>([])
 
   // Initialize viewMode from storage (per feed), default to "readability"
   // Use a state to track if viewMode is loaded (to avoid loading article before mode is known)
@@ -356,13 +352,10 @@ function FeedArticleComponent({
       handleOriginalView({
         url: effectiveUrl,
         proxyPort,
-        setInjectedHtml,
-        setInjectedScripts,
-        setInjectedExternalScripts,
-        setInjectedExternalStylesheets,
         setError,
         setIsLoading,
-        prepareHtmlForShadowDom,
+        setIframeUrl,
+        isStale,
       })
     } else if (viewMode === 'configured') {
       const feedId = item.feed?.id || 'default'
@@ -1197,7 +1190,7 @@ function FeedArticleComponent({
               </div>
             )}
             {!error &&
-              (viewMode === 'readability' || viewMode === 'configured' ? (
+              (isIframeView ? (
                 <iframe
                   key={`${item.id}-${item.url}-${viewMode}`}
                   ref={iframeRef}

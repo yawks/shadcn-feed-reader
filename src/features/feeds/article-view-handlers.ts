@@ -635,34 +635,20 @@ export async function handleReadabilityView({
 interface OriginalViewParams {
   url: string
   proxyPort: number | null
-  setInjectedHtml: (html: string) => void
-  setInjectedScripts: (scripts: string[]) => void
-  setInjectedExternalScripts: (scripts: string[]) => void
-  setInjectedExternalStylesheets: (stylesheets: string[]) => void
   setError: (error: string | null) => void
   setIsLoading: (loading: boolean) => void
-  prepareHtmlForShadowDom: (html: string) => {
-    html: string
-    scripts: string[]
-    externalScripts: string[]
-    externalStylesheets: string[]
-  }
+  setIframeUrl: (url: string) => void
+  isStale?: () => boolean
 }
 
 export async function handleOriginalView({
   url,
   proxyPort,
-  setInjectedHtml,
-  setInjectedScripts,
-  setInjectedExternalScripts,
-  setInjectedExternalStylesheets,
   setError,
   setIsLoading,
-  prepareHtmlForShadowDom,
+  setIframeUrl,
+  isStale,
 }: OriginalViewParams): Promise<void> {
-  // When HTML is injected into the Shadow DOM, the injection useEffect calls setIsLoading(false).
-  // Track this so the finally block doesn't release loading prematurely.
-  let shadowDomHandlesLoading = false
   try {
     // eslint-disable-next-line no-console
     console.log(
@@ -718,43 +704,26 @@ export async function handleOriginalView({
       } catch (_tauriErr) {
         // Not Tauri or failed, continue anyway
       }
-      proxyUrl = `http://localhost:${effectiveProxyPort}/proxy?url=${encodeURIComponent(url)}`
+      const parsedUrl = new URL(url)
+      proxyUrl = `http://localhost:${effectiveProxyPort}/__proxy/${parsedUrl.protocol.slice(0, -1)}/${parsedUrl.host}${parsedUrl.pathname}${parsedUrl.search}`
     } else if (isWeb) {
       // Web mode fallback - use relative path
       // eslint-disable-next-line no-console
       console.log(
         '[handleOriginalView] Web mode detected, using relative proxy path'
       )
-      proxyUrl = `/proxy?url=${encodeURIComponent(url)}`
+      const parsedUrl = new URL(url)
+      proxyUrl = `/__proxy/${parsedUrl.protocol.slice(0, -1)}/${parsedUrl.host}${parsedUrl.pathname}${parsedUrl.search}`
     } else {
       // This should not happen, but handle it gracefully
       throw new Error('Proxy server not available')
     }
 
-    // Fetch HTML directly from proxy instead of using iframe
-    const response = await fetch(proxyUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.statusText}`)
-    }
-
-    const html = await response.text()
-
-    // Prepare HTML for Shadow DOM (keep styles and scripts, remove dangerous ones)
-    const prepared = prepareHtmlForShadowDom(html)
-
-    setInjectedHtml(prepared.html)
-    setInjectedScripts(prepared.scripts)
-    setInjectedExternalScripts(prepared.externalScripts)
-    setInjectedExternalStylesheets(prepared.externalStylesheets)
-    // The Shadow DOM injection useEffect will call setIsLoading(false) once HTML is in the DOM
-    shadowDomHandlesLoading = true
+    if (isStale?.()) return
+    setIframeUrl(proxyUrl)
   } catch (_err) {
     setError(_err instanceof Error ? _err.message : String(_err))
-  } finally {
-    // Only release loading here for error paths. On success, the Shadow DOM injection does it.
-    if (!shadowDomHandlesLoading) {
-      setIsLoading(false)
-    }
+    setIsLoading(false)
   }
 }
 
