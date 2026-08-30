@@ -183,7 +183,7 @@ function FeedArticleComponent({
   }, [item.feed?.id])
 
   useEffect(() => {
-    // Start the proxy (Tauri or Capacitor) if available; ignore errors in browser dev
+    // Start the shared Rust proxy in Tauri; ignore errors in browser dev.
     const startProxy = async () => {
       // eslint-disable-next-line no-console
       console.log('[FeedArticle] Starting proxy initialization...')

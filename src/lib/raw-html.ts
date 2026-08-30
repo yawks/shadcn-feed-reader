@@ -1,6 +1,6 @@
 /*
  * Wrapper to obtain raw HTML for a URL from the best available source:
- * 1) Tauri invoke (if running under Tauri)
+ * 1) Tauri invoke (desktop and mobile)
  * 2) HTTP API (Docker/Web mode)
  * 3) Fallback to window.fetch (will fail with CORS for most sites)
  */
@@ -19,7 +19,7 @@ export class AuthRequiredError extends Error {
 export async function fetchRawHtml(url: string): Promise<string> {
     console.log('[fetchRawHtml] ===== START ===== url:', url)
 
-    // 1) Try Tauri invoke (if running under Tauri desktop) via safeInvoke
+    // 1) Try the shared Tauri command (desktop and mobile) via safeInvoke
     try {
         console.log('[fetchRawHtml] Step 1: Trying Tauri/HTTP invoke (safeInvoke) for:', url)
         const html = await safeInvoke('fetch_raw_html', { url })

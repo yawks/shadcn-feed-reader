@@ -1,6 +1,6 @@
 // A tiny compatibility wrapper around Tauri's `invoke` that falls back to
-// fetching the URL directly when running in non-Tauri environments (browser,
-// capacitor, etc.). This prevents `invoke` being undefined at runtime.
+// using the HTTP API when running outside Tauri. Tauri desktop and mobile use
+// the same commands and shared Rust proxy implementation.
 
 // Helper to check if running in Web/Docker mode (no Tauri)
 export function isWebMode(): boolean {
@@ -25,7 +25,7 @@ function transformArgsForHttp(cmd: string, args?: Record<string, unknown>): Reco
 }
 
 export async function safeInvoke(cmd: string, args?: Record<string, unknown>) {
-  // Check if we are in a Tauri environment
+  // Check if we are in a Tauri desktop or mobile environment.
   // @ts-ignore
   const isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 

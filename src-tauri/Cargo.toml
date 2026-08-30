@@ -15,19 +15,17 @@ default-run = "shadcn-feed-reader"
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
 
-[features]
-default = ["desktop"]
-desktop = ["dep:tauri", "dep:tauri-plugin-shell", "dep:tauri-plugin-dialog", "dep:tauri-plugin-fs"]
-
 [dependencies]
-tauri = { version = "2.9.2", features = ["macos-private-api"], optional = true }
-tauri-plugin-shell = { version = "2.3.3", optional = true }
-tauri-plugin-dialog = { version = "2.6.0", optional = true }
-tauri-plugin-fs = { version = "2.4.5", optional = true }
+tauri = { version = "2.9.2", features = ["macos-private-api"] }
+tauri-plugin-shell = { version = "2.3.3" }
+tauri-plugin-dialog = { version = "2.6.0" }
+tauri-plugin-fs = { version = "2.4.5" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12.5", features = ["gzip", "brotli", "deflate", "stream", "cookies"] }
-readability = "0.3.0"
+reqwest = { version = "0.12.5", default-features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "stream", "cookies"] }
+# Only the parser is used; disabling the crate's optional HTTP client avoids a
+# second reqwest/native-tls stack and keeps the shared proxy cross-compilable.
+readability = { version = "0.3.0", default-features = false }
 url = "2.5.0"
 regex = "1.10"
 axum = "0.7.5"
@@ -46,11 +44,11 @@ urlencoding = "2.1.3"
 [lib]
 name = "shadcn_feed_reader"
 path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
 name = "shadcn-feed-reader"
 path = "src/main.rs"
-required-features = ["desktop"]
 
 [[bin]]
 name = "shadcn-feed-server"

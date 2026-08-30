@@ -1,6 +1,6 @@
 # Shadcn Feed Reader
 
-A complete, modern Nextcloud News client built for Desktop (using Tauri) and Android. This application provides a seamless reading experience with advanced features for article consumption and feed management.
+A complete, modern Nextcloud News client built with Tauri v2 for desktop and Android. Both native targets run the same React frontend, Tauri commands and local Rust article proxy. The optional web/server build remains available without being required by the native applications.
 
 ## Features
 
@@ -67,13 +67,29 @@ Output location: `src-tauri/target/release/bundle/macos/`
 
 ### Android
 
-1.  **Initialize Android Project** (First time only):
+The generated Android Studio project is versioned under `src-tauri/gen/android`, so initialization is only needed again when intentionally regenerating it.
+
+1.  **Run on a connected device or emulator**:
     ```bash
-    pnpm tauri android init
+    pnpm tauri:android:dev
     ```
 
-2.  **Build APK/AAB**:
+2.  **Build a debug APK for ARM64 devices**:
     ```bash
-    pnpm tauri android build
+    pnpm tauri:android:build:debug
     ```
-    Output location: `src-tauri/gen/android/app/build/outputs/apk/release/`
+    Output: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
+
+3.  **Build a release AAB for Google Play**:
+    ```bash
+    pnpm tauri:android:build
+    ```
+    Configure the release keystore before distribution.
+
+### Shared native architecture
+
+The frontend always calls the native backend through `safeInvoke`. On desktop and Android, these calls reach the commands registered in `src-tauri/src/lib.rs`. The commands use the single proxy implementation in `src-tauri/src/proxy.rs`; there is no Android-specific HTTP proxy or Java/Kotlin article extraction plugin.
+
+The proxy binds only to the device loopback on a random port. Android's network security configuration permits clear-text HTTP only for `localhost` and `127.0.0.1`; remote traffic remains HTTPS-first and is performed by Rust using Rustls.
+
+The PWA/Docker path continues to use the HTTP API exposed by `shadcn-feed-server` as a compatibility target.

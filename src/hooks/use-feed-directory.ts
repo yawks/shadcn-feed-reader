@@ -100,7 +100,7 @@ export function useFeedDirectory(): UseFeedDirectoryResult {
       setIsLoading(true)
       setError(null)
       
-      // Use fetchRawHtml which prioritizes Capacitor plugin (Android/iOS),
+      // Use fetchRawHtml which invokes the shared Rust backend in Tauri,
       // then Tauri, then falls back to regular fetch.
       console.log('[useFeedDirectory] Calling fetchRawHtml...')
       const response = await fetchRawHtml(FEED_DIRECTORY_URL)

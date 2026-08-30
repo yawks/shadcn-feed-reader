@@ -5,7 +5,6 @@ use axum::{
     response::IntoResponse,
     http::StatusCode,
 };
-use std::sync::{Arc, Mutex};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::CorsLayer;
 use serde::Deserialize;
