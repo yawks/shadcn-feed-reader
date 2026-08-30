@@ -33,6 +33,37 @@ const LISTENER_SCRIPT: &str = r#"
         // future logic needs to avoid parent access.
         let canAccessParent = !!(window.parent && window.parent !== window);
 
+        // Apply an app-controlled dark appearance without changing the page's
+        // own scripts or markup. Media is counter-filtered to keep its colors.
+        function applyProxyTheme(theme) {
+            const styleId = '__proxy_app_theme__';
+            const existingStyle = document.getElementById(styleId);
+            if (existingStyle) existingStyle.remove();
+            document.documentElement.removeAttribute('data-proxy-theme');
+            document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+
+            if (theme !== 'dark') return;
+
+            document.documentElement.setAttribute('data-proxy-theme', 'dark');
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                html[data-proxy-theme="dark"] {
+                    background: #111827 !important;
+                    filter: invert(0.9) hue-rotate(180deg) !important;
+                }
+                html[data-proxy-theme="dark"] img,
+                html[data-proxy-theme="dark"] picture,
+                html[data-proxy-theme="dark"] video,
+                html[data-proxy-theme="dark"] canvas,
+                html[data-proxy-theme="dark"] iframe,
+                html[data-proxy-theme="dark"] svg image {
+                    filter: invert(1) hue-rotate(180deg) !important;
+                }
+            `;
+            (document.head || document.documentElement).appendChild(style);
+        }
+
         // Intercept fullscreen errors and relay to parent for nested iframes (e.g., Twitter)
         // Since we can't intercept errors from cross-origin iframes directly,
         // we use multiple strategies: fullscreenerror events, unhandledrejection, and console.error proxy
@@ -178,6 +209,8 @@ const LISTENER_SCRIPT: &str = r#"
                     }).catch(() => {
                         sendRenderedHTML();
                     });
+                } else if (action === 'APPLY_THEME') {
+                    applyProxyTheme(event.data.theme);
                 }
             } catch (e) {}
         });

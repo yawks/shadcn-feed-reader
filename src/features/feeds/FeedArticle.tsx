@@ -404,6 +404,13 @@ function FeedArticleComponent({
 
       setIsLoading(false)
 
+      if (viewMode === 'original') {
+        iframe.contentWindow?.postMessage(
+          { action: 'APPLY_THEME', theme: effectiveTheme },
+          '*'
+        )
+      }
+
       if (iframe.contentWindow) {
         // Check iframe document for diagnostics (same-origin only, for blob URLs in readability mode)
         try {
@@ -465,7 +472,16 @@ function FeedArticleComponent({
     return () => {
       iframe.removeEventListener('load', handleLoad)
     }
-  }, [isIframeView, viewMode, theme, proxyPort, item.url])
+  }, [isIframeView, viewMode, effectiveTheme, proxyPort, item.url])
+
+  // Keep an already loaded original page synchronized with app theme changes.
+  useEffect(() => {
+    if (viewMode !== 'original') return
+    iframeRef.current?.contentWindow?.postMessage(
+      { action: 'APPLY_THEME', theme: effectiveTheme },
+      '*'
+    )
+  }, [effectiveTheme, viewMode])
 
   // Listen for auth requests from proxy via postMessage
   // Also listen for image long press events from iframe
