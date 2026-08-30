@@ -80,7 +80,13 @@ The generated Android Studio project is versioned under `src-tauri/gen/android`,
     ```
     Output: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
 
-3.  **Build a release AAB for Google Play**:
+3.  **Install the debug APK on the connected phone and launch it**:
+    ```bash
+    pnpm tauri:android:install
+    ```
+    If several devices are connected, use `pnpm tauri:android:install -- --device SERIAL`. A specific signed APK can be installed with `--apk PATH`.
+
+4.  **Build a release AAB for Google Play**:
     ```bash
     pnpm tauri:android:build
     ```

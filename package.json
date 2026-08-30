@@ -10,6 +10,7 @@
     "tauri:android:dev": "tauri android dev",
     "tauri:android:build:debug": "tauri android build --debug --target aarch64",
     "tauri:android:build": "tauri android build --aab true --apk false --target aarch64",
+    "tauri:android:install": "./scripts/install-android-apk.sh",
     "lint": "eslint .",
     "preview": "vite preview",
     "format:check": "prettier --check .",
